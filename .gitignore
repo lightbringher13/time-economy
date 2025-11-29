@@ -1,0 +1,98 @@
+# ==========================================
+# OS / SYSTEM
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# ==========================================
+# IDE / EDITOR
+# ==========================================
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+out/
+
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# ==========================================
+# JAVA / SPRING BOOT / GRADLE
+# ==========================================
+
+# Build / Output
+backend/**/build/
+backend/**/out/
+backend/**/target/
+backend/**/.gradle/
+
+# Logs
+*.log
+backend/**/logs/
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+# Spring Boot dev temp
+backend/**/tmp/
+backend/**/bin/
+
+# ==========================================
+# NODE / REACT / VITE
+# ==========================================
+
+# Node modules
+frontend/node_modules/
+frontend/**/node_modules/
+
+# Build output
+frontend/dist/
+frontend/.vite/
+
+# Env files (never commit secrets)
+frontend/.env
+frontend/.env.*
+*.env
+.env.*
+!frontend/.env.example
+
+# Cache
+frontend/.eslintcache
+frontend/.stylelintcache
+
+# ==========================================
+# DOCKER
+# ==========================================
+
+# Docker local volumes (Postgres / Redis / etc)
+infra/docker/**/data/
+infra/docker/**/volumes/
+
+# Docker build cache
+**/.docker-cache/
+**/.container-build/
+
+# ==========================================
+# MISC
+# ==========================================
+
+# macOS metadata
+._*
+.Spotlight-V100
+.Trashes
+
+# Archives
+*.zip
+*.tar
+*.gz
+
+# JetBrains Fleet
+.fleet/
+
+# Local dev files
+*.local
+*.tmp
