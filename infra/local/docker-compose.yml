@@ -1,0 +1,16 @@
+services:
+  auth-postgres:
+    image: postgres:16
+    container_name: auth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD: authpass
+    ports:
+      - "5433:5432"     # host:container
+    volumes:
+      - auth-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  auth-postgres-data:
