@@ -6,8 +6,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.timeeconomy.auth_service.adapter.in.web.dto.ApiErrorResponse;
+import com.timeeconomy.auth_service.domain.exception.AuthSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
+import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
+import com.timeeconomy.auth_service.domain.exception.SessionAlreadyRevokedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -30,6 +33,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
-    // You already have this one for reuse:
-    // @ExceptionHandler(RefreshTokenReuseException.class) { ... }
+    @ExceptionHandler(MissingRefreshTokenException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingToken(MissingRefreshTokenException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ApiErrorResponse("MISSING_REFRESH_TOKEN", ex.getMessage()));
+    }
+
+    @ExceptionHandler(AuthSessionNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotFound(AuthSessionNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(new ApiErrorResponse("AUTH_SESSION_NOT_FOUND", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SessionAlreadyRevokedException.class)
+    public ResponseEntity<ApiErrorResponse> handleRevoked(SessionAlreadyRevokedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(new ApiErrorResponse("SESSION_ALREADY_REVOKED", ex.getMessage()));
+    }
 }

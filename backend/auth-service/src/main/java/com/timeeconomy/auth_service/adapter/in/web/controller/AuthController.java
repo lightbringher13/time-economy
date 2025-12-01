@@ -6,7 +6,9 @@ import com.timeeconomy.auth_service.adapter.in.web.dto.LoginResponse;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginCommand;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginResult;
+import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase.LogoutCommand;
 import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
+import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -15,7 +17,6 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.Optional;
 
 @RestController
@@ -27,10 +28,12 @@ public class AuthController {
 
     private final LoginUseCase loginUseCase;
     private final RefreshUseCase refreshUseCase;
+    private final LogoutUseCase logoutUseCase;
 
-    public AuthController(LoginUseCase loginUseCase, RefreshUseCase refreshUseCase) {
+    public AuthController(LoginUseCase loginUseCase, RefreshUseCase refreshUseCase, LogoutUseCase logoutUseCase) {
         this.loginUseCase = loginUseCase;
         this.refreshUseCase = refreshUseCase;
+        this.logoutUseCase = logoutUseCase;
     }
 
     @PostMapping("/login")
@@ -69,7 +72,7 @@ public class AuthController {
                 .httpOnly(true)
                 .secure(true)  // 🔹 set true in HTTPS/prod
                 .path("/")
-                .maxAge(Duration.ofDays(30))
+                .maxAge(REFRESH_TTL_SECONDS)
                 .sameSite("Strict")
                 .build();
 
@@ -114,4 +117,25 @@ public class AuthController {
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(body);
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+                @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false)
+                String refreshToken
+        ) {
+        logoutUseCase.logout(new LogoutCommand(refreshToken));
+
+        // delete refresh token cookie
+        ResponseCookie deleteCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)        // keep same as your login cookie
+                .path("/")
+                .sameSite("Strict")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+                .build();
+        }     
 }
