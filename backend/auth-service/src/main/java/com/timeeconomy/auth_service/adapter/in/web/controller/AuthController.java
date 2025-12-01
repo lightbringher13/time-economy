@@ -11,6 +11,7 @@ import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase.LogoutCommand;
 import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutAllUseCase;
+import com.timeeconomy.auth_service.domain.port.in.LogoutSessionUseCase;
 import com.timeeconomy.auth_service.domain.port.in.ListSessionsUseCase;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,18 +37,21 @@ public class AuthController {
     private final LogoutUseCase logoutUseCase;
     private final LogoutAllUseCase logoutAllUseCase;
     private final ListSessionsUseCase listSessionsUseCase;
+    private final LogoutSessionUseCase logoutSessionUseCase;
 
     public AuthController(LoginUseCase loginUseCase, 
         RefreshUseCase refreshUseCase, 
         LogoutUseCase logoutUseCase,
         LogoutAllUseCase logoutAllUseCase,
-        ListSessionsUseCase listSessionsUseCase
+        ListSessionsUseCase listSessionsUseCase,
+        LogoutSessionUseCase logoutSessionUseCase
     ) {
         this.loginUseCase = loginUseCase;
         this.refreshUseCase = refreshUseCase;
         this.logoutUseCase = logoutUseCase;
         this.logoutAllUseCase = logoutAllUseCase;
         this.listSessionsUseCase = listSessionsUseCase;
+        this.logoutSessionUseCase = logoutSessionUseCase;
     }
 
     @PostMapping("/login")
@@ -190,6 +194,19 @@ public class AuthController {
                 .toList();
 
         return ResponseEntity.ok(body);
+        }
+
+        @DeleteMapping("/sessions/{sessionId}")
+        public ResponseEntity<Void> logoutSession(
+                @PathVariable Long sessionId,
+                @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false)
+                String refreshToken
+        ) {
+        logoutSessionUseCase.logoutSession(
+                new LogoutSessionUseCase.Command(sessionId, refreshToken)
+        );
+
+        return ResponseEntity.noContent().build();
         }
 
 
