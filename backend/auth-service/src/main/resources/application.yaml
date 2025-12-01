@@ -10,8 +10,8 @@ spring:
       ddl-auto: validate       # ✅ schema from Flyway, not JPA
     properties:
       hibernate:
-        format_sql: true
-        show_sql: true
+        format_sql: false
+        show_sql: false
 
   flyway:
     enabled: true

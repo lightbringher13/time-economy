@@ -19,10 +19,18 @@ public interface AuthSessionRepositoryPort {
      */
     List<AuthSession> findActiveByUserId(Long userId);
 
+    Optional<AuthSession> findByTokenHashForUpdate(String tokenHash);
+
     /**
      * Mark a single session revoked.
      */
     void revokeById(Long id, LocalDateTime now);
+
+    /**
+     * Revoke all active sessions in the same device family.
+     * Used when a refresh token reuse attack is detected.
+     */
+    void revokeFamily(String familyId, LocalDateTime now);
 
     /**
      * Revoke all sessions of a user (logout-all).
