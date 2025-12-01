@@ -11,13 +11,6 @@ Thumbs.db
 # IDE / EDITOR
 # ==========================================
 
-# IntelliJ IDEA / JetBrains
-.idea/
-*.iml
-*.iws
-*.ipr
-out/
-
 # VSCode
 .vscode/
 !.vscode/settings.json
@@ -49,7 +42,6 @@ nbdist/
 
 # Build / Output
 backend/**/build/
-backend/**/out/
 backend/**/target/
 backend/**/.gradle/
 
