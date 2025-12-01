@@ -9,8 +9,10 @@ import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginResult;
 import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase.LogoutCommand;
 import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase;
+import com.timeeconomy.auth_service.domain.port.in.LogoutAllUseCase;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -29,11 +31,17 @@ public class AuthController {
     private final LoginUseCase loginUseCase;
     private final RefreshUseCase refreshUseCase;
     private final LogoutUseCase logoutUseCase;
+    private final LogoutAllUseCase logoutAllUseCase;
 
-    public AuthController(LoginUseCase loginUseCase, RefreshUseCase refreshUseCase, LogoutUseCase logoutUseCase) {
+    public AuthController(LoginUseCase loginUseCase, 
+        RefreshUseCase refreshUseCase, 
+        LogoutUseCase logoutUseCase,
+        LogoutAllUseCase logoutAllUseCase
+    ) {
         this.loginUseCase = loginUseCase;
         this.refreshUseCase = refreshUseCase;
         this.logoutUseCase = logoutUseCase;
+        this.logoutAllUseCase = logoutAllUseCase;
     }
 
     @PostMapping("/login")
@@ -138,4 +146,28 @@ public class AuthController {
                 .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
                 .build();
         }     
+
+        @PostMapping("/logout/all")
+        public ResponseEntity<Void> logoutAll(
+                @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false)
+                String refreshToken
+        ) {
+        logoutAllUseCase.logoutAll(new LogoutAllUseCase.LogoutAllCommand(refreshToken));
+
+        // 현재 디바이스의 refreshToken 쿠키도 삭제
+        ResponseCookie deleteCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+                .build();
+        }
+
+
+
 }
