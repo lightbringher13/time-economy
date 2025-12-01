@@ -3,6 +3,7 @@ package com.timeeconomy.auth_service.adapter.in.web.controller;
 import com.timeeconomy.auth_service.adapter.in.web.dto.AuthResponse;
 import com.timeeconomy.auth_service.adapter.in.web.dto.LoginRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.LoginResponse;
+import com.timeeconomy.auth_service.adapter.in.web.dto.SessionResponseDto;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginCommand;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginResult;
@@ -10,6 +11,7 @@ import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase.LogoutCommand;
 import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutAllUseCase;
+import com.timeeconomy.auth_service.domain.port.in.ListSessionsUseCase;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -20,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -32,16 +35,19 @@ public class AuthController {
     private final RefreshUseCase refreshUseCase;
     private final LogoutUseCase logoutUseCase;
     private final LogoutAllUseCase logoutAllUseCase;
+    private final ListSessionsUseCase listSessionsUseCase;
 
     public AuthController(LoginUseCase loginUseCase, 
         RefreshUseCase refreshUseCase, 
         LogoutUseCase logoutUseCase,
-        LogoutAllUseCase logoutAllUseCase
+        LogoutAllUseCase logoutAllUseCase,
+        ListSessionsUseCase listSessionsUseCase
     ) {
         this.loginUseCase = loginUseCase;
         this.refreshUseCase = refreshUseCase;
         this.logoutUseCase = logoutUseCase;
         this.logoutAllUseCase = logoutAllUseCase;
+        this.listSessionsUseCase = listSessionsUseCase;
     }
 
     @PostMapping("/login")
@@ -166,6 +172,24 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
                 .build();
+        }
+
+        @GetMapping("/sessions")
+        public ResponseEntity<List<SessionResponseDto>> listSessions(
+                @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false)
+                String refreshToken
+        ) {
+
+        ListSessionsUseCase.SessionsResult result =
+                listSessionsUseCase.listSessions(
+                        new ListSessionsUseCase.ListSessionsQuery(refreshToken)
+                );
+
+        List<SessionResponseDto> body = result.sessions().stream()
+                .map(SessionResponseDto::from)
+                .toList();
+
+        return ResponseEntity.ok(body);
         }
 
 
