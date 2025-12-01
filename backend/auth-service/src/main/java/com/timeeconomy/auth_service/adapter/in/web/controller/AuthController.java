@@ -1,12 +1,16 @@
 package com.timeeconomy.auth_service.adapter.in.web.controller;
 
+import com.timeeconomy.auth_service.adapter.in.web.dto.AuthResponse;
 import com.timeeconomy.auth_service.adapter.in.web.dto.LoginRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.LoginResponse;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginCommand;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginResult;
+import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
+
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,11 +23,14 @@ import java.util.Optional;
 public class AuthController {
 
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
+    private static final long REFRESH_TTL_SECONDS = 7L * 24 * 60 * 60;
 
     private final LoginUseCase loginUseCase;
+    private final RefreshUseCase refreshUseCase;
 
-    public AuthController(LoginUseCase loginUseCase) {
+    public AuthController(LoginUseCase loginUseCase, RefreshUseCase refreshUseCase) {
         this.loginUseCase = loginUseCase;
+        this.refreshUseCase = refreshUseCase;
     }
 
     @PostMapping("/login")
@@ -72,5 +79,39 @@ public class AuthController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                 .body(responseBody);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(
+            @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken,
+            HttpServletRequest request
+    ) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        var cmd = new RefreshUseCase.RefreshCommand(
+                refreshToken,
+                request.getRemoteAddr(),
+                request.getHeader("User-Agent"),
+                "unknown-device" // deviceInfo: optional for now
+        );
+
+        var result = refreshUseCase.refresh(cmd);
+
+        // 🔁 set new refresh token cookie
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, result.refreshToken())
+                .httpOnly(true)
+                .secure(true)   // false only in local HTTP if needed
+                .path("/")
+                .maxAge(REFRESH_TTL_SECONDS)
+                .sameSite("Strict")
+                .build();
+
+        var body = new AuthResponse(result.accessToken());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(body);
     }
 }

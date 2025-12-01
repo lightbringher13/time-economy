@@ -7,6 +7,7 @@ import com.timeeconomy.auth_service.domain.model.AuthSession;
 import com.timeeconomy.auth_service.domain.port.out.AuthSessionRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +37,12 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
     public Optional<AuthSession> findByTokenHash(String tokenHash) {
         return jpaRepository.findByTokenHash(tokenHash)
                 .map(mapper::toDomain);
+    }
+
+    @Override
+    public Optional<AuthSession> findByTokenHashForUpdate(String tokenHash) {
+        AuthSessionEntity e = jpaRepository.findByTokenHashForUpdate(tokenHash);
+        return Optional.ofNullable(mapper.toDomain(e));
     }
 
     @Override
@@ -70,5 +77,11 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
         }
 
         jpaRepository.saveAll(sessions);
+    }
+
+    @Override
+    @Transactional
+    public void revokeFamily(String familyId, LocalDateTime now) {
+        jpaRepository.revokeFamily(familyId, now);
     }
 }
