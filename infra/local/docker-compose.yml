@@ -1,16 +1,35 @@
 services:
-  auth-postgres:
+  auth-db:
     image: postgres:16
-    container_name: auth-postgres
-    restart: unless-stopped
+    container_name: auth-db
     environment:
       POSTGRES_DB: authdb
       POSTGRES_USER: authuser
       POSTGRES_PASSWORD: authpass
     ports:
-      - "5433:5432"     # host:container
+      - "5433:5432"
     volumes:
-      - auth-postgres-data:/var/lib/postgresql/data
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - backend-net
+
+  user-db:
+    image: postgres:16
+    container_name: user-db
+    environment:
+      POSTGRES_DB: userdb
+      POSTGRES_USER: useruser
+      POSTGRES_PASSWORD: userpass
+    ports:
+      - "5434:5432"          # 호스트 포트만 다르게
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    networks:
+      - backend-net
 
 volumes:
-  auth-postgres-data:
+  auth-db-data:
+  user-db-data:
+
+networks:
+  backend-net:

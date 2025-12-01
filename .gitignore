@@ -3,21 +3,45 @@
 # ==========================================
 .DS_Store
 Thumbs.db
+._*
+.Spotlight-V100
+.Trashes
 
 # ==========================================
 # IDE / EDITOR
 # ==========================================
 
-# IntelliJ IDEA
+# IntelliJ IDEA / JetBrains
 .idea/
 *.iml
 *.iws
+*.ipr
 out/
 
 # VSCode
 .vscode/
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# Eclipse / STS
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# JetBrains Fleet
+.fleet/
 
 # ==========================================
 # JAVA / SPRING BOOT / GRADLE
@@ -40,6 +64,10 @@ replay_pid*
 # Spring Boot dev temp
 backend/**/tmp/
 backend/**/bin/
+
+# Local dev files
+*.local
+*.tmp
 
 # ==========================================
 # NODE / REACT / VITE
@@ -77,22 +105,10 @@ infra/docker/**/volumes/
 **/.container-build/
 
 # ==========================================
-# MISC
+# ARCHIVES / MISC
 # ==========================================
-
-# macOS metadata
-._*
-.Spotlight-V100
-.Trashes
 
 # Archives
 *.zip
 *.tar
 *.gz
-
-# JetBrains Fleet
-.fleet/
-
-# Local dev files
-*.local
-*.tmp

@@ -1,0 +1,8 @@
+* text=auto
+
+# Gradle wrapper scripts in any module
+**/gradlew text eol=lf
+*.bat text eol=crlf
+
+# Treat JARs as binary
+*.jar binary
