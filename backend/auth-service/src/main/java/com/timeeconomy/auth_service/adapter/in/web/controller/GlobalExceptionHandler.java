@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.timeeconomy.auth_service.adapter.in.web.dto.ApiErrorResponse;
 import com.timeeconomy.auth_service.domain.exception.AuthSessionNotFoundException;
+import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
@@ -49,5 +50,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleRevoked(SessionAlreadyRevokedException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(new ApiErrorResponse("SESSION_ALREADY_REVOKED", ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmailAlreadyUsedException.class)
+    public ResponseEntity<ApiErrorResponse> handleRevoked(EmailAlreadyUsedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(new ApiErrorResponse("EMAIL_REUSE", ex.getMessage()));
     }
 }
