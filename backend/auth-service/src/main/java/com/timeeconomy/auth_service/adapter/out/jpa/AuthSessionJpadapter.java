@@ -63,6 +63,7 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
     }
 
     @Override
+    @Transactional
     public void revokeAllByUserId(Long userId, LocalDateTime now) {
         List<AuthSessionEntity> sessions =
                 jpaRepository.findByUserIdAndRevokedFalse(userId);
