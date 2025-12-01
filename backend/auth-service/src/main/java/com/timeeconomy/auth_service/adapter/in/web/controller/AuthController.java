@@ -1,6 +1,8 @@
 package com.timeeconomy.auth_service.adapter.in.web.controller;
 
 import com.timeeconomy.auth_service.adapter.in.web.dto.AuthResponse;
+import com.timeeconomy.auth_service.adapter.in.web.dto.RegisterResponse;
+import com.timeeconomy.auth_service.adapter.in.web.dto.RegisterRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.LoginRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.LoginResponse;
 import com.timeeconomy.auth_service.adapter.in.web.dto.SessionResponseDto;
@@ -9,6 +11,7 @@ import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginCommand;
 import com.timeeconomy.auth_service.domain.port.in.LoginUseCase.LoginResult;
 import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase.LogoutCommand;
 import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
+import com.timeeconomy.auth_service.domain.port.in.RegisterUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutAllUseCase;
 import com.timeeconomy.auth_service.domain.port.in.LogoutSessionUseCase;
@@ -38,13 +41,15 @@ public class AuthController {
     private final LogoutAllUseCase logoutAllUseCase;
     private final ListSessionsUseCase listSessionsUseCase;
     private final LogoutSessionUseCase logoutSessionUseCase;
+    private final RegisterUseCase registerUseCase;
 
     public AuthController(LoginUseCase loginUseCase, 
         RefreshUseCase refreshUseCase, 
         LogoutUseCase logoutUseCase,
         LogoutAllUseCase logoutAllUseCase,
         ListSessionsUseCase listSessionsUseCase,
-        LogoutSessionUseCase logoutSessionUseCase
+        LogoutSessionUseCase logoutSessionUseCase,
+        RegisterUseCase registerUseCase
     ) {
         this.loginUseCase = loginUseCase;
         this.refreshUseCase = refreshUseCase;
@@ -52,6 +57,7 @@ public class AuthController {
         this.logoutAllUseCase = logoutAllUseCase;
         this.listSessionsUseCase = listSessionsUseCase;
         this.logoutSessionUseCase = logoutSessionUseCase;
+        this.registerUseCase = registerUseCase;
     }
 
     @PostMapping("/login")
@@ -208,6 +214,25 @@ public class AuthController {
 
         return ResponseEntity.noContent().build();
         }
+
+        @PostMapping("/register")
+    public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
+
+        RegisterUseCase.RegisterResult result = registerUseCase.register(
+                new RegisterUseCase.RegisterCommand(
+                        request.email(),
+                        request.password()
+                )
+        );
+
+        RegisterResponse body = new RegisterResponse(
+                result.userId(),
+                result.email()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
 
 
 
