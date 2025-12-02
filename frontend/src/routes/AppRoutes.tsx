@@ -1,0 +1,36 @@
+// src/routes/AppRoutes.tsx
+
+import { Routes, Route, Navigate } from "react-router-dom";
+import { ROUTES } from "@/routes/paths";
+import { ProtectedRoute } from "./ProtectedRoute";
+
+import LoginPage from "@/features/auth/pages/LoginPage";
+import DashboardPage from "@/features/user/pages/DashboardPage";
+import ProfilePage from "@/features/user/pages/ProfilePage";
+import RegisterPage from "@/features/user/pages/RegisterPage";
+import SessionsPage from "@/features/user/pages/SessionsPage";
+import HealthPage from "@/features/health/pages/HealthPage";
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+      <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+      <Route path={ROUTES.HEALTH} element={<HealthPage />} />
+
+      {/* Protected routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+        <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
+        <Route path={ROUTES.SESSIONS} element={<SessionsPage />} />
+      </Route>
+
+      {/* Fallback: root → dashboard */}
+      <Route path="/" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+
+      {/* Any unknown path → dashboard (or login, your choice) */}
+      <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />
+    </Routes>
+  );
+}
