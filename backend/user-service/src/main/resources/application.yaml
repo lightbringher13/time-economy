@@ -19,9 +19,14 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
 logging:
   level:
     org.springframework.security: DEBUG
 
+jwt:
+  secret: "super-super-long-random-secret-key-change-this-in-prod"
+  issuer: "timeeconomy-auth"
+  
 server:
   port: 8081   # auth-service가 8080이면 user-service는 8081 같은 식으로

@@ -81,8 +81,7 @@ public class RefreshService implements RefreshUseCase {
         newSession = authSessionRepositoryPort.save(newSession);
 
         String accessToken = jwtTokenPort.generateAccessToken(
-                newSession.getUserId(),
-                newSession.getFamilyId()
+                newSession.getUserId()
         );
 
         return new RefreshResult(

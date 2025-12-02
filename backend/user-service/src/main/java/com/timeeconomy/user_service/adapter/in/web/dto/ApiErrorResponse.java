@@ -1,5 +1,5 @@
 // auth-service/src/main/java/com/timeeconomy/auth_service/adapter/in/web/dto/ApiErrorResponse.java
-package com.timeeconomy.auth_service.adapter.in.web.dto;
+package com.timeeconomy.user_service.adapter.in.web.dto;
 
 public record ApiErrorResponse(
         boolean success,

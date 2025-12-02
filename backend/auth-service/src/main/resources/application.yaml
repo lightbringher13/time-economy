@@ -17,6 +17,12 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+jwt:
+  secret: "super-super-long-random-secret-key-change-this-in-prod"
+  issuer: "timeeconomy-auth"
+  access-token-exp-seconds: 900     # 15 min
+  refresh-token-exp-days: 7
+
 userservice:
   base-url: http://localhost:8081
 
