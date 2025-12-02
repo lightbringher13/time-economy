@@ -5,6 +5,7 @@ import com.timeeconomy.auth_service.domain.model.AuthUser;
 import com.timeeconomy.auth_service.domain.port.in.RegisterUseCase;
 import com.timeeconomy.auth_service.domain.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth_service.domain.port.out.PasswordEncoderPort;
+import com.timeeconomy.auth_service.domain.port.out.UserProfileSyncPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ public class RegisterService implements RegisterUseCase {
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final PasswordEncoderPort passwordEncoderPort;
+    private final UserProfileSyncPort userProfileSyncPort;
 
     @Override
     public RegisterResult register(RegisterCommand command) {
@@ -35,7 +37,7 @@ public class RegisterService implements RegisterUseCase {
         AuthUser saved = authUserRepositoryPort.save(user);
 
         // 6) (나중에) 여기서 UserRegistered 이벤트 발행하면 됨
-        // authEventPublisherPort.publishUserRegistered(...);
+        userProfileSyncPort.createUserProfile(saved.getId(), saved.getEmail());
 
         return new RegisterResult(saved.getId(), saved.getEmail());
     }
