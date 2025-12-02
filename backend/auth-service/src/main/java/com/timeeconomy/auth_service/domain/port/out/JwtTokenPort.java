@@ -8,5 +8,5 @@ public interface JwtTokenPort {
     /**
      * Generate an access token for the given user and family.
      */
-    String generateAccessToken(Long userId, String familyId);
+    String generateAccessToken(Long userId);
 }

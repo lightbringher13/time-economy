@@ -29,3 +29,6 @@ logging:
     org.springframework.cloud.gateway: DEBUG
     org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator: DEBUG
     org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping: DEBUG
+jwt:
+  secret: "super-super-long-random-secret-key-change-this-in-prod"
+  issuer: "timeeconomy-auth"

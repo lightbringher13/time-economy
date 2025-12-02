@@ -83,7 +83,7 @@ public class LoginService implements LoginUseCase {
         authSessionRepositoryPort.save(session);
 
         // 6) access token 생성
-        String accessToken = jwtTokenPort.generateAccessToken(userId, familyId);
+        String accessToken = jwtTokenPort.generateAccessToken(userId);
 
         // 7) 결과 반환 (refresh는 쿠키로, access는 JSON)
         return new LoginResult(accessToken, rawRefreshToken);
