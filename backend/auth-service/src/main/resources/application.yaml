@@ -1,13 +1,13 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/authdb
+    url: jdbc:postgresql://auth-db:5432/authdb
     username: authuser
     password: authpass
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
-      ddl-auto: validate       # ✅ schema from Flyway, not JPA
+      ddl-auto: validate       # ✅ schema managed by Flyway
     properties:
       hibernate:
         format_sql: false
@@ -24,7 +24,7 @@ jwt:
   refresh-token-exp-days: 7
 
 userservice:
-  base-url: http://localhost:8081
+  base-url: http://user-service:8081
 
 # logging:
 #   level:

@@ -1,0 +1,42 @@
+services:
+  auth-service:
+    image: timeeconomy/auth-service
+    container_name: auth-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - timeeconomy-net
+    # no ports -> internal only
+
+  user-service:
+    image: timeeconomy/user-service
+    container_name: user-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - timeeconomy-net
+
+  gateway-service:
+    image: timeeconomy/gateway-service
+    container_name: gateway-service
+    depends_on:
+      - auth-service
+      - user-service
+    networks:
+      - timeeconomy-net
+    ports:
+      - "8085:8085"  # browser & Postman hit localhost:8085
+
+  frontend:
+    image: timeeconomy/frontend
+    container_name: frontend
+    depends_on:
+      - gateway-service
+    networks:
+      - timeeconomy-net
+    ports:
+      - "5173:5173"  # browser hits localhost:5173
+
+networks:
+  timeeconomy-net:
+    external: true     # <– VERY IMPORTANT
