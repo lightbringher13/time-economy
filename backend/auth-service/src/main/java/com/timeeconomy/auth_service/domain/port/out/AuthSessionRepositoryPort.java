@@ -14,6 +14,8 @@ public interface AuthSessionRepositoryPort {
 
     Optional<AuthSession> findByTokenHash(String tokenHash);
 
+    Optional<AuthSession> findLatestActiveByFamily(String familyId, LocalDateTime now);
+
     /**
      * All non-revoked sessions for a user (for /me/sessions etc).
      */

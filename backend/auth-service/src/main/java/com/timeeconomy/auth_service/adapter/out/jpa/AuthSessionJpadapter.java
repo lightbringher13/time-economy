@@ -27,6 +27,13 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
         return mapper.toDomain(saved);
     }
 
+    // ✅ 새로 추가한 메서드 구현
+    @Override
+    public Optional<AuthSession> findLatestActiveByFamily(String familyId, LocalDateTime now) {
+        return jpaRepository.findLatestActiveByFamily(familyId, now)
+                .map(mapper::toDomain);
+    }
+
     @Override
     public Optional<AuthSession> findById(Long id) {
         return jpaRepository.findById(id)
@@ -65,8 +72,7 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
     @Override
     @Transactional
     public void revokeAllByUserId(Long userId, LocalDateTime now) {
-        List<AuthSessionEntity> sessions =
-                jpaRepository.findByUserIdAndRevokedFalse(userId);
+        List<AuthSessionEntity> sessions = jpaRepository.findByUserIdAndRevokedFalse(userId);
 
         if (sessions.isEmpty()) {
             return;

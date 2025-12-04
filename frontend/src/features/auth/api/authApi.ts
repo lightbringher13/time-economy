@@ -1,7 +1,7 @@
 // src/features/auth/api/authApi.ts
 import { apiClient } from "@/shared/api/apiClient";
 import type { AxiosError } from "axios";
-import type { LoginRequest, AuthResponse, ApiErrorResponse } from "../types/auth";
+import type { LoginRequest, AuthResponse, ApiErrorResponse, RegisterRequest, RegisterResponse} from "../types/auth";
 
 // 👉 Login API: POST /auth/login
 export async function loginApi(data: LoginRequest): Promise<AuthResponse> {
@@ -14,6 +14,14 @@ export async function loginApi(data: LoginRequest): Promise<AuthResponse> {
 // - On suspicious reuse / invalid / expired: 401 + ApiErrorResponse
 export async function refreshApi(): Promise<AuthResponse> {
   const res = await apiClient.post<AuthResponse>("/auth/refresh");
+  return res.data;
+}
+
+// 👉 Register API: POST /auth/refresh
+export async function registerApi(
+  data: RegisterRequest
+): Promise<RegisterResponse> {
+  const res = await apiClient.post<RegisterResponse>("/auth/register", data);
   return res.data;
 }
 

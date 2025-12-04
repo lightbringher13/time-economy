@@ -25,13 +25,6 @@ export type ChangeNicknameRequest = {
   nickname: string;
 };
 
-
-export type RegisterRequest = {
-  nickname: string;
-  email: string;
-  password: string;
-};
-
 export type ChangeNicknameResponse = {
   nickname: string;
 };

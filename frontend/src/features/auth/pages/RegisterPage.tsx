@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { registerApi } from "../api/userApi";
+import { registerApi } from "../api/authApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/routes/paths";
 
@@ -8,7 +8,6 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const phase = useAuthStore((s) => s.phase);
 
-  const [nickname, setNickname] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -27,10 +26,6 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    if (!nickname.trim()) {
-      setError("Nickname is required.");
-      return;
-    }
     if (!email.trim()) {
       setError("Email is required.");
       return;
@@ -46,7 +41,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await registerApi({ nickname, email, password });
+      await registerApi({ email, password });
 
       // You can remove alert later and replace with a toast
       alert("Registration successful! Please log in.");
@@ -69,18 +64,6 @@ export default function RegisterPage() {
       </p>
 
       <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Nickname
-            <input
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4 }}
-            />
-          </label>
-        </div>
-
         <div style={{ marginBottom: 12 }}>
           <label>
             Email
