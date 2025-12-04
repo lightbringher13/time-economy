@@ -5,9 +5,9 @@ import { ROUTES } from "@/routes/paths";
 import { ProtectedRoute } from "./ProtectedRoute";
 
 import LoginPage from "@/features/auth/pages/LoginPage";
+import RegisterPage from "@/features/auth/pages/RegisterPage";
 import DashboardPage from "@/features/user/pages/DashboardPage";
 import ProfilePage from "@/features/user/pages/ProfilePage";
-import RegisterPage from "@/features/user/pages/RegisterPage";
 import SessionsPage from "@/features/user/pages/SessionsPage";
 import HealthPage from "@/features/health/pages/HealthPage";
 

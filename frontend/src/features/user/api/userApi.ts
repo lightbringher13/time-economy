@@ -6,8 +6,7 @@ import type {
   ChangePasswordRequest,
   ChangeNicknameRequest,
   ChangeNicknameResponse,
-  SessionInfo,
-  RegisterRequest
+  SessionInfo
 } from "../types/user";
 
 // ===============================
@@ -53,12 +52,4 @@ export async function changeNicknameApi(
     data
   );
   return res.data;
-}
-
-// ✅ NEW: register
-export async function registerApi(
-  data: RegisterRequest
-): Promise<void> {
-  // BE returns 201 with no body
-  await apiClient.post("/auth/register", data);
 }

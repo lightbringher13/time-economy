@@ -48,7 +48,10 @@ public class RefreshService implements RefreshUseCase {
 
         // 1) already revoked → reuse path
         if (session.isRevoked()) {
-            handleReuse(session, command, now);
+            RefreshResult reuseResult = handleReuse(session, command, now);
+            if (reuseResult != null) {
+                return reuseResult; // ⭐ benign case returns tokens
+            }
         }
 
         // 2) expired → just mark & fail
@@ -75,26 +78,40 @@ public class RefreshService implements RefreshUseCase {
                 command.ipAddress(),
                 command.userAgent(),
                 now,
-                expiresAt
-        );
+                expiresAt);
 
         newSession = authSessionRepositoryPort.save(newSession);
 
         String accessToken = jwtTokenPort.generateAccessToken(
-                newSession.getUserId()
-        );
+                newSession.getUserId());
 
         return new RefreshResult(
                 newSession.getUserId(),
                 accessToken,
                 newRawRefresh,
-                newSession.getFamilyId()
-        );
+                newSession.getFamilyId());
     }
 
-    private void handleReuse(AuthSession session, RefreshCommand command, LocalDateTime now) {
+    private RefreshResult handleReuse(AuthSession session, RefreshCommand command, LocalDateTime now) {
+        // ⭐ BENIGN CASE — normal behavior
         if (isBenignRace(session, command, now)) {
-            throw new InvalidRefreshTokenException("Refresh token already used");
+
+            // The benign case means another parallel request ALREADY created new session.
+            // So we must find the latest active session for this device family.
+
+            AuthSession latest = authSessionRepositoryPort
+                    .findLatestActiveByFamily(session.getFamilyId(), now)
+                    .orElseThrow(() -> new InvalidRefreshTokenException("No active session found"));
+
+            // Generate fresh access token for the new session
+            String accessToken = jwtTokenPort.generateAccessToken(latest.getUserId());
+
+            // ⭐ Return a normal refresh result instead of throwing
+            return new RefreshResult(
+                    latest.getUserId(),
+                    accessToken,
+                    null, // no new refresh token (cookie is already set)
+                    latest.getFamilyId());
         }
 
         if (!session.isReuseDetected()) {
@@ -108,8 +125,7 @@ public class RefreshService implements RefreshUseCase {
                     "[Security Alert] Refresh token reuse detected",
                     "We detected a suspicious reuse of your refresh token for device family: "
                             + session.getFamilyId()
-                            + ". All related sessions have been revoked. Please sign in again."
-            );
+                            + ". All related sessions have been revoked. Please sign in again.");
         }
 
         throw new InvalidRefreshTokenException("Refresh token reuse detected");
