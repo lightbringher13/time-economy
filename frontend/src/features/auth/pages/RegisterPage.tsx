@@ -12,6 +12,12 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
 
+  // ⭐ NEW FIELDS
+  const [name, setName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [gender, setGender] = useState(""); // could be "MALE" | "FEMALE" | "OTHER"
+  const [birthDate, setBirthDate] = useState(""); // yyyy-MM-dd (HTML date input)
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,18 +44,38 @@ export default function RegisterPage() {
       setError("Passwords do not match.");
       return;
     }
+    if (!name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    if (!phoneNumber.trim()) {
+      setError("Phone number is required.");
+      return;
+    }
+    if (!gender) {
+      setError("Gender is required.");
+      return;
+    }
+    if (!birthDate) {
+      setError("Birth date is required.");
+      return;
+    }
 
     setLoading(true);
     try {
-      await registerApi({ email, password });
+      await registerApi({
+        email,
+        password,
+        phoneNumber,
+        name,
+        gender,
+        birthDate, // "yyyy-MM-dd"
+      });
 
-      // You can remove alert later and replace with a toast
       alert("Registration successful! Please log in.");
       navigate(ROUTES.LOGIN, { replace: true });
     } catch (err) {
       console.error("[RegisterPage] register failed", err);
-      // GlobalExceptionHandler + apiClient interceptor will shape error,
-      // but for now we just show a generic message.
       setError("Failed to register. Please check your information.");
     } finally {
       setLoading(false);
@@ -95,6 +121,62 @@ export default function RegisterPage() {
               type="password"
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        {/* ⭐ NEW: Name */}
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Name
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        {/* ⭐ NEW: Phone Number */}
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Phone Number
+            <input
+              type="tel"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            />
+          </label>
+        </div>
+
+        {/* ⭐ NEW: Gender */}
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Gender
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              style={{ display: "block", width: "100%", marginTop: 4 }}
+            >
+              <option value="">Select gender</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+        </div>
+
+        {/* ⭐ NEW: Birth Date */}
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Birth Date
+            <input
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
               style={{ display: "block", width: "100%", marginTop: 4 }}
             />
           </label>

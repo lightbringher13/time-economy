@@ -1,7 +1,7 @@
 package com.timeeconomy.auth_service.adapter.out.http.user;
 
-import com.timeeconomy.auth_service.domain.port.out.UserProfileSyncPort;
 import com.timeeconomy.auth_service.adapter.out.http.dto.CreateUserProfileRequest;
+import com.timeeconomy.auth_service.domain.port.out.UserProfileSyncPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,19 +20,32 @@ public class UserServiceHttpAdapter implements UserProfileSyncPort {
     private String userServiceBaseUrl;
 
     @Override
-    public void createUserProfile(Long userId, String email) {
+    public void createUserProfile(CreateUserProfileCommand command) {
         try {
             RestClient client = restClientBuilder.build();
+
+            CreateUserProfileRequest body = new CreateUserProfileRequest(
+                    command.authUserId(),
+                    command.email(),
+                    command.name(),
+                    command.gender(),
+                    command.birthDate(),
+                    command.phoneNumber()
+            );
 
             client.post()
                     .uri(userServiceBaseUrl + "/internal/users")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(new CreateUserProfileRequest(userId, email))
+                    .body(body)
                     .retrieve()
                     .toBodilessEntity();
+
+            log.info("Synced user profile to user-service: userId={}, email={}",
+                    command.authUserId(), command.email());
+
         } catch (Exception ex) {
             log.error("Failed to sync user profile to user-service. userId={}, email={}",
-                    userId, email, ex);
+                    command.authUserId(), command.email(), ex);
         }
     }
 }

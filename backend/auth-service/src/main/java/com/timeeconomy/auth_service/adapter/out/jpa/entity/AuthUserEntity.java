@@ -11,7 +11,7 @@ public class AuthUserEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 외부 도메인 유저 ID (옵션)
+    // 외부 도메인 유저 ID (optional)
     @Column(name = "user_id", unique = true)
     private Long userId;
 
@@ -33,16 +33,33 @@ public class AuthUserEntity {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    // ⭐️ NEW FIELDS ADDED
+    @Column(name = "phone_number", length = 30)
+    private String phoneNumber;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    @Column(name = "phone_verified", nullable = false)
+    private boolean phoneVerified;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public AuthUserEntity() {
-    }
 
+    // ---------------------------------------------------------
+    // Constructor
+    // ---------------------------------------------------------
+
+    public AuthUserEntity() {}
+
+
+    // ---------------------------------------------------------
     // Getters & Setters
+    // ---------------------------------------------------------
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -67,6 +84,15 @@ public class AuthUserEntity {
 
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
+
+    public boolean isPhoneVerified() { return phoneVerified; }
+    public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

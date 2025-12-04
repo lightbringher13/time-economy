@@ -8,6 +8,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class AuthUserMapper {
 
+    // ---------------------------------------------------------
+    // Domain → Entity
+    // ---------------------------------------------------------
     public AuthUserEntity toEntity(AuthUser domain) {
         if (domain == null) return null;
 
@@ -17,14 +20,24 @@ public class AuthUserMapper {
         e.setEmail(domain.getEmail());
         e.setPasswordHash(domain.getPasswordHash());
         e.setStatus(domain.getStatus() != null ? domain.getStatus().name() : null);
+
         e.setFailedLoginAttempts(domain.getFailedLoginAttempts());
         e.setLockedAt(domain.getLockedAt());
         e.setLastLoginAt(domain.getLastLoginAt());
+
+        // ⭐️ NEW FIELDS
+        e.setPhoneNumber(domain.getPhoneNumber());
+        e.setEmailVerified(domain.isEmailVerified());
+        e.setPhoneVerified(domain.isPhoneVerified());
+
         e.setCreatedAt(domain.getCreatedAt());
         e.setUpdatedAt(domain.getUpdatedAt());
         return e;
     }
 
+    // ---------------------------------------------------------
+    // Entity → Domain
+    // ---------------------------------------------------------
     public AuthUser toDomain(AuthUserEntity e) {
         if (e == null) return null;
 
@@ -34,9 +47,16 @@ public class AuthUserMapper {
         d.setEmail(e.getEmail());
         d.setPasswordHash(e.getPasswordHash());
         d.setStatus(e.getStatus() != null ? AuthStatus.valueOf(e.getStatus()) : null);
+
         d.setFailedLoginAttempts(e.getFailedLoginAttempts());
         d.setLockedAt(e.getLockedAt());
         d.setLastLoginAt(e.getLastLoginAt());
+
+        // ⭐️ NEW FIELDS
+        d.setPhoneNumber(e.getPhoneNumber());
+        d.setEmailVerified(e.isEmailVerified());
+        d.setPhoneVerified(e.isPhoneVerified());
+
         d.setCreatedAt(e.getCreatedAt());
         d.setUpdatedAt(e.getUpdatedAt());
         return d;

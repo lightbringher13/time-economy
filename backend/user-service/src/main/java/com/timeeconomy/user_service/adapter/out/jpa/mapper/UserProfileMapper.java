@@ -17,6 +17,8 @@ public class UserProfileMapper {
                 d.getEmail(),
                 d.getName(),
                 d.getPhoneNumber(),
+                d.getBirthDate(),   // ⭐ NEW
+                d.getGender(),      // ⭐ NEW
                 d.getStatus(),
                 d.getCreatedAt(),
                 d.getUpdatedAt()
@@ -34,6 +36,8 @@ public class UserProfileMapper {
                 e.getName(),
                 e.getPhoneNumber(),
                 e.getStatus(),
+                e.getBirthDate(),   // ⭐ NEW
+                e.getGender(),      // ⭐ NEW
                 e.getCreatedAt(),
                 e.getUpdatedAt()
         );

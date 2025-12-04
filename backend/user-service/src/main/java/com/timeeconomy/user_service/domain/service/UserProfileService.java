@@ -30,7 +30,7 @@ public class UserProfileService implements
             throw new InvalidUserProfileException("Email cannot be null or empty");
         }
 
-        // 멱등성: 이미 있으면 그냥 리턴
+        // 멱등성 처리: 이미 있으면 뛰어넘기
         if (userProfileRepositoryPort.findById(command.userId()).isPresent()) {
             return;
         }
@@ -40,9 +40,11 @@ public class UserProfileService implements
         UserProfile profile = new UserProfile(
                 command.userId(),
                 command.email(),
-                null,
-                null,
+                command.name(),
+                command.phoneNumber(),
                 UserStatus.ACTIVE,
+                command.birthDate(),
+                command.gender(),
                 now,
                 now
         );

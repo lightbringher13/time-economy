@@ -1,5 +1,6 @@
 package com.timeeconomy.user_service.domain.model;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -11,6 +12,10 @@ public class UserProfile {
     private String phoneNumber;
     private UserStatus status;
 
+    // ⭐ NEW
+    private LocalDate birthDate;
+    private String gender;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -21,6 +26,8 @@ public class UserProfile {
             String name,
             String phoneNumber,
             UserStatus status,
+            LocalDate birthDate,
+            String gender,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {
@@ -29,6 +36,10 @@ public class UserProfile {
         this.name = name;
         this.phoneNumber = phoneNumber;
         this.status = status != null ? status : UserStatus.ACTIVE;
+
+        this.birthDate = birthDate;
+        this.gender = gender;
+
         this.createdAt = createdAt != null ? createdAt : LocalDateTime.now();
         this.updatedAt = updatedAt != null ? updatedAt : this.createdAt;
     }
@@ -42,6 +53,15 @@ public class UserProfile {
     public void updateProfile(String name, String phoneNumber) {
         this.name = name;
         this.phoneNumber = phoneNumber;
+        touchUpdatedAt();
+    }
+
+    // 필요하면 프로필 전체 업데이트용 메서드도 추가 가능
+    public void updateProfileDetail(String name, String phoneNumber, LocalDate birthDate, String gender) {
+        this.name = name;
+        this.phoneNumber = phoneNumber;
+        this.birthDate = birthDate;
+        this.gender = gender;
         touchUpdatedAt();
     }
 
@@ -87,6 +107,14 @@ public class UserProfile {
     }
 
     public void setStatus(UserStatus status) { this.status = status; }
+
+    public LocalDate getBirthDate() { return birthDate; }
+
+    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+    public String getGender() { return gender; }
+
+    public void setGender(String gender) { this.gender = gender; }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
