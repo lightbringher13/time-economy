@@ -60,5 +60,5 @@ export async function registerApi(
   data: RegisterRequest
 ): Promise<void> {
   // BE returns 201 with no body
-  await apiClient.post("/users/register", data);
+  await apiClient.post("/auth/register", data);
 }

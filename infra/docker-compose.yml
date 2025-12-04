@@ -7,11 +7,11 @@ services:
       POSTGRES_USER: authuser
       POSTGRES_PASSWORD: authpass
     ports:
-      - "5433:5432"
+      - "5433:5432"   # for DBeaver / local debugging
     volumes:
       - auth-db-data:/var/lib/postgresql/data
     networks:
-      - backend-net
+      - timeeconomy-net
 
   user-db:
     image: postgres:16
@@ -21,15 +21,17 @@ services:
       POSTGRES_USER: useruser
       POSTGRES_PASSWORD: userpass
     ports:
-      - "5434:5432"          # 호스트 포트만 다르게
+      - "5434:5432"   # for DBeaver / local debugging
     volumes:
       - user-db-data:/var/lib/postgresql/data
     networks:
-      - backend-net
+      - timeeconomy-net
 
 volumes:
   auth-db-data:
   user-db-data:
 
 networks:
-  backend-net:
+  timeeconomy-net:
+    name: timeeconomy-net   # important: fixed name for sharing
+    driver: bridge
