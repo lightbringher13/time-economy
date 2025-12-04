@@ -21,8 +21,12 @@ public class InternalUserController {
     public ResponseEntity<Void> createUser(@RequestBody CreateUserRequest request) {
         createUserProfileUseCase.createProfile(
                 new CreateUserProfileUseCase.Command(
-                        request.userId(),
-                        request.email()
+                        request.id(),           // authUserId → user_profile.id
+                        request.email(),
+                        request.name(),
+                        request.gender(),
+                        request.birthDate(),
+                        request.phoneNumber()
                 )
         );
         return ResponseEntity.ok().build();

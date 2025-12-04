@@ -27,18 +27,35 @@ public class RegisterService implements RegisterUseCase {
             throw new EmailAlreadyUsedException("Email is already in use");
         });
 
+        // (선택) 나중에 phoneNumber 중복 체크도 가능:
+        // authUserRepositoryPort.findByPhoneNumber(...) 등
+
         // 3) 비밀번호 해시
         String passwordHash = passwordEncoderPort.encode(command.password());
 
-        // 4) 도메인 모델 생성 (status = ACTIVE 기본)
-        AuthUser user = new AuthUser(email, passwordHash);
+        // 4) 도메인 모델 생성 (status = ACTIVE 기본, email/phoneVerified = false 기본)
+        AuthUser user = new AuthUser(
+                email,
+                passwordHash,
+                command.phoneNumber()   // ⭐️ NEW: phoneNumber 사용
+        );
 
         // 5) 저장
         AuthUser saved = authUserRepositoryPort.save(user);
 
-        // 6) (나중에) 여기서 UserRegistered 이벤트 발행하면 됨
-        userProfileSyncPort.createUserProfile(saved.getId(), saved.getEmail());
+        // 6) User-service 쪽 profile 생성 요청
+        userProfileSyncPort.createUserProfile(
+                new UserProfileSyncPort.CreateUserProfileCommand(
+                        saved.getId(),          // authUserId
+                        saved.getEmail(),
+                        command.name(),
+                        command.gender(),
+                        command.birthDate(),
+                        saved.getPhoneNumber()
+                )
+        );
 
+        // 7) 결과 리턴
         return new RegisterResult(saved.getId(), saved.getEmail());
     }
 

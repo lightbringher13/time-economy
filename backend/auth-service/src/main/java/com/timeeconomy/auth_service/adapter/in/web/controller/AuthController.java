@@ -207,16 +207,23 @@ public class AuthController {
         @PostMapping("/register")
         public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
 
-                RegisterUseCase.RegisterResult result = registerUseCase.register(
-                                new RegisterUseCase.RegisterCommand(
-                                                request.email(),
-                                                request.password()));
+        RegisterUseCase.RegisterResult result = registerUseCase.register(
+                new RegisterUseCase.RegisterCommand(
+                        request.email(),
+                        request.password(),
+                        request.phoneNumber(),
+                        request.name(),
+                        request.gender(),
+                        request.birthDate()
+                )
+        );
 
-                RegisterResponse body = new RegisterResponse(
-                                result.userId(),
-                                result.email());
+        RegisterResponse body = new RegisterResponse(
+                result.userId(),
+                result.email()
+        );
 
-                return ResponseEntity.status(HttpStatus.CREATED).body(body);
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
         }
 
 }

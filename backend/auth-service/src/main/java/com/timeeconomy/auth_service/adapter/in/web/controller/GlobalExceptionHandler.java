@@ -7,6 +7,9 @@ import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.SessionAlreadyRevokedException;
+import com.timeeconomy.auth_service.domain.exception.EmailVerificationNotFoundException;
+import com.timeeconomy.auth_service.domain.exception.EmailVerificationExpiredException;
+import com.timeeconomy.auth_service.domain.exception.EmailVerificationAlreadyUsedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -19,148 +22,192 @@ import java.time.Instant;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @Value("${spring.application.name:auth-service}")
-    private String serviceName;
+        @Value("${spring.application.name:auth-service}")
+        private String serviceName;
 
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
-            InvalidCredentialsException ex,
-            HttpServletRequest request
-    ) {
-        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        @ExceptionHandler(InvalidCredentialsException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
+                        InvalidCredentialsException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.UNAUTHORIZED;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "INVALID_CREDENTIALS",
-                ex.getMessage(),
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "INVALID_CREDENTIALS",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
 
-    @ExceptionHandler(InvalidRefreshTokenException.class)
-    public ResponseEntity<ApiErrorResponse> handleInvalidRefresh(
-            InvalidRefreshTokenException ex,
-            HttpServletRequest request
-    ) {
-        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        @ExceptionHandler(InvalidRefreshTokenException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidRefresh(
+                        InvalidRefreshTokenException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.UNAUTHORIZED;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "INVALID_REFRESH_TOKEN",
-                ex.getMessage(),
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "INVALID_REFRESH_TOKEN",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
 
-    @ExceptionHandler(MissingRefreshTokenException.class)
-    public ResponseEntity<ApiErrorResponse> handleMissingToken(
-            MissingRefreshTokenException ex,
-            HttpServletRequest request
-    ) {
-        HttpStatus status = HttpStatus.BAD_REQUEST;
+        @ExceptionHandler(MissingRefreshTokenException.class)
+        public ResponseEntity<ApiErrorResponse> handleMissingToken(
+                        MissingRefreshTokenException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.BAD_REQUEST;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "MISSING_REFRESH_TOKEN",
-                ex.getMessage(),
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "MISSING_REFRESH_TOKEN",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
 
-    @ExceptionHandler(AuthSessionNotFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleSessionNotFound(
-            AuthSessionNotFoundException ex,
-            HttpServletRequest request
-    ) {
-        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        @ExceptionHandler(AuthSessionNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleSessionNotFound(
+                        AuthSessionNotFoundException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.UNAUTHORIZED;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "AUTH_SESSION_NOT_FOUND",
-                ex.getMessage(),
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "AUTH_SESSION_NOT_FOUND",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
 
-    @ExceptionHandler(SessionAlreadyRevokedException.class)
-    public ResponseEntity<ApiErrorResponse> handleSessionRevoked(
-            SessionAlreadyRevokedException ex,
-            HttpServletRequest request
-    ) {
-        HttpStatus status = HttpStatus.UNAUTHORIZED;
+        @ExceptionHandler(SessionAlreadyRevokedException.class)
+        public ResponseEntity<ApiErrorResponse> handleSessionRevoked(
+                        SessionAlreadyRevokedException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.UNAUTHORIZED;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "SESSION_ALREADY_REVOKED",
-                ex.getMessage(),
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "SESSION_ALREADY_REVOKED",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
 
-    @ExceptionHandler(EmailAlreadyUsedException.class)
-    public ResponseEntity<ApiErrorResponse> handleEmailAlreadyUsed(
-            EmailAlreadyUsedException ex,
-            HttpServletRequest request
-    ) {
-        // 이미 사용 중인 이메일 → 409 CONFLICT 가 더 자연스러움
-        HttpStatus status = HttpStatus.CONFLICT;
+        @ExceptionHandler(EmailAlreadyUsedException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailAlreadyUsed(
+                        EmailAlreadyUsedException ex,
+                        HttpServletRequest request) {
+                // 이미 사용 중인 이메일 → 409 CONFLICT 가 더 자연스러움
+                HttpStatus status = HttpStatus.CONFLICT;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "EMAIL_ALREADY_USED",
-                ex.getMessage(),
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "EMAIL_ALREADY_USED",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
 
-    // (선택) 예상 못한 예외 공통 처리
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> handleGeneric(
-            Exception ex,
-            HttpServletRequest request
-    ) {
-        HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+        // (선택) 예상 못한 예외 공통 처리
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<ApiErrorResponse> handleGeneric(
+                        Exception ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
 
-        ApiErrorResponse body = new ApiErrorResponse(
-                false,
-                serviceName,
-                "AUTH_INTERNAL_ERROR",
-                "Internal server error",
-                status.value(),
-                request.getRequestURI(),
-                Instant.now().toString()
-        );
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "AUTH_INTERNAL_ERROR",
+                                "Internal server error",
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
 
-        return ResponseEntity.status(status).body(body);
-    }
+                return ResponseEntity.status(status).body(body);
+        }
+
+        // 🔹 이메일 인증 코드 없음
+        @ExceptionHandler(EmailVerificationNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailVerificationNotFound(
+                        EmailVerificationNotFoundException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.BAD_REQUEST;
+
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "EMAIL_CODE_INVALID",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
+
+                return ResponseEntity.status(status).body(body);
+        }
+
+        // 🔹 이메일 인증 코드 만료
+        @ExceptionHandler(EmailVerificationExpiredException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailVerificationExpired(
+                        EmailVerificationExpiredException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.BAD_REQUEST;
+
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "EMAIL_CODE_EXPIRED",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
+
+                return ResponseEntity.status(status).body(body);
+        }
+
+        // 🔹 이메일 인증 코드 이미 사용됨
+        @ExceptionHandler(EmailVerificationAlreadyUsedException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailVerificationAlreadyUsed(
+                        EmailVerificationAlreadyUsedException ex,
+                        HttpServletRequest request) {
+                HttpStatus status = HttpStatus.BAD_REQUEST;
+
+                ApiErrorResponse body = new ApiErrorResponse(
+                                false,
+                                serviceName,
+                                "EMAIL_CODE_USED",
+                                ex.getMessage(),
+                                status.value(),
+                                request.getRequestURI(),
+                                Instant.now().toString());
+
+                return ResponseEntity.status(status).body(body);
+        }
+
 }
