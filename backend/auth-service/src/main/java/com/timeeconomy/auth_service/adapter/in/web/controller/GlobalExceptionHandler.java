@@ -7,6 +7,7 @@ import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.SessionAlreadyRevokedException;
+import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationExpiredException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationAlreadyUsedException;
@@ -208,6 +209,27 @@ public class GlobalExceptionHandler {
                                 Instant.now().toString());
 
                 return ResponseEntity.status(status).body(body);
+        }
+
+        // 🔹 Signup session not found or expired
+        @ExceptionHandler(SignupSessionNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleSignupSessionNotFound(
+                SignupSessionNotFoundException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST; // or 410 Gone if you prefer
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "SIGNUP_SESSION_NOT_FOUND",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
         }
 
 }

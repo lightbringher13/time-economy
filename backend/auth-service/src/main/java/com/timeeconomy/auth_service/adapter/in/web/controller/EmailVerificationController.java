@@ -7,10 +7,15 @@ import com.timeeconomy.auth_service.adapter.in.web.dto.VerifyEmailCodeResponse;
 import com.timeeconomy.auth_service.domain.port.in.GetEmailVerificationStatusUseCase;
 import com.timeeconomy.auth_service.domain.port.in.SendEmailVerificationCodeUseCase;
 import com.timeeconomy.auth_service.domain.port.in.VerifyEmailCodeUseCase;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.Duration;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth/email")
@@ -21,38 +26,72 @@ public class EmailVerificationController {
         private final GetEmailVerificationStatusUseCase getEmailVerificationStatusUseCase;
         private final VerifyEmailCodeUseCase verifyEmailCodeUseCase;
 
-        /**
-         * 이메일로 인증 코드 발송
-         */
+        private static final String SIGNUP_SESSION_COOKIE = "signup_session_id";
+
         @PostMapping("/send-code")
         public ResponseEntity<String> sendCode(
-                        @RequestBody SendEmailCodeRequest request,
-                        HttpServletRequest httpRequest) {
-                var cmd = new SendEmailVerificationCodeUseCase.SendCommand(
-                                request.email(),
-                                httpRequest.getRemoteAddr(),
-                                httpRequest.getHeader("User-Agent"));
-
-                String code = sendEmailVerificationCodeUseCase.send(cmd);
-
-                // FE는 204 or 200 만 보고 "코드 보냈다" UI 보여주면 됨
-                return ResponseEntity.ok(code);
+                @RequestBody SendEmailCodeRequest request,
+                @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String signupSessionCookie
+        ) {
+        // 1) 쿠키에서 기존 세션 ID 파싱
+        UUID existingSessionId = null;
+        if (signupSessionCookie != null && !signupSessionCookie.isBlank()) {
+                try {
+                existingSessionId = UUID.fromString(signupSessionCookie);
+                } catch (IllegalArgumentException ignored) {
+                // 잘못된 UUID면 무시하고 새 세션 만들게 둔다
+                }
         }
 
-        /**
-         * 이메일 + 코드로 검증
-         */
+        // 2) UseCase 호출 (email + existingSessionId)
+        var cmd = new SendEmailVerificationCodeUseCase.SendCommand(
+                request.email(),
+                existingSessionId
+        );
+
+        var result = sendEmailVerificationCodeUseCase.send(cmd);
+
+        // 3) HttpOnly signup_session_id 쿠키 설정/갱신
+        ResponseCookie cookie = ResponseCookie.from(SIGNUP_SESSION_COOKIE, result.sessionId().toString())
+                .httpOnly(true)
+                // TODO: 로컬 개발에서는 false, 운영(HTTPS)에서는 true
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(Duration.ofHours(24))
+                .build();
+
+        // 4) body에는 dev 편의를 위해 code만 내려줌
+        return ResponseEntity
+                .ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(result.code());
+        }
+
         @PostMapping("/verify")
         public ResponseEntity<VerifyEmailCodeResponse> verify(
-                        @RequestBody VerifyEmailCodeRequest request) {
-                var cmd = new VerifyEmailCodeUseCase.VerifyCommand(
-                                request.email(),
-                                request.code());
+                @CookieValue(name = "signup_session_id", required = false) String signupSessionIdCookie,
+                @RequestBody VerifyEmailCodeRequest request
+        ) {
+        UUID signupSessionId = null;
 
-                var result = verifyEmailCodeUseCase.verify(cmd);
+        if (signupSessionIdCookie != null && !signupSessionIdCookie.isBlank()) {
+                try {
+                signupSessionId = UUID.fromString(signupSessionIdCookie);
+                } catch (IllegalArgumentException ex) {
+                signupSessionId = null; // invalid cookie → ignore
+                }
+        }
 
-                return ResponseEntity.ok(
-                                new VerifyEmailCodeResponse(result.success()));
+        var cmd = new VerifyEmailCodeUseCase.VerifyCommand(
+                signupSessionId,
+                request.email(),
+                request.code()
+        );
+
+        var result = verifyEmailCodeUseCase.verify(cmd);
+
+        return ResponseEntity.ok(new VerifyEmailCodeResponse(result.success()));
         }
 
         @GetMapping("/status")
