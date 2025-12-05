@@ -26,7 +26,7 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
 
     @Override
     @Transactional
-    public void send(SendCommand command) {
+    public String send(SendCommand command) {
         String email = command.email();
 
         // 1) 코드 생성 (000000 ~ 999999)
@@ -47,6 +47,8 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
         emailVerificationMailPort.sendVerificationCode(email, code);
 
         log.info("[EmailVerification] sent code to email={} expiresAt={}", email, expiresAt);
+
+        return code;
     }
 
     private String generateCode() {
