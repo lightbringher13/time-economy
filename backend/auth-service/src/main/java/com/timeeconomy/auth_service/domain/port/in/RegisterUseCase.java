@@ -1,10 +1,12 @@
 package com.timeeconomy.auth_service.domain.port.in;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 public interface RegisterUseCase {
 
     record RegisterCommand(
+            UUID signupSessionId,   // ⭐ NEW
             String email,
             String password,
             String phoneNumber,
