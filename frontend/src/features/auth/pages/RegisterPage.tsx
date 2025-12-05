@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   registerApi,
   sendEmailCodeApi,
   verifyEmailCodeApi,
-  getEmailVerificationStatusApi, // ⭐ NEW
+  signupBootstrapApi,
+  updateSignupProfileApi,
 } from "../api/authApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/routes/paths";
@@ -17,13 +18,13 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
 
-  // ⭐ NEW FIELDS
+  // Profile fields
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [gender, setGender] = useState(""); // "MALE" | "FEMALE" | "OTHER"
+  const [gender, setGender] = useState("");
   const [birthDate, setBirthDate] = useState(""); // yyyy-MM-dd
 
-  // ⭐ Email verification states
+  // Email verification
   const [emailCode, setEmailCode] = useState("");
   const [emailVerified, setEmailVerified] = useState(false);
   const [sendCodeLoading, setSendCodeLoading] = useState(false);
@@ -31,7 +32,13 @@ export default function RegisterPage() {
   const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [hasSignupSession, setHasSignupSession] = useState(false);
+
+  // debounce timer for autosave
+  const autosaveTimerRef = useRef<number | null>(null);
 
   // 🔒 If already logged in, no need to register → go to dashboard
   useEffect(() => {
@@ -40,39 +47,67 @@ export default function RegisterPage() {
     }
   }, [phase, navigate]);
 
-  // ⭐ NEW: check email verification status from backend when email changes
+  // ⭐ 1) BOOTSTRAP signup session on page load
   useEffect(() => {
-    const trimmed = email.trim();
-    if (!trimmed) {
-      setEmailVerified(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    const checkStatus = async () => {
+    const bootstrap = async () => {
       try {
-        const res = await getEmailVerificationStatusApi(trimmed);
-        if (!cancelled) {
-          setEmailVerified(res.verified);
-          // dev UX: if backend says verified, show small info
-          if (res.verified) {
-            setVerificationInfo("Email is already verified.");
-          }
+        setBootstrapLoading(true);
+        const data = await signupBootstrapApi();
+
+        setHasSignupSession(data.hasSession);
+
+        if (data.hasSession) {
+          if (data.email) setEmail(data.email);
+          if (data.name) setName(data.name);
+          if (data.phoneNumber) setPhoneNumber(data.phoneNumber);
+          if (data.gender) setGender(data.gender);
+          if (data.birthDate) setBirthDate(data.birthDate);
+          setEmailVerified(data.emailVerified);
         }
       } catch (err) {
-        console.error("[RegisterPage] get email verification status failed", err);
-        // 에러라고 해서 강제로 false로 덮어 쓸 필요는 없음
-        // 여기서는 그냥 무시
+        console.error("[RegisterPage] signup bootstrap failed", err);
+        // we can silently ignore and treat as fresh signup
+      } finally {
+        setBootstrapLoading(false);
       }
     };
 
-    checkStatus();
+    bootstrap();
+  }, []);
+
+  // ⭐ 2) AUTOSAVE profile to signup session (debounced)
+  useEffect(() => {
+    // 조건:
+    // - bootstrap 완료 후
+    // - signup session 존재할 때만
+    if (bootstrapLoading || !hasSignupSession) return;
+
+    // 이메일이 아직 없으면 굳이 저장할 필요 없음
+    if (!email.trim()) return;
+
+    // debounce 600ms
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+
+    autosaveTimerRef.current = window.setTimeout(() => {
+      updateSignupProfileApi({
+        name: name || null,
+        phoneNumber: phoneNumber || null,
+        gender: gender || null,
+        birthDate: birthDate || null,
+      }).catch((err) => {
+        console.error("[RegisterPage] autosave profile failed", err);
+        // 실서비스라면 여기서 토스트 정도 띄워줄 수도 있음
+      });
+    }, 600);
 
     return () => {
-      cancelled = true;
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current);
+      }
     };
-  }, [email]);
+  }, [bootstrapLoading, hasSignupSession, email, name, phoneNumber, gender, birthDate]);
 
   const handleSendCode = async () => {
     setError(null);
@@ -85,9 +120,8 @@ export default function RegisterPage() {
 
     setSendCodeLoading(true);
     try {
-      const res = await sendEmailCodeApi({ email });
-      // dev 편의용: 받은 코드를 화면에 보여줌 (나중에 제거 가능)
-      setVerificationInfo(`Verification code (dev): ${res.code}`);
+      const code = await sendEmailCodeApi({ email });
+      setVerificationInfo(`Verification code (dev): ${code}`);
     } catch (err) {
       console.error("[RegisterPage] send email code failed", err);
       setError("Failed to send verification code. Please try again.");
@@ -173,7 +207,7 @@ export default function RegisterPage() {
         phoneNumber,
         name,
         gender,
-        birthDate, // "yyyy-MM-dd"
+        birthDate,
       });
 
       alert("Registration successful! Please log in.");
@@ -193,6 +227,8 @@ export default function RegisterPage() {
         Create a TimeEconomy account to start tracking your expenses.
       </p>
 
+      {bootstrapLoading && <p>Loading signup info...</p>}
+
       <form onSubmit={handleSubmit}>
         {/* Email + Send Code */}
         <div style={{ marginBottom: 12 }}>
@@ -202,7 +238,7 @@ export default function RegisterPage() {
               <input
                 type="email"
                 value={email}
-                disabled={emailVerified} // 이메일 인증 후 변경 방지
+                disabled={emailVerified} // certified email locked
                 onChange={(e) => setEmail(e.target.value)}
                 style={{ flex: 1 }}
               />
@@ -227,32 +263,31 @@ export default function RegisterPage() {
           <label>
             Verification Code
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            <input
-              type="text"
-              value={emailCode}
-              onChange={(e) => setEmailCode(e.target.value)}
-              disabled={emailVerified}
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              onClick={handleVerifyCode}
-              disabled={verifyCodeLoading || emailVerified}
-            >
-              {verifyCodeLoading ? "Verifying..." : "Verify"}
-            </button>
+              <input
+                type="text"
+                value={emailCode}
+                onChange={(e) => setEmailCode(e.target.value)}
+                disabled={emailVerified}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={handleVerifyCode}
+                disabled={verifyCodeLoading || emailVerified}
+              >
+                {verifyCodeLoading ? "Verifying..." : "Verify"}
+              </button>
             </div>
           </label>
         </div>
 
-        {/* Dev helper: show code / status */}
         {verificationInfo && (
           <div style={{ color: "#555", fontSize: 12, marginBottom: 8 }}>
             {verificationInfo}
           </div>
         )}
 
-        {/* Password */}
+        {/* Passwords */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Password
@@ -359,6 +394,7 @@ export default function RegisterPage() {
           Log in
         </button>
       </p>
+
       <p style={{ marginTop: 16 }}>
         Backend Health Check?{" "}
         <button

@@ -48,3 +48,24 @@ export type VerifyEmailCodeResponse = {
 export type EmailVerificationStatusResponse = {
   verified: boolean;
 };
+
+// ✅ NEW: signup bootstrap response
+export type SignupBootstrapResponse = {
+  hasSession: boolean;
+  email: string | null;
+  emailVerified: boolean;
+  phoneNumber: string | null;
+  phoneVerified: boolean;
+  name: string | null;
+  gender: string | null;
+  birthDate: string | null; // ISO yyyy-MM-dd from backend
+  state: string | null;     // e.g. "EMAIL_PENDING", "EMAIL_VERIFIED"
+};
+
+// ✅ NEW: update signup profile request
+export type UpdateSignupProfileRequest = {
+  name: string | null;
+  phoneNumber: string | null;
+  gender: string | null;
+  birthDate: string | null; // send as yyyy-MM-dd string
+};

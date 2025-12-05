@@ -10,7 +10,10 @@ import type { LoginRequest,
   SendEmailCodeResponse,
 VerifyEmailCodeRequest,
 VerifyEmailCodeResponse,
-EmailVerificationStatusResponse } from "../types/auth";
+EmailVerificationStatusResponse,
+SignupBootstrapResponse,
+UpdateSignupProfileRequest
+ } from "../types/auth";
 
 // 👉 Login API: POST /auth/login
 export async function loginApi(data: LoginRequest): Promise<AuthResponse> {
@@ -76,6 +79,20 @@ export async function getEmailVerificationStatusApi(
   return res.data;
 }
 
+// ✅ NEW: bootstrap signup session
+export const signupBootstrapApi = async (): Promise<SignupBootstrapResponse> => {
+  const res = await apiClient.get<SignupBootstrapResponse>(
+    "/auth/signup/bootstrap"
+  );
+  return res.data;
+};
+
+// ✅ NEW: autosave profile to signup session
+export const updateSignupProfileApi = async (
+  payload: UpdateSignupProfileRequest
+): Promise<void> => {
+  await apiClient.patch("/auth/signup/profile", payload);
+};
 
 // 🔹 Error code from BE for suspicious reuse
 // GlobalExceptionHandler sends:
