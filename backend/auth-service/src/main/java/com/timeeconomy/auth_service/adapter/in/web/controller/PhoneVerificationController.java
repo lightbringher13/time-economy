@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/auth/phone-verifications")
+@RequestMapping("/api/auth/phone")
 @RequiredArgsConstructor
 public class PhoneVerificationController {
 

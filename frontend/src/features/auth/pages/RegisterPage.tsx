@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { registerApi } from "../api/authApi";
+import {
+  registerApi,
+  sendEmailCodeApi,
+  verifyEmailCodeApi,
+  getEmailVerificationStatusApi, // ⭐ NEW
+} from "../api/authApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/routes/paths";
 
@@ -15,8 +20,15 @@ export default function RegisterPage() {
   // ⭐ NEW FIELDS
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [gender, setGender] = useState(""); // could be "MALE" | "FEMALE" | "OTHER"
-  const [birthDate, setBirthDate] = useState(""); // yyyy-MM-dd (HTML date input)
+  const [gender, setGender] = useState(""); // "MALE" | "FEMALE" | "OTHER"
+  const [birthDate, setBirthDate] = useState(""); // yyyy-MM-dd
+
+  // ⭐ Email verification states
+  const [emailCode, setEmailCode] = useState("");
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [sendCodeLoading, setSendCodeLoading] = useState(false);
+  const [verifyCodeLoading, setVerifyCodeLoading] = useState(false);
+  const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +39,94 @@ export default function RegisterPage() {
       navigate(ROUTES.DASHBOARD, { replace: true });
     }
   }, [phase, navigate]);
+
+  // ⭐ NEW: check email verification status from backend when email changes
+  useEffect(() => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setEmailVerified(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkStatus = async () => {
+      try {
+        const res = await getEmailVerificationStatusApi(trimmed);
+        if (!cancelled) {
+          setEmailVerified(res.verified);
+          // dev UX: if backend says verified, show small info
+          if (res.verified) {
+            setVerificationInfo("Email is already verified.");
+          }
+        }
+      } catch (err) {
+        console.error("[RegisterPage] get email verification status failed", err);
+        // 에러라고 해서 강제로 false로 덮어 쓸 필요는 없음
+        // 여기서는 그냥 무시
+      }
+    };
+
+    checkStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [email]);
+
+  const handleSendCode = async () => {
+    setError(null);
+    setVerificationInfo(null);
+
+    if (!email.trim()) {
+      setError("Email is required before sending code.");
+      return;
+    }
+
+    setSendCodeLoading(true);
+    try {
+      const res = await sendEmailCodeApi({ email });
+      // dev 편의용: 받은 코드를 화면에 보여줌 (나중에 제거 가능)
+      setVerificationInfo(`Verification code (dev): ${res.code}`);
+    } catch (err) {
+      console.error("[RegisterPage] send email code failed", err);
+      setError("Failed to send verification code. Please try again.");
+    } finally {
+      setSendCodeLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    setError(null);
+    setVerificationInfo(null);
+
+    if (!email.trim()) {
+      setError("Email is required.");
+      return;
+    }
+    if (!emailCode.trim()) {
+      setError("Verification code is required.");
+      return;
+    }
+
+    setVerifyCodeLoading(true);
+    try {
+      const res = await verifyEmailCodeApi({ email, code: emailCode });
+      if (res.verified) {
+        setEmailVerified(true);
+        setVerificationInfo("Email verified successfully.");
+      } else {
+        setEmailVerified(false);
+        setError("Invalid or expired verification code.");
+      }
+    } catch (err) {
+      console.error("[RegisterPage] verify email code failed", err);
+      setError("Failed to verify code. Please try again.");
+      setEmailVerified(false);
+    } finally {
+      setVerifyCodeLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +160,10 @@ export default function RegisterPage() {
       setError("Birth date is required.");
       return;
     }
+    if (!emailVerified) {
+      setError("Please verify your email before registering.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -90,18 +194,65 @@ export default function RegisterPage() {
       </p>
 
       <form onSubmit={handleSubmit}>
+        {/* Email + Send Code */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Email
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                type="email"
+                value={email}
+                disabled={emailVerified} // 이메일 인증 후 변경 방지
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={sendCodeLoading || emailVerified}
+              >
+                {sendCodeLoading ? "Sending..." : "Send Code"}
+              </button>
+            </div>
+          </label>
+          {emailVerified && (
+            <div style={{ color: "green", marginTop: 4 }}>
+              ✅ Email verified
+            </div>
+          )}
+        </div>
+
+        {/* Verify Code */}
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Verification Code
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4 }}
+              type="text"
+              value={emailCode}
+              onChange={(e) => setEmailCode(e.target.value)}
+              disabled={emailVerified}
+              style={{ flex: 1 }}
             />
+            <button
+              type="button"
+              onClick={handleVerifyCode}
+              disabled={verifyCodeLoading || emailVerified}
+            >
+              {verifyCodeLoading ? "Verifying..." : "Verify"}
+            </button>
+            </div>
           </label>
         </div>
 
+        {/* Dev helper: show code / status */}
+        {verificationInfo && (
+          <div style={{ color: "#555", fontSize: 12, marginBottom: 8 }}>
+            {verificationInfo}
+          </div>
+        )}
+
+        {/* Password */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Password
@@ -126,7 +277,7 @@ export default function RegisterPage() {
           </label>
         </div>
 
-        {/* ⭐ NEW: Name */}
+        {/* Name */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Name
@@ -139,7 +290,7 @@ export default function RegisterPage() {
           </label>
         </div>
 
-        {/* ⭐ NEW: Phone Number */}
+        {/* Phone Number */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Phone Number
@@ -152,7 +303,7 @@ export default function RegisterPage() {
           </label>
         </div>
 
-        {/* ⭐ NEW: Gender */}
+        {/* Gender */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Gender
@@ -169,7 +320,7 @@ export default function RegisterPage() {
           </label>
         </div>
 
-        {/* ⭐ NEW: Birth Date */}
+        {/* Birth Date */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Birth Date

@@ -1,7 +1,16 @@
 // src/features/auth/api/authApi.ts
 import { apiClient } from "@/shared/api/apiClient";
 import type { AxiosError } from "axios";
-import type { LoginRequest, AuthResponse, ApiErrorResponse, RegisterRequest, RegisterResponse} from "../types/auth";
+import type { LoginRequest,
+   AuthResponse,
+   ApiErrorResponse,
+    RegisterRequest,
+     RegisterResponse,
+    SendEmailCodeRequest,
+  SendEmailCodeResponse,
+VerifyEmailCodeRequest,
+VerifyEmailCodeResponse,
+EmailVerificationStatusResponse } from "../types/auth";
 
 // 👉 Login API: POST /auth/login
 export async function loginApi(data: LoginRequest): Promise<AuthResponse> {
@@ -38,6 +47,35 @@ export async function logoutApi(): Promise<void> {
 export async function logoutAllApi(): Promise<void> {
   await apiClient.post("/auth/logout-all");
 }
+
+export async function sendEmailCodeApi(data: SendEmailCodeRequest) {
+  const res = await apiClient.post<SendEmailCodeResponse>(
+    "/auth/email/send-code",
+    data
+  );
+  return res.data;
+}
+
+export async function verifyEmailCodeApi(
+  data: VerifyEmailCodeRequest
+) {
+  const res = await apiClient.post<VerifyEmailCodeResponse>(
+    "/auth/email/verify",
+    data
+  );
+  return res.data;
+}
+
+export async function getEmailVerificationStatusApi(
+  email: string
+): Promise<EmailVerificationStatusResponse> {
+  const res = await apiClient.get<EmailVerificationStatusResponse>(
+    "/auth/email/status",
+    { params: { email } }
+  );
+  return res.data;
+}
+
 
 // 🔹 Error code from BE for suspicious reuse
 // GlobalExceptionHandler sends:

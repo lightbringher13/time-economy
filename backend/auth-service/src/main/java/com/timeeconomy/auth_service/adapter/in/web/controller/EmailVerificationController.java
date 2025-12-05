@@ -1,8 +1,10 @@
 package com.timeeconomy.auth_service.adapter.in.web.controller;
 
+import com.timeeconomy.auth_service.adapter.in.web.dto.EmailVerificationStatusResponse;
 import com.timeeconomy.auth_service.adapter.in.web.dto.SendEmailCodeRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.VerifyEmailCodeRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.VerifyEmailCodeResponse;
+import com.timeeconomy.auth_service.domain.port.in.GetEmailVerificationStatusUseCase;
 import com.timeeconomy.auth_service.domain.port.in.SendEmailVerificationCodeUseCase;
 import com.timeeconomy.auth_service.domain.port.in.VerifyEmailCodeUseCase;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,13 +18,14 @@ import org.springframework.web.bind.annotation.*;
 public class EmailVerificationController {
 
         private final SendEmailVerificationCodeUseCase sendEmailVerificationCodeUseCase;
+        private final GetEmailVerificationStatusUseCase getEmailVerificationStatusUseCase;
         private final VerifyEmailCodeUseCase verifyEmailCodeUseCase;
 
         /**
          * 이메일로 인증 코드 발송
          */
         @PostMapping("/send-code")
-        public ResponseEntity<Void> sendCode(
+        public ResponseEntity<String> sendCode(
                         @RequestBody SendEmailCodeRequest request,
                         HttpServletRequest httpRequest) {
                 var cmd = new SendEmailVerificationCodeUseCase.SendCommand(
@@ -30,10 +33,10 @@ public class EmailVerificationController {
                                 httpRequest.getRemoteAddr(),
                                 httpRequest.getHeader("User-Agent"));
 
-                sendEmailVerificationCodeUseCase.send(cmd);
+                String code = sendEmailVerificationCodeUseCase.send(cmd);
 
                 // FE는 204 or 200 만 보고 "코드 보냈다" UI 보여주면 됨
-                return ResponseEntity.noContent().build();
+                return ResponseEntity.ok(code);
         }
 
         /**
@@ -50,5 +53,13 @@ public class EmailVerificationController {
 
                 return ResponseEntity.ok(
                                 new VerifyEmailCodeResponse(result.success()));
+        }
+
+        @GetMapping("/status")
+        public ResponseEntity<EmailVerificationStatusResponse> getStatus(
+                @RequestParam String email
+        ) {
+                var result = getEmailVerificationStatusUseCase.getStatus(email);
+                return ResponseEntity.ok(new EmailVerificationStatusResponse(result.verified()));
         }
 }

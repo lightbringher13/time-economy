@@ -24,30 +24,36 @@ public class VerifyEmailCodeService implements VerifyEmailCodeUseCase {
     @Transactional
     public VerifyResult verify(VerifyCommand command) {
         String email = command.email();
-        String code = command.code();
-
+        String inputCode = command.code();
         LocalDateTime now = LocalDateTime.now();
 
-        // 1) email + code 로 조회
-        EmailVerification verification = emailVerificationRepositoryPort
-                .findByEmailAndCode(email, code)
-                .orElseThrow(() -> new EmailVerificationNotFoundException("Invalid verification code for email"));
+        // ⭐ 1) Always fetch the most recent verification record for this email
+        EmailVerification latest = emailVerificationRepositoryPort
+                .findLatestByEmail(email)
+                .orElseThrow(() ->
+                        new EmailVerificationNotFoundException("No verification code found for email"));
 
-        // 2) 만료 체크
-        if (verification.isExpired(now)) {
-            throw new EmailVerificationExpiredException("Verification code expired");
-        }
-
-        // 3) 이미 사용된 코드인지
-        if (verification.isVerified()) {
+        // 2) Already used?
+        if (latest.isVerified()) {
             throw new EmailVerificationAlreadyUsedException("Verification code already used");
         }
 
-        // 4) 정상: verifiedAt 업데이트
-        verification.markVerified(now);
-        emailVerificationRepositoryPort.save(verification);
+        // 3) Expired?
+        if (latest.isExpired(now)) {
+            throw new EmailVerificationExpiredException("Verification code expired");
+        }
 
-        log.info("[EmailVerification] verified email={} code={}", email, code);
+        // ⭐ 4) Code must match the *latest* code only
+        if (!latest.getCode().equals(inputCode)) {
+            // old code or wrong code → all fail here
+            throw new EmailVerificationNotFoundException("Invalid verification code for email");
+        }
+
+        // 5) Success → mark as verified and save
+        latest.markVerified(now);
+        emailVerificationRepositoryPort.save(latest);
+
+        log.info("[EmailVerification] verified email={} code={}", email, inputCode);
 
         return new VerifyResult(true);
     }
