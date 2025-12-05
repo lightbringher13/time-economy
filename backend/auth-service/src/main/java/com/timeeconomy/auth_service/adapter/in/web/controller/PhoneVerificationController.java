@@ -33,15 +33,26 @@ public class PhoneVerificationController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * 인증번호 검증
-     */
     @PostMapping("/verify")
     public ResponseEntity<VerifyPhoneCodeResponse> verify(
-            @Valid @RequestBody VerifyPhoneCodeRequest request) {
-        VerifyPhoneCodeUseCase.VerifyCommand command = new VerifyPhoneCodeUseCase.VerifyCommand(
-                request.getPhoneNumber(),
-                request.getCode());
+            @Valid @RequestBody VerifyPhoneCodeRequest request,
+            @CookieValue(name = "signup_session_id", required = false) String signupSessionIdValue // TODO: replace with constant if you have one
+    ) {
+        java.util.UUID signupSessionId = null;
+        if (signupSessionIdValue != null && !signupSessionIdValue.isBlank()) {
+            try {
+                signupSessionId = java.util.UUID.fromString(signupSessionIdValue);
+            } catch (IllegalArgumentException ex) {
+                // 잘못된 UUID 포맷이면 그냥 null 취급 (best effort)
+            }
+        }
+
+        VerifyPhoneCodeUseCase.VerifyCommand command =
+                new VerifyPhoneCodeUseCase.VerifyCommand(
+                        request.getPhoneNumber(),
+                        request.getCode(),
+                        signupSessionId
+                );
 
         VerifyPhoneCodeUseCase.Result result = verifyPhoneCodeUseCase.verify(command);
 

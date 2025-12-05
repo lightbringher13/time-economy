@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -205,10 +206,22 @@ public class AuthController {
         }
 
         @PostMapping("/register")
-        public ResponseEntity<RegisterResponse> register(@RequestBody RegisterRequest request) {
+        public ResponseEntity<RegisterResponse> register(
+                @CookieValue(name = "signup_session_id", required = false) String signupSessionIdCookie,
+                @RequestBody RegisterRequest request
+        ) {
+        UUID signupSessionId = null;
+        if (signupSessionIdCookie != null && !signupSessionIdCookie.isBlank()) {
+                try {
+                signupSessionId = UUID.fromString(signupSessionIdCookie);
+                } catch (IllegalArgumentException ignored) {
+                // malformed cookie → treat as no session
+                }
+        }
 
         RegisterUseCase.RegisterResult result = registerUseCase.register(
                 new RegisterUseCase.RegisterCommand(
+                        signupSessionId,          // ⭐ NEW
                         request.email(),
                         request.password(),
                         request.phoneNumber(),
@@ -223,7 +236,18 @@ public class AuthController {
                 result.email()
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+        // ⭐ Clear signup_session_id cookie after successful registration
+        ResponseCookie clearCookie = ResponseCookie.from("signup_session_id", "")
+                .path("/")
+                .maxAge(0)          // delete
+                .httpOnly(true)
+                .secure(false)      // TODO: true in production with HTTPS
+                .sameSite("Lax")
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                .body(body);
         }
 
 }

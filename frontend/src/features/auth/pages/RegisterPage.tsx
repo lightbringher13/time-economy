@@ -6,6 +6,8 @@ import {
   verifyEmailCodeApi,
   signupBootstrapApi,
   updateSignupProfileApi,
+  requestPhoneCodeApi,
+  verifyPhoneCodeApi,
 } from "../api/authApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/routes/paths";
@@ -30,6 +32,13 @@ export default function RegisterPage() {
   const [sendCodeLoading, setSendCodeLoading] = useState(false);
   const [verifyCodeLoading, setVerifyCodeLoading] = useState(false);
   const [verificationInfo, setVerificationInfo] = useState<string | null>(null);
+
+  // Phone verification
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [sendPhoneCodeLoading, setSendPhoneCodeLoading] = useState(false);
+  const [verifyPhoneCodeLoading, setVerifyPhoneCodeLoading] = useState(false);
+  const [phoneVerificationInfo, setPhoneVerificationInfo] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
@@ -63,10 +72,15 @@ export default function RegisterPage() {
           if (data.gender) setGender(data.gender);
           if (data.birthDate) setBirthDate(data.birthDate);
           setEmailVerified(data.emailVerified);
+
+          // 🔹 assuming backend now returns phoneVerified
+          if (typeof data.phoneVerified === "boolean") {
+            setPhoneVerified(data.phoneVerified);
+          }
         }
       } catch (err) {
         console.error("[RegisterPage] signup bootstrap failed", err);
-        // we can silently ignore and treat as fresh signup
+        // silently ignore → treat as fresh signup
       } finally {
         setBootstrapLoading(false);
       }
@@ -109,6 +123,9 @@ export default function RegisterPage() {
     };
   }, [bootstrapLoading, hasSignupSession, email, name, phoneNumber, gender, birthDate]);
 
+  // ======================
+  // Email verification
+  // ======================
   const handleSendCode = async () => {
     setError(null);
     setVerificationInfo(null);
@@ -162,6 +179,71 @@ export default function RegisterPage() {
     }
   };
 
+  // ======================
+  // Phone verification
+  // ======================
+  const handleSendPhoneCode = async () => {
+    setError(null);
+    setPhoneVerificationInfo(null);
+
+    if (!phoneNumber.trim()) {
+      setError("Phone number is required before sending code.");
+      return;
+    }
+
+    setSendPhoneCodeLoading(true);
+    try {
+      // countryCode optional; backend defaults to +82
+      await requestPhoneCodeApi({ phoneNumber });
+      // dev helper: we don't have code in response here, just show generic message
+      setPhoneVerificationInfo("Phone verification code sent. (dev: check backend logs)");
+    } catch (err) {
+      console.error("[RegisterPage] send phone code failed", err);
+      setError("Failed to send phone verification code. Please try again.");
+    } finally {
+      setSendPhoneCodeLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneCode = async () => {
+    setError(null);
+    setPhoneVerificationInfo(null);
+
+    if (!phoneNumber.trim()) {
+      setError("Phone number is required.");
+      return;
+    }
+    if (!phoneCode.trim()) {
+      setError("Phone verification code is required.");
+      return;
+    }
+
+    setVerifyPhoneCodeLoading(true);
+    try {
+      const res = await verifyPhoneCodeApi({
+        phoneNumber,
+        code: phoneCode,
+      });
+
+      if (res.success) {
+        setPhoneVerified(true);
+        setPhoneVerificationInfo("Phone verified successfully.");
+      } else {
+        setPhoneVerified(false);
+        setError("Invalid or expired phone verification code.");
+      }
+    } catch (err) {
+      console.error("[RegisterPage] verify phone code failed", err);
+      setError("Failed to verify phone code. Please try again.");
+      setPhoneVerified(false);
+    } finally {
+      setVerifyPhoneCodeLoading(false);
+    }
+  };
+
+  // ======================
+  // Submit
+  // ======================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -196,6 +278,10 @@ export default function RegisterPage() {
     }
     if (!emailVerified) {
       setError("Please verify your email before registering.");
+      return;
+    }
+    if (!phoneVerified) {
+      setError("Please verify your phone number before registering.");
       return;
     }
 
@@ -258,10 +344,10 @@ export default function RegisterPage() {
           )}
         </div>
 
-        {/* Verify Code */}
+        {/* Email Verify Code */}
         <div style={{ marginBottom: 12 }}>
           <label>
-            Verification Code
+            Email Verification Code
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
               <input
                 type="text"
@@ -325,18 +411,62 @@ export default function RegisterPage() {
           </label>
         </div>
 
-        {/* Phone Number */}
+        {/* Phone Number + Send Phone Code */}
         <div style={{ marginBottom: 12 }}>
           <label>
             Phone Number
-            <input
-              type="tel"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4 }}
-            />
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                disabled={phoneVerified}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={handleSendPhoneCode}
+                disabled={sendPhoneCodeLoading || phoneVerified}
+              >
+                {sendPhoneCodeLoading ? "Sending..." : "Send Code"}
+              </button>
+            </div>
+          </label>
+          {phoneVerified && (
+            <div style={{ color: "green", marginTop: 4 }}>
+              ✅ Phone verified
+            </div>
+          )}
+        </div>
+
+        {/* Phone Verify Code */}
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Phone Verification Code
+            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+              <input
+                type="text"
+                value={phoneCode}
+                onChange={(e) => setPhoneCode(e.target.value)}
+                disabled={phoneVerified}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={handleVerifyPhoneCode}
+                disabled={verifyPhoneCodeLoading || phoneVerified}
+              >
+                {verifyPhoneCodeLoading ? "Verifying..." : "Verify"}
+              </button>
+            </div>
           </label>
         </div>
+
+        {phoneVerificationInfo && (
+          <div style={{ color: "#555", fontSize: 12, marginBottom: 8 }}>
+            {phoneVerificationInfo}
+          </div>
+        )}
 
         {/* Gender */}
         <div style={{ marginBottom: 12 }}>

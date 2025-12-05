@@ -6,11 +6,13 @@ import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
+import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
 import com.timeeconomy.auth_service.domain.exception.SessionAlreadyRevokedException;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationExpiredException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationAlreadyUsedException;
+import com.timeeconomy.auth_service.domain.exception.EmailNotVerifiedException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -231,5 +233,47 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(status).body(body);
         }
+
+        // 🔹 Email not verified when required
+@ExceptionHandler(EmailNotVerifiedException.class)
+public ResponseEntity<ApiErrorResponse> handleEmailNotVerified(
+        EmailNotVerifiedException ex,
+        HttpServletRequest request
+) {
+    HttpStatus status = HttpStatus.BAD_REQUEST;
+
+    ApiErrorResponse body = new ApiErrorResponse(
+            false,
+            serviceName,
+            "EMAIL_NOT_VERIFIED",
+            ex.getMessage(),
+            status.value(),
+            request.getRequestURI(),
+            Instant.now().toString()
+    );
+
+    return ResponseEntity.status(status).body(body);
+}
+
+// 🔹 Phone not verified when required
+@ExceptionHandler(PhoneNotVerifiedException.class)
+public ResponseEntity<ApiErrorResponse> handlePhoneNotVerified(
+        PhoneNotVerifiedException ex,
+        HttpServletRequest request
+) {
+    HttpStatus status = HttpStatus.BAD_REQUEST;
+
+    ApiErrorResponse body = new ApiErrorResponse(
+            false,
+            serviceName,
+            "PHONE_NOT_VERIFIED",
+            ex.getMessage(),
+            status.value(),
+            request.getRequestURI(),
+            Instant.now().toString()
+    );
+
+    return ResponseEntity.status(status).body(body);
+}
 
 }

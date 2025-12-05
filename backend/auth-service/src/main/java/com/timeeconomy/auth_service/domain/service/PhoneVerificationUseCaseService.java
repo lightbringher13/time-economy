@@ -4,12 +4,14 @@ import com.timeeconomy.auth_service.domain.model.PhoneVerification;
 import com.timeeconomy.auth_service.domain.port.in.RequestPhoneVerificationUseCase;
 import com.timeeconomy.auth_service.domain.port.in.VerifyPhoneCodeUseCase;
 import com.timeeconomy.auth_service.domain.port.out.PhoneVerificationRepositoryPort;
+import com.timeeconomy.auth_service.domain.port.out.SignupSessionRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,7 @@ public class PhoneVerificationUseCaseService
     private static final String DEFAULT_COUNTRY_CODE = "+82";
 
     private final PhoneVerificationRepositoryPort phoneVerificationRepositoryPort;
+    private final SignupSessionRepositoryPort signupSessionRepositoryPort;
     // TODO: later inject SmsSenderPort or PhoneVerificationSmsPort for real SMS
 
     @Override
@@ -68,7 +71,27 @@ public class PhoneVerificationUseCaseService
                 })
                 .orElse(false);
 
+        if (success && command.signupSessionId() != null) {
+            linkToSignupSession(command.signupSessionId(), phoneNumber, now);
+        }
+
         return new Result(success);
+    }
+
+    private void linkToSignupSession(UUID signupSessionId, String phoneNumber, LocalDateTime now) {
+        signupSessionRepositoryPort
+                .findActiveById(signupSessionId, now)
+                .ifPresent(session -> {
+                    // 세션에 전화번호 반영 + 검증 표시
+                    session.setPhoneNumber(phoneNumber);
+                    session.setPhoneVerified(true);
+                    session.setUpdatedAt(now); // 혹은 domain 메서드 하나 만들어도 됨
+
+                    signupSessionRepositoryPort.save(session);
+
+                    log.info("[PHONE_VERIFICATION] linked to signupSessionId={} phone={}",
+                            session.getId(), phoneNumber);
+                });
     }
 
     private String generateNumericCode(int length) {
