@@ -16,6 +16,23 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  
+  mail:
+    host: ${BREVO_HOST:smtp-relay.brevo.com}
+    port: ${BREVO_PORT:587}
+    username: ${BREVO_USERNAME}
+    password: ${BREVO_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+app:
+  mail:
+    from: your-verified-email@something.com
+
+brevo:
+  sms:
+    api-key: ${BREVO_SMS_API_KEY}                      # 🔹 maps env → @Value
+    sender-name: ${BREVO_SMS_SENDER_NAME:TimeEconomy}
 
 jwt:
   secret: "super-super-long-random-secret-key-change-this-in-prod"

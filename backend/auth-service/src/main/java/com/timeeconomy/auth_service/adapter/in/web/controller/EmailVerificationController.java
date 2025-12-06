@@ -29,7 +29,7 @@ public class EmailVerificationController {
         private static final String SIGNUP_SESSION_COOKIE = "signup_session_id";
 
         @PostMapping("/send-code")
-        public ResponseEntity<String> sendCode(
+        public ResponseEntity<Void> sendCode(
                 @RequestBody SendEmailCodeRequest request,
                 @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String signupSessionCookie
         ) {
@@ -65,7 +65,7 @@ public class EmailVerificationController {
         return ResponseEntity
                 .ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .body(result.code());
+                .build();
         }
 
         @PostMapping("/verify")
