@@ -4,6 +4,7 @@ import com.timeeconomy.auth_service.domain.model.PhoneVerification;
 import com.timeeconomy.auth_service.domain.port.in.RequestPhoneVerificationUseCase;
 import com.timeeconomy.auth_service.domain.port.in.VerifyPhoneCodeUseCase;
 import com.timeeconomy.auth_service.domain.port.out.PhoneVerificationRepositoryPort;
+import com.timeeconomy.auth_service.domain.port.out.PhoneVerificationSmsPort;
 import com.timeeconomy.auth_service.domain.port.out.SignupSessionRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ public class PhoneVerificationUseCaseService
 
     private final PhoneVerificationRepositoryPort phoneVerificationRepositoryPort;
     private final SignupSessionRepositoryPort signupSessionRepositoryPort;
+    private final PhoneVerificationSmsPort phoneVerificationSmsPort;
     // TODO: later inject SmsSenderPort or PhoneVerificationSmsPort for real SMS
 
     @Override
@@ -50,9 +52,10 @@ public class PhoneVerificationUseCaseService
 
         phoneVerificationRepositoryPort.save(verification);
 
-        // For now just log (mock SMS)
-        log.info("[PHONE_VERIFICATION] Send code={} to {}{} (expires at {})",
-                code, countryCode, phoneNumber, expiresAt);
+        // ⭐ send SMS using port
+        phoneVerificationSmsPort.sendVerificationCode(countryCode, phoneNumber, code);
+
+        log.info("[PHONE_VERIFICATION] code={} prepared for {}{}", code, countryCode, phoneNumber);
     }
 
     @Override
