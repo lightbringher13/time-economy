@@ -1,7 +1,5 @@
 package com.timeeconomy.auth_service.adapter.in.web.dto;
 
-import java.time.LocalDate;
-
 public record SignupBootstrapResponse(
         boolean hasSession,
         String email,
@@ -10,6 +8,6 @@ public record SignupBootstrapResponse(
         boolean phoneVerified,
         String name,
         String gender,
-        LocalDate birthDate,
+        String birthDate,
         String state   // e.g. "EMAIL_PENDING", "EMAIL_VERIFIED", ...
 ) {}

@@ -1,11 +1,17 @@
 package com.timeeconomy.auth_service.adapter.in.web.controller;
 
+
+import org.springframework.http.HttpHeaders; 
 import com.timeeconomy.auth_service.adapter.in.web.dto.SignupBootstrapResponse;
 import com.timeeconomy.auth_service.adapter.in.web.dto.UpdateSignupProfileRequest;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
-import com.timeeconomy.auth_service.domain.port.in.GetSignupSessionStatusUseCase;
+import com.timeeconomy.auth_service.domain.port.in.SignupBootstrapUseCase;
 import com.timeeconomy.auth_service.domain.port.in.UpdateSignupProfileUseCase;
 import lombok.RequiredArgsConstructor;
+
+import java.time.Duration;
+
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,7 +24,7 @@ public class SignupSessionController {
 
     private static final String SIGNUP_SESSION_COOKIE = "signup_session_id";
 
-    private final GetSignupSessionStatusUseCase getSignupSessionStatusUseCase;
+    private final SignupBootstrapUseCase signupBootstrapUseCase;
     private final UpdateSignupProfileUseCase updateSignupProfileUseCase;
 
     /**
@@ -32,62 +38,30 @@ public class SignupSessionController {
     public ResponseEntity<SignupBootstrapResponse> bootstrap(
             @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue
     ) {
-        // 쿠키가 없으면 세션 없음으로 처리
-        if (sessionIdValue == null || sessionIdValue.isBlank()) {
-            SignupBootstrapResponse empty = new SignupBootstrapResponse(
-                    false,
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-            return ResponseEntity.ok(empty);
+        UUID existingSessionId = null;
+        if (sessionIdValue != null && !sessionIdValue.isBlank()) {
+            try {
+                existingSessionId = UUID.fromString(sessionIdValue);
+            } catch (IllegalArgumentException ignored) {
+                // 잘못된 UUID → 새 세션 만들게 둠
+            }
         }
 
-        UUID sessionId;
-        try {
-            sessionId = UUID.fromString(sessionIdValue);
-        } catch (IllegalArgumentException ex) {
-            // 잘못된 UUID 형식이면 세션 없음 처리
-            SignupBootstrapResponse empty = new SignupBootstrapResponse(
-                    false,
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-            return ResponseEntity.ok(empty);
-        }
-
-        var result = getSignupSessionStatusUseCase.getStatus(
-                new GetSignupSessionStatusUseCase.Query(sessionId)
+        var result = signupBootstrapUseCase.bootstrap(
+                new SignupBootstrapUseCase.Command(existingSessionId)
         );
 
-        if (!result.exists()) {
-            SignupBootstrapResponse empty = new SignupBootstrapResponse(
-                    false,
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    null,
-                    null,
-                    result.state() != null ? result.state().name() : null
-            );
-            return ResponseEntity.ok(empty);
-        }
+        // 항상 sessionId를 쿠키로 내려줌 (새로 만들었든 재사용하든)
+        ResponseCookie cookie = ResponseCookie.from(SIGNUP_SESSION_COOKIE, result.sessionId().toString())
+                .httpOnly(true)
+                .secure(true)          // 로컬 개발이면 false도 가능
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(Duration.ofHours(24))
+                .build();
 
-        SignupBootstrapResponse response = new SignupBootstrapResponse(
-                true,
+        SignupBootstrapResponse body = new SignupBootstrapResponse(
+                result.exists(),          // hasSession
                 result.email(),
                 result.emailVerified(),
                 result.phoneNumber(),
@@ -95,10 +69,13 @@ public class SignupSessionController {
                 result.name(),
                 result.gender(),
                 result.birthDate(),
-                result.state() != null ? result.state().name() : null
+                result.state()
         );
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity
+                .ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(body);
     }
 
     /**
