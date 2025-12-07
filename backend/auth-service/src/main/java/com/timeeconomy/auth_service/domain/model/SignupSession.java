@@ -42,13 +42,12 @@ public class SignupSession {
             LocalDateTime now,
             LocalDateTime expiresAt
     ) {
-        Objects.requireNonNull(email, "email must not be null");
         Objects.requireNonNull(now, "now must not be null");
         Objects.requireNonNull(expiresAt, "expiresAt must not be null");
 
         SignupSession session = new SignupSession();
         session.id = UUID.randomUUID();
-        session.email = email.trim().toLowerCase();
+        session.email = null;
         session.emailVerified = false;
         session.phoneVerified = false;
         session.state = SignupSessionState.EMAIL_PENDING;

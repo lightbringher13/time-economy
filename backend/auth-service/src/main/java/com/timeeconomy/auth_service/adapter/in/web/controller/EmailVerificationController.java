@@ -7,14 +7,11 @@ import com.timeeconomy.auth_service.adapter.in.web.dto.VerifyEmailCodeResponse;
 import com.timeeconomy.auth_service.domain.port.in.GetEmailVerificationStatusUseCase;
 import com.timeeconomy.auth_service.domain.port.in.SendEmailVerificationCodeUseCase;
 import com.timeeconomy.auth_service.domain.port.in.VerifyEmailCodeUseCase;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
 import java.util.UUID;
 
 @RestController
@@ -33,39 +30,20 @@ public class EmailVerificationController {
                 @RequestBody SendEmailCodeRequest request,
                 @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String signupSessionCookie
         ) {
-        // 1) 쿠키에서 기존 세션 ID 파싱
-        UUID existingSessionId = null;
-        if (signupSessionCookie != null && !signupSessionCookie.isBlank()) {
-                try {
-                existingSessionId = UUID.fromString(signupSessionCookie);
-                } catch (IllegalArgumentException ignored) {
-                // 잘못된 UUID면 무시하고 새 세션 만들게 둔다
-                }
+        if (signupSessionCookie == null || signupSessionCookie.isBlank()) {
+                throw new IllegalStateException("Signup session not initialized");
         }
 
-        // 2) UseCase 호출 (email + existingSessionId)
+        UUID signupSessionId = UUID.fromString(signupSessionCookie);
+
         var cmd = new SendEmailVerificationCodeUseCase.SendCommand(
                 request.email(),
-                existingSessionId
+                signupSessionId
         );
 
-        var result = sendEmailVerificationCodeUseCase.send(cmd);
+        sendEmailVerificationCodeUseCase.send(cmd);
 
-        // 3) HttpOnly signup_session_id 쿠키 설정/갱신
-        ResponseCookie cookie = ResponseCookie.from(SIGNUP_SESSION_COOKIE, result.sessionId().toString())
-                .httpOnly(true)
-                // TODO: 로컬 개발에서는 false, 운영(HTTPS)에서는 true
-                .secure(true)
-                .sameSite("Strict")
-                .path("/")
-                .maxAge(Duration.ofHours(24))
-                .build();
-
-        // 4) body에는 dev 편의를 위해 code만 내려줌
-        return ResponseEntity
-                .ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                .build();
+        return ResponseEntity.ok().build();
         }
 
         @PostMapping("/verify")

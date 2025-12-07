@@ -13,8 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.time.Duration;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +20,6 @@ import java.util.UUID;
 public class SendEmailVerificationCodeService implements SendEmailVerificationCodeUseCase {
 
     private static final long EXPIRES_MINUTES = 10L;
-    private static final Duration SIGNUP_SESSION_TTL = Duration.ofHours(24);
 
     private final EmailVerificationRepositoryPort emailVerificationRepositoryPort;
     private final EmailVerificationMailPort emailVerificationMailPort;
@@ -36,54 +33,33 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
         String email = command.email().trim().toLowerCase();
         LocalDateTime now = LocalDateTime.now();
 
-        // 1) generate verification code
+        // 1) generate & save verification code
         String code = generateCode();
         LocalDateTime expiresAt = now.plusMinutes(EXPIRES_MINUTES);
 
-        // 2) save verification entry
         EmailVerification verification = new EmailVerification(email, code, expiresAt);
         emailVerificationRepositoryPort.save(verification);
 
-        // 3) resolve or create signup session
-        SignupSession session = resolveOrCreateSession(command.existingSessionId(), email, now);
+        // 2) find existing signup session (MUST exist)
+        SignupSession session = signupSessionRepositoryPort
+                .findActiveById(command.signupSessionId(), now)
+                .orElseThrow(() ->
+                        new IllegalStateException("Signup session not initialized"));
 
-        signupSessionRepositoryPort.save(session);
+        // 3) keep email in session in sync (user might edit email)
+        if (!email.equals(session.getEmail())) {
+            session.updateEmail(email, now);   // or a setter/domain method
+            signupSessionRepositoryPort.save(session);
+        }
 
-        // 4) send email (dev mode logs code)
+        // 4) send email via adapter
         emailVerificationMailPort.sendVerificationCode(email, code);
 
         log.info("[EmailVerification] sent code to email={} code={} expiresAt={} sessionId={}",
                 email, code, expiresAt, session.getId());
 
-        return new SendResult(code, session.getId());
-    }
-
-    private SignupSession resolveOrCreateSession(UUID existingSessionId,
-                                                 String email,
-                                                 LocalDateTime now) {
-
-        // Reuse session if cookie provided
-        if (existingSessionId != null) {
-            var active = signupSessionRepositoryPort.findActiveById(existingSessionId, now);
-            if (active.isPresent()) {
-                // Ensure email matches
-                SignupSession s = active.get();
-                if (!s.getEmail().equals(email)) {
-                    s.updateEmail(email, now);
-                }
-                return s;
-            }
-        }
-
-        // (Optional) reuse active session by email
-        var byEmail = signupSessionRepositoryPort.findLatestActiveByEmail(email, now);
-        if (byEmail.isPresent()) {
-            return byEmail.get();
-        }
-
-        // Create new session
-        LocalDateTime expiry = now.plus(SIGNUP_SESSION_TTL);
-        return SignupSession.createNew(email, now, expiry);
+        // dev-only: we still return code
+        return new SendResult(code);
     }
 
     private String generateCode() {
