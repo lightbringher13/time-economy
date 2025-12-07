@@ -7,6 +7,7 @@ public interface UpdateSignupProfileUseCase {
 
     record Command(
             UUID sessionId,
+            String email,
             String name,
             String phoneNumber,
             String gender,

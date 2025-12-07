@@ -19,20 +19,27 @@ public class UpdateSignupProfileService implements UpdateSignupProfileUseCase {
 
     @Override
     @Transactional
-    public void updateProfile(Command command) {
-        UUID sessionId = command.sessionId();
+    public void updateProfile(Command cmd) {
+        UUID sessionId = cmd.sessionId();
         LocalDateTime now = LocalDateTime.now();
 
         SignupSession session = signupSessionRepositoryPort
                 .findActiveById(sessionId, now)
                 .orElseThrow(() -> new SignupSessionNotFoundException(sessionId));
 
-        // domain method on SignupSession you should have:
+        // 1) 이메일: 아직 검증 안 된 경우에만 변경 허용
+        if (cmd.email() != null && !cmd.email().isBlank() && !session.isEmailVerified()) {
+            session.updateEmail(cmd.email(), now);   // 이미 있는 도메인 메서드 재사용
+        }
+
+        
+
+        // 2) 프로필 필드 업데이트 (지금 네 도메인 메서드 그대로 활용)
         session.updateProfile(
-                command.name(),
-                command.phoneNumber(),
-                command.gender(),
-                command.birthDate(),
+                cmd.name(),
+                cmd.phoneNumber(),
+                cmd.gender(),
+                cmd.birthDate(),
                 now
         );
 

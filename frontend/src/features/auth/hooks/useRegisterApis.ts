@@ -71,36 +71,38 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
 
   // ========= 2) AUTOSAVE PROFILE =========
   useEffect(() => {
-    if (bootstrapLoading) return;
+  if (bootstrapLoading) return;
 
-    const subscription = watch((values) => {
-      const { email, name, phoneNumber, gender, birthDate } = values;
+  const subscription = watch((values) => {
+    const { email, name, phoneNumber, gender, birthDate } = values;
 
-      if (!email?.trim()) return;
+    // 세션은 "이메일이 한 번이라도 채워진 상태"에서만 저장
+    if (!email?.trim()) return;
 
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
 
-      autosaveTimerRef.current = window.setTimeout(() => {
-        updateSignupProfileApi({
-          name: name || null,
-          phoneNumber: phoneNumber || null,
-          gender: gender || null,
-          birthDate: birthDate || null,
-        }).catch((err) => {
-          console.error("[Register] autosave failed", err);
-        });
-      }, 600);
-    });
+    autosaveTimerRef.current = window.setTimeout(() => {
+      updateSignupProfileApi({
+        email: email.trim(),                        // ✅ 추가
+        phoneNumber: phoneNumber?.trim() || null,   // ✅ 같이 저장
+        name: name?.trim() || null,
+        gender: gender || null,
+        birthDate: birthDate || null,
+      }).catch((err) => {
+        console.error("[Register] autosave failed", err);
+      });
+    }, 600);
+  });
 
-    return () => {
-      subscription.unsubscribe();
-      if (autosaveTimerRef.current) {
-        window.clearTimeout(autosaveTimerRef.current);
-      }
-    };
-  }, [bootstrapLoading, watch]);
+  return () => {
+    subscription.unsubscribe();
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current);
+    }
+  };
+}, [bootstrapLoading, watch]);
 
   // ========= 3) EMAIL APIs =========
   const handleSendEmailCode = async () => {
