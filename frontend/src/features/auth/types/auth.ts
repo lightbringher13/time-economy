@@ -62,12 +62,12 @@ export type SignupBootstrapResponse = {
   state: string | null;     // e.g. "EMAIL_PENDING", "EMAIL_VERIFIED"
 };
 
-// ✅ NEW: update signup profile request
 export type UpdateSignupProfileRequest = {
-  name: string | null;
+  email: string;                // must not be null once autosave is triggered
   phoneNumber: string | null;
+  name: string | null;
   gender: string | null;
-  birthDate: string | null; // send as yyyy-MM-dd string
+  birthDate: string | null;     // yyyy-MM-dd
 };
 
 // Phone verification request/response types

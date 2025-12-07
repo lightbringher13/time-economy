@@ -105,6 +105,7 @@ public class SignupSessionController {
         updateSignupProfileUseCase.updateProfile(
                 new UpdateSignupProfileUseCase.Command(
                         sessionId,
+                        body.email(),
                         body.name(),
                         body.phoneNumber(),
                         body.gender(),
