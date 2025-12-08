@@ -82,19 +82,18 @@ public class SignupSession {
     }
 
     public void updateProfile(String name,
-                              String phoneNumber,
-                              String gender,
-                              LocalDate birthDate,
-                              LocalDateTime now) {
+                          String gender,
+                          LocalDate birthDate,
+                          LocalDateTime now) {
+
         this.name = name;
-        this.phoneNumber = phoneNumber;
         this.gender = gender;
         this.birthDate = birthDate;
 
-        // if email already verified, we can move to PROFILE_FILLED
         if (this.emailVerified && this.state == SignupSessionState.EMAIL_VERIFIED) {
             this.state = SignupSessionState.PROFILE_FILLED;
         }
+
         this.updatedAt = now;
     }
 

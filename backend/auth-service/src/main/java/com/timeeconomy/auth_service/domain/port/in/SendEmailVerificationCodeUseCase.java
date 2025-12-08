@@ -1,16 +1,14 @@
 package com.timeeconomy.auth_service.domain.port.in;
 
-import java.util.UUID;
-
 public interface SendEmailVerificationCodeUseCase {
 
     record SendCommand(
-            String email,
-            UUID signupSessionId   // must already exist (from cookie)
+            String email
     ) {}
 
+    // dev 환경에서는 code 반환, prod에서는 빈 구조로 바꿔도 됨
     record SendResult(
-            String code            // only for dev, can remove later
+            String code
     ) {}
 
     SendResult send(SendCommand command);

@@ -23,27 +23,13 @@ public class EmailVerificationController {
         private final GetEmailVerificationStatusUseCase getEmailVerificationStatusUseCase;
         private final VerifyEmailCodeUseCase verifyEmailCodeUseCase;
 
-        private static final String SIGNUP_SESSION_COOKIE = "signup_session_id";
-
         @PostMapping("/send-code")
-        public ResponseEntity<Void> sendCode(
-                @RequestBody SendEmailCodeRequest request,
-                @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String signupSessionCookie
-        ) {
-        if (signupSessionCookie == null || signupSessionCookie.isBlank()) {
-                throw new IllegalStateException("Signup session not initialized");
-        }
+        public ResponseEntity<Void> sendCode(@RequestBody SendEmailCodeRequest request) {
 
-        UUID signupSessionId = UUID.fromString(signupSessionCookie);
-
-        var cmd = new SendEmailVerificationCodeUseCase.SendCommand(
-                request.email(),
-                signupSessionId
-        );
-
+        var cmd = new SendEmailVerificationCodeUseCase.SendCommand(request.email());
         sendEmailVerificationCodeUseCase.send(cmd);
-
         return ResponseEntity.ok().build();
+
         }
 
         @PostMapping("/verify")
