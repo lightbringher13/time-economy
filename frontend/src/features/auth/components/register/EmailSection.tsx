@@ -19,7 +19,10 @@ export function EmailSection({
   onSendCode,
   onVerifyCode,
 }: EmailSectionProps) {
-  const { register } = useFormContext<RegisterFormValues>();
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext<RegisterFormValues>();
 
   return (
     <>
@@ -43,12 +46,21 @@ export function EmailSection({
             </button>
           </div>
         </label>
+
+        {/* ⭐ Zod/RHF error: email validation */}
+        {errors.email && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.email.message as string}
+          </div>
+        )}
+
+        {/* ⭐ Verified (business logic) */}
         {emailVerified && (
           <div style={{ color: "green", marginTop: 4 }}>✅ Email verified</div>
         )}
       </div>
 
-      {/* Email Verify Code */}
+      {/* Email Verification Code */}
       <div style={{ marginBottom: 12 }}>
         <label>
           Email Verification Code
@@ -68,8 +80,16 @@ export function EmailSection({
             </button>
           </div>
         </label>
+
+        {/* ⭐ Zod/RHF error: emailCode validation */}
+        {errors.emailCode && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.emailCode.message as string}
+          </div>
+        )}
       </div>
 
+      {/* ⭐ Section-level business messages */}
       {verificationInfo && (
         <div style={{ color: "#555", fontSize: 12, marginBottom: 8 }}>
           {verificationInfo}

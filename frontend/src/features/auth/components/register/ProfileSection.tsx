@@ -3,7 +3,10 @@ import { useFormContext } from "react-hook-form";
 import type { RegisterFormValues } from "../../types/auth";
 
 export function ProfileSection() {
-  const { register } = useFormContext<RegisterFormValues>();
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext<RegisterFormValues>();
 
   return (
     <>
@@ -17,6 +20,11 @@ export function ProfileSection() {
             style={{ display: "block", width: "100%", marginTop: 4 }}
           />
         </label>
+        {errors.name && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.name.message as string}
+          </div>
+        )}
       </div>
 
       {/* Gender */}
@@ -33,6 +41,11 @@ export function ProfileSection() {
             <option value="OTHER">Other</option>
           </select>
         </label>
+        {errors.gender && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.gender.message as string}
+          </div>
+        )}
       </div>
 
       {/* Birth Date */}
@@ -45,6 +58,11 @@ export function ProfileSection() {
             style={{ display: "block", width: "100%", marginTop: 4 }}
           />
         </label>
+        {errors.birthDate && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.birthDate.message as string}
+          </div>
+        )}
       </div>
     </>
   );

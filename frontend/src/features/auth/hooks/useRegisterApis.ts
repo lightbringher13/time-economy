@@ -1,7 +1,7 @@
 // features/auth/hooks/useRegisterApis.ts
 import { useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import type { RegisterFormValues } from "../types/auth";
+import type { RegisterFormValues } from "../types/registerForm";
 
 import {
   signupBootstrapApi,
