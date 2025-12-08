@@ -1,11 +1,9 @@
 package com.timeeconomy.auth_service.domain.service;
 
 import com.timeeconomy.auth_service.domain.model.EmailVerification;
-import com.timeeconomy.auth_service.domain.model.SignupSession;
 import com.timeeconomy.auth_service.domain.port.in.SendEmailVerificationCodeUseCase;
 import com.timeeconomy.auth_service.domain.port.out.EmailVerificationMailPort;
 import com.timeeconomy.auth_service.domain.port.out.EmailVerificationRepositoryPort;
-import com.timeeconomy.auth_service.domain.port.out.SignupSessionRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,14 +21,18 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
 
     private final EmailVerificationRepositoryPort emailVerificationRepositoryPort;
     private final EmailVerificationMailPort emailVerificationMailPort;
-    private final SignupSessionRepositoryPort signupSessionRepositoryPort;
 
     private final SecureRandom random = new SecureRandom();
 
     @Override
     @Transactional
     public SendResult send(SendCommand command) {
-        String email = command.email().trim().toLowerCase();
+        String rawEmail = command.email();
+        if (rawEmail == null || rawEmail.isBlank()) {
+            throw new IllegalArgumentException("email must not be blank");
+        }
+
+        String email = rawEmail.trim().toLowerCase();
         LocalDateTime now = LocalDateTime.now();
 
         // 1) generate & save verification code
@@ -40,25 +42,13 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
         EmailVerification verification = new EmailVerification(email, code, expiresAt);
         emailVerificationRepositoryPort.save(verification);
 
-        // 2) find existing signup session (MUST exist)
-        SignupSession session = signupSessionRepositoryPort
-                .findActiveById(command.signupSessionId(), now)
-                .orElseThrow(() ->
-                        new IllegalStateException("Signup session not initialized"));
-
-        // 3) keep email in session in sync (user might edit email)
-        if (!email.equals(session.getEmail())) {
-            session.updateEmail(email, now);   // or a setter/domain method
-            signupSessionRepositoryPort.save(session);
-        }
-
-        // 4) send email via adapter
+        // 2) send email
         emailVerificationMailPort.sendVerificationCode(email, code);
 
-        log.info("[EmailVerification] sent code to email={} code={} expiresAt={} sessionId={}",
-                email, code, expiresAt, session.getId());
+        log.info("[EmailVerification] sent code to email={} code={} expiresAt={}",
+                email, code, expiresAt);
 
-        // dev-only: we still return code
+        // dev only – FE가 코드 보여주게 할 거면 유지
         return new SendResult(code);
     }
 

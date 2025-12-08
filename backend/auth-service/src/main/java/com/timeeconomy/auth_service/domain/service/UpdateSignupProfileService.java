@@ -32,12 +32,19 @@ public class UpdateSignupProfileService implements UpdateSignupProfileUseCase {
             session.updateEmail(cmd.email(), now);   // 이미 있는 도메인 메서드 재사용
         }
 
+        // phone update (only allowed before verification)
+        if (cmd.phoneNumber() != null 
+                && !cmd.phoneNumber().isBlank() 
+                && !session.isPhoneVerified()) {
+
+            session.setPhoneNumber(cmd.phoneNumber());
+        }
+
         
 
         // 2) 프로필 필드 업데이트 (지금 네 도메인 메서드 그대로 활용)
         session.updateProfile(
                 cmd.name(),
-                cmd.phoneNumber(),
                 cmd.gender(),
                 cmd.birthDate(),
                 now
