@@ -9,13 +9,13 @@ export const registerSchema = z
       .min(1, "Email is required")
       .email("Invalid email address"),
 
-    emailCode: z.string().min(1, "Email verification code is required"),
+    emailCode: z.string().optional(),
 
     password: z.string().min(8, "Password must be at least 8 characters"),
     passwordConfirm: z.string().min(8, "Password confirmation is required"),
 
     phoneNumber: z.string().min(1, "Phone number is required"),
-    phoneCode: z.string().min(1, "Phone verification code is required"),
+    phoneCode: z.string().optional(),
 
     name: z.string().min(1, "Name is required"),
 

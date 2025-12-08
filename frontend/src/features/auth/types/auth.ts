@@ -85,15 +85,3 @@ export type VerifyPhoneCodeRequest = {
 export type VerifyPhoneCodeResponse = {
   success: boolean;
 };
-
-export type RegisterFormValues = {
-  email: string;
-  emailCode: string;
-  password: string;
-  passwordConfirm: string;
-  phoneNumber: string;
-  phoneCode: string;
-  name: string;
-  gender: "" | "MALE" | "FEMALE" | "OTHER";
-  birthDate: string; // yyyy-MM-dd
-};

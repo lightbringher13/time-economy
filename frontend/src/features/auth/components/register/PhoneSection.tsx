@@ -19,7 +19,10 @@ export function PhoneSection({
   onSendPhoneCode,
   onVerifyPhoneCode,
 }: PhoneSectionProps) {
-  const { register } = useFormContext<RegisterFormValues>();
+  const {
+    register,
+    formState: { errors },
+  } = useFormContext<RegisterFormValues>();
 
   return (
     <>
@@ -43,6 +46,14 @@ export function PhoneSection({
             </button>
           </div>
         </label>
+
+        {/* ⭐ Zod/RHF error for phoneNumber */}
+        {errors.phoneNumber && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.phoneNumber.message as string}
+          </div>
+        )}
+
         {phoneVerified && (
           <div style={{ color: "green", marginTop: 4 }}>✅ Phone verified</div>
         )}
@@ -68,6 +79,13 @@ export function PhoneSection({
             </button>
           </div>
         </label>
+
+        {/* ⭐ Zod/RHF error for phoneCode */}
+        {errors.phoneCode && (
+          <div style={{ color: "red", marginTop: 4 }}>
+            {errors.phoneCode.message as string}
+          </div>
+        )}
       </div>
 
       {phoneVerificationInfo && (

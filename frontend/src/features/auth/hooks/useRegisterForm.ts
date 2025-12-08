@@ -2,7 +2,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema } from "../types/registerForm";
-import type { RegisterFormValues } from "../types/auth";
+import type { RegisterFormValues } from "../types/registerForm";
 
 export function useRegisterForm() {
   return useForm<RegisterFormValues>({
@@ -15,9 +15,9 @@ export function useRegisterForm() {
       phoneNumber: "",
       phoneCode: "",
       name: "",
-      gender: "",       // <- matches schema union
+      gender: "",       // <- schema에서 허용하는 값 중 하나
       birthDate: "",
     },
-    mode: "onChange",   // or "onBlur" if you like
+    mode: "onChange",
   });
 }
