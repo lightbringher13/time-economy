@@ -17,7 +17,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PhoneVerificationUseCaseService
+public class PhoneVerificationService
         implements RequestPhoneVerificationUseCase, VerifyPhoneCodeUseCase {
 
     private static final int CODE_LENGTH = 6;

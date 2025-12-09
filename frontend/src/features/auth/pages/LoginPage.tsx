@@ -104,6 +104,23 @@ const LoginPage = () => {
           </button>
         </p>
         <p style={{ marginTop: 16 }}>
+          Forgot password?{" "}
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.FORGOT_PASSWORD)}
+            style={{
+              border: "none",
+              background: "none",
+              color: "#0070f3",
+              cursor: "pointer",
+              padding: 0,
+              textDecoration: "underline",
+            }}
+          >
+            Forgot_Password
+          </button>
+        </p>
+        <p style={{ marginTop: 16 }}>
           Backend Health Check?{" "}
           <button
             type="button"

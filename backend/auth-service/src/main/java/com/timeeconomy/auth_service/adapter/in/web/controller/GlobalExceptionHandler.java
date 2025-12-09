@@ -4,6 +4,7 @@ import com.timeeconomy.auth_service.adapter.in.web.dto.ApiErrorResponse;
 import com.timeeconomy.auth_service.domain.exception.AuthSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
+import com.timeeconomy.auth_service.domain.exception.InvalidPasswordResetTokenException;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
@@ -235,45 +236,65 @@ public class GlobalExceptionHandler {
         }
 
         // 🔹 Email not verified when required
-@ExceptionHandler(EmailNotVerifiedException.class)
-public ResponseEntity<ApiErrorResponse> handleEmailNotVerified(
-        EmailNotVerifiedException ex,
-        HttpServletRequest request
-) {
-    HttpStatus status = HttpStatus.BAD_REQUEST;
+        @ExceptionHandler(EmailNotVerifiedException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailNotVerified(
+                EmailNotVerifiedException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
-    ApiErrorResponse body = new ApiErrorResponse(
-            false,
-            serviceName,
-            "EMAIL_NOT_VERIFIED",
-            ex.getMessage(),
-            status.value(),
-            request.getRequestURI(),
-            Instant.now().toString()
-    );
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "EMAIL_NOT_VERIFIED",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
 
-    return ResponseEntity.status(status).body(body);
-}
+        return ResponseEntity.status(status).body(body);
+        }
 
-// 🔹 Phone not verified when required
-@ExceptionHandler(PhoneNotVerifiedException.class)
-public ResponseEntity<ApiErrorResponse> handlePhoneNotVerified(
-        PhoneNotVerifiedException ex,
-        HttpServletRequest request
-) {
-    HttpStatus status = HttpStatus.BAD_REQUEST;
+        // 🔹 Phone not verified when required
+        @ExceptionHandler(PhoneNotVerifiedException.class)
+        public ResponseEntity<ApiErrorResponse> handlePhoneNotVerified(
+                PhoneNotVerifiedException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
-    ApiErrorResponse body = new ApiErrorResponse(
-            false,
-            serviceName,
-            "PHONE_NOT_VERIFIED",
-            ex.getMessage(),
-            status.value(),
-            request.getRequestURI(),
-            Instant.now().toString()
-    );
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "PHONE_NOT_VERIFIED",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
 
-    return ResponseEntity.status(status).body(body);
-}
+        return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(InvalidPasswordResetTokenException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidPasswordResetToken(
+                InvalidPasswordResetTokenException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST; // 400 (same as others)
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "INVALID_PASSWORD_RESET_TOKEN",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
 
 }
