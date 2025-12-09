@@ -10,6 +10,8 @@ import DashboardPage from "@/features/user/pages/DashboardPage";
 import ProfilePage from "@/features/user/pages/ProfilePage";
 import SessionsPage from "@/features/user/pages/SessionsPage";
 import HealthPage from "@/features/health/pages/HealthPage";
+import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 
 export function AppRoutes() {
   return (
@@ -18,6 +20,8 @@ export function AppRoutes() {
       <Route path={ROUTES.LOGIN} element={<LoginPage />} />
       <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
       <Route path={ROUTES.HEALTH} element={<HealthPage />} />
+      <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPasswordPage />} />
+      <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
