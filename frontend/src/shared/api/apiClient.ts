@@ -30,14 +30,7 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
 
-    // public endpoints that DON'T need Authorization
-    const isPublic =
-      config.url?.startsWith("/auth/login") ||
-      config.url?.startsWith("/auth/register") ||
-      config.url?.startsWith("/auth/refresh") ||
-      config.url?.startsWith("/health");
-
-    if (!isPublic && token) {
+    if (token) {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }

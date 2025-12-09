@@ -17,7 +17,8 @@ RequestPhoneVerificationCodeRequest,
 VerifyPhoneCodeRequest,
 VerifyPhoneCodeResponse,
 PasswordResetRequest,
-PasswordResetConfirm
+PasswordResetConfirm,
+ChangePasswordRequest
  } from "../types/auth";
 
 // 👉 Login API: POST /auth/login
@@ -146,3 +147,8 @@ export const confirmPasswordResetApi = async (
   await apiClient.post(`/auth/password/reset?token=${token}`, payload);
 };
 
+export const changePasswordApi = async (
+  payload: ChangePasswordRequest
+): Promise<void> => {
+  await apiClient.post("/auth/password/change", payload);
+};

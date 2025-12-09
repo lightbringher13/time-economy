@@ -12,6 +12,7 @@ import SessionsPage from "@/features/user/pages/SessionsPage";
 import HealthPage from "@/features/health/pages/HealthPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
+import ChangePasswordPage from "@/features/auth/pages/ChangePasswordPage";
 
 export function AppRoutes() {
   return (
@@ -28,6 +29,7 @@ export function AppRoutes() {
         <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
         <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
         <Route path={ROUTES.SESSIONS} element={<SessionsPage />} />
+        <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
       </Route>
 
       {/* Fallback: root → dashboard */}
