@@ -1,7 +1,9 @@
+// auth-service/src/main/java/com/timeeconomy/auth_service/domain/port/in/LogoutAllUseCase.java
 package com.timeeconomy.auth_service.domain.port.in;
 
 public interface LogoutAllUseCase {
-    void logoutAll(LogoutAllCommand command);
 
-    record LogoutAllCommand(String refreshToken) {}
+    record LogoutAllCommand(Long authUserId) {}
+
+    void logoutAll(LogoutAllCommand command);
 }

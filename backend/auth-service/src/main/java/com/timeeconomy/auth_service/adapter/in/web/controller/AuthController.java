@@ -162,23 +162,39 @@ public class AuthController {
                                 .build();
         }
 
+        // auth-service/src/main/java/com/timeeconomy/auth_service/adapter/in/web/AuthController.java
+
         @PostMapping("/logout/all")
         public ResponseEntity<Void> logoutAll(
-                        @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken) {
-                logoutAllUseCase.logoutAll(new LogoutAllUseCase.LogoutAllCommand(refreshToken));
+                @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+                @CookieValue(name = REFRESH_TOKEN_COOKIE_NAME, required = false) String refreshToken // just for cookie delete
+        ) {
+        if (userIdHeader == null || userIdHeader.isBlank()) {
+                // TODO: 나중에 AuthenticationRequiredException 같은 도메인 예외로 바꿔도 됨
+                throw new IllegalStateException("Missing authenticated user id");
+        }
 
-                // 현재 디바이스의 refreshToken 쿠키도 삭제
-                ResponseCookie deleteCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
-                                .maxAge(0)
-                                .httpOnly(true)
-                                .secure(true)
-                                .sameSite("Strict")
-                                .path("/")
-                                .build();
+        Long authUserId;
+        try {
+                authUserId = Long.parseLong(userIdHeader);
+        } catch (NumberFormatException ex) {
+                throw new IllegalStateException("Invalid authenticated user id: " + userIdHeader);
+        }
 
-                return ResponseEntity.ok()
-                                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
-                                .build();
+        logoutAllUseCase.logoutAll(new LogoutAllUseCase.LogoutAllCommand(authUserId));
+
+        // 현재 브라우저의 refreshToken 쿠키도 삭제 (기존 로직 유지)
+        ResponseCookie deleteCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+                .build();
         }
 
         @GetMapping("/sessions")
