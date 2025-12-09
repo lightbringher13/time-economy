@@ -15,11 +15,42 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     private final JwtValidator jwtValidator;
+
+    // ✅ 명시적으로 "완전 공개" 엔드포인트만 정리
+    private static final List<String> PUBLIC_EXACT_PATHS = List.of(
+            "/api/health",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/refresh",
+            "/api/auth/password/forgot",
+            "/api/auth/password/reset",
+            "/api/auth/phone/request-code",
+            "/api/auth/phone/verify",
+            "/api/auth/email/verify",
+            "/api/auth/email/send-code",
+            "/api/auth/signup/bootstrap",
+            "/api/auth/signup/profile"
+    );
+
+    // ✅ 필요하면 prefix 기반으로 완전 공개할 path들
+    private static final List<String> PUBLIC_PATH_PREFIXES = List.of(
+            // 예: /api/auth/password/reset?token=... 처럼 쿼리 사용하는 경우
+            "/api/auth/password/reset"
+    );
+
+    private boolean isPublicPath(String path) {
+        if (PUBLIC_EXACT_PATHS.contains(path)) {
+            return true;
+        }
+        return PUBLIC_PATH_PREFIXES.stream().anyMatch(path::startsWith);
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -27,22 +58,17 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
         HttpMethod method = exchange.getRequest().getMethod();
 
-        // 1) health check pass-through
-        if ("/api/health".equals(path)) {
-            return chain.filter(exchange);
-        }
-
-        // 2) /api/auth/** pass-through
-        if (path.startsWith("/api/auth/")) {
-            return chain.filter(exchange);
-        }
-
-        // 3) allow OPTIONS
+        // 1) CORS preflight (OPTIONS)은 항상 통과
         if (HttpMethod.OPTIONS.equals(method)) {
             return chain.filter(exchange);
         }
 
-        // 4) Authorization validation
+        // 2) 완전 공개 엔드포인트는 JWT 검사 없이 통과
+        if (isPublicPath(path)) {
+            return chain.filter(exchange);
+        }
+
+        // 3) 그 외는 모두 JWT 필요
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || authHeader.isBlank()) {
@@ -63,11 +89,9 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 throw new UnauthorizedException("Access token subject (user id) is missing.");
             }
 
-            // Add downstream header
+            // ✅ 모든 downstream 서비스는 X-User-Id 로 로그인 유저를 인식
             ServerWebExchange mutated = exchange.mutate()
-                    .request(builder ->
-                            builder.header("X-User-Id", userId)
-                    )
+                    .request(builder -> builder.header("X-User-Id", userId))
                     .build();
 
             return chain.filter(mutated);

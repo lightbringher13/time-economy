@@ -2,8 +2,12 @@ package com.timeeconomy.auth_service.adapter.in.web.controller;
 
 import com.timeeconomy.auth_service.adapter.in.web.dto.PasswordResetRequest;
 import com.timeeconomy.auth_service.adapter.in.web.dto.PerformPasswordResetRequest;
+import com.timeeconomy.auth_service.domain.port.in.ChangePasswordUseCase;
 import com.timeeconomy.auth_service.domain.port.in.RequestPasswordResetUseCase;
 import com.timeeconomy.auth_service.domain.port.in.ResetPasswordUseCase;
+import com.timeeconomy.auth_service.domain.exception.AuthenticationRequiredException;
+import com.timeeconomy.auth_service.adapter.in.web.dto.ChangePasswordRequest;
+import com.timeeconomy.auth_service.domain.exception.WeakPasswordException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,13 +19,43 @@ import org.springframework.web.bind.annotation.*;
 public class PasswordResetController {
 
     private final RequestPasswordResetUseCase requestPasswordResetUseCase;
+    private final ChangePasswordUseCase changePasswordUseCase;
     private final ResetPasswordUseCase resetPasswordUseCase;
-    /**
-     * Forgot password entry point.
-     *
-     * Always returns 200 OK even if email does not exist,
-     * to avoid leaking user existence.
-     */
+    
+    @PostMapping("/change")
+    public ResponseEntity<Void> changePassword(
+            @RequestHeader(value = "X-User-Id", required = false) String userIdHeader,
+            @RequestBody ChangePasswordRequest body
+    ) {
+        // 1) 인증 정보(X-User-Id) 없으면 에러
+        if (userIdHeader == null || userIdHeader.isBlank()) {
+            throw new AuthenticationRequiredException("Missing authenticated user id");
+        }
+
+        Long userId;
+        try {
+            userId = Long.parseLong(userIdHeader);
+        } catch (NumberFormatException ex) {
+            throw new AuthenticationRequiredException("Invalid authenticated user id");
+        }
+
+        if (body.newPassword() == null || body.newPassword().isBlank()) {
+            throw new WeakPasswordException("New password must not be empty");
+        }
+
+        // 3) 유스케이스 호출
+        changePasswordUseCase.changePassword(
+                new ChangePasswordUseCase.Command(
+                        userId,
+                        body.currentPassword(),
+                        body.newPassword()
+                )
+        );
+
+        // 4) 변경 성공 → 내용 없는 204 응답
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/forgot")
     public ResponseEntity<Void> forgotPassword(@RequestBody PasswordResetRequest request) {
         var cmd = new RequestPasswordResetUseCase.Command(request.email());

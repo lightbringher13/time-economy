@@ -96,3 +96,9 @@ export type PasswordResetConfirm = {
   newPassword: string;
   confirmPassword: string;
 };
+
+// 실제 BE에 보내는 DTO
+export type ChangePasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+};

@@ -1,13 +1,20 @@
 // src/features/user/types/user.ts
 
-// ===============================
-// ✅ User profile (GET /me response)
-// ===============================
+// features/user/api/userApi.ts (혹은 기존 위치)
+
+export type UserStatus = "ACTIVE" | "INACTIVE" | "BLOCKED" | string; 
+// enum 값 정확히 알면 거기에 맞게 좁혀도 됨
+
 export type UserProfile = {
   id: number;
-  nickname: string;
   email: string;
-  timecoinBalance: number;
+  name: string;
+  phoneNumber: string | null;
+  birthDate: string | null;   // LocalDate → FE에서는 string (예: "1995-03-21")
+  gender: string | null;      // "MALE" | "FEMALE" | "OTHER" | null 이런 식으로 나올 것
+  status: UserStatus;
+  createdAt: string;          // LocalDateTime → ISO string
+  updatedAt: string;
 };
 
 // ===============================

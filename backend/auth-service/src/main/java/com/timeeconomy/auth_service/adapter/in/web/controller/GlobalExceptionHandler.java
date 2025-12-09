@@ -2,14 +2,18 @@ package com.timeeconomy.auth_service.adapter.in.web.controller;
 
 import com.timeeconomy.auth_service.adapter.in.web.dto.ApiErrorResponse;
 import com.timeeconomy.auth_service.domain.exception.AuthSessionNotFoundException;
+import com.timeeconomy.auth_service.domain.exception.AuthUserNotFoundException;
+import com.timeeconomy.auth_service.domain.exception.AuthenticationRequiredException;
 import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
+import com.timeeconomy.auth_service.domain.exception.InvalidCurrentPasswordException;
 import com.timeeconomy.auth_service.domain.exception.InvalidPasswordResetTokenException;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
 import com.timeeconomy.auth_service.domain.exception.SessionAlreadyRevokedException;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
+import com.timeeconomy.auth_service.domain.exception.WeakPasswordException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationExpiredException;
 import com.timeeconomy.auth_service.domain.exception.EmailVerificationAlreadyUsedException;
@@ -296,5 +300,95 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(status).body(body);
         }
+
+        // ===========================================
+        // 🔥 AuthUserNotFoundException
+        // ===========================================
+        @ExceptionHandler(AuthUserNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleAuthUserNotFound(
+                AuthUserNotFoundException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.NOT_FOUND;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "AUTH_USER_NOT_FOUND",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        // ===========================================
+        // 🔥 InvalidCurrentPasswordException
+        // ===========================================
+        @ExceptionHandler(InvalidCurrentPasswordException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidCurrentPassword(
+                InvalidCurrentPasswordException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "INVALID_CURRENT_PASSWORD",
+                ex.getMessage(),   // "Current password is incorrect"
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        // ===========================================
+        // 🔥 WeakPasswordException
+        // ===========================================
+        @ExceptionHandler(WeakPasswordException.class)
+        public ResponseEntity<ApiErrorResponse> handleWeakPassword(
+                WeakPasswordException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "WEAK_PASSWORD",
+                ex.getMessage(),   // “Password must contain …”
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(AuthenticationRequiredException.class)
+        public ResponseEntity<ApiErrorResponse> handleAuthenticationRequired(
+                AuthenticationRequiredException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "AUTHENTICATION_REQUIRED",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
 
 }

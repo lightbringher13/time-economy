@@ -9,9 +9,6 @@ import type {
   SessionInfo
 } from "../types/user";
 
-// ===============================
-// ✅ GET /me → fetch user profile
-// ===============================
 export async function getMeApi(): Promise<UserProfile> {
   const res = await apiClient.get<UserProfile>("/users/me");
   return res.data;
