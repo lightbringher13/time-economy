@@ -86,10 +86,9 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             String userId = claims.getPayload().getSubject();
 
             if (userId == null || userId.isBlank()) {
-                throw new UnauthorizedException("Access token subject (user id) is missing.");
+                throw new UnauthorizedException("INVALID_SUBJECT", "Access token subject missing.");
             }
 
-            // ✅ 모든 downstream 서비스는 X-User-Id 로 로그인 유저를 인식
             ServerWebExchange mutated = exchange.mutate()
                     .request(builder -> builder.header("X-User-Id", userId))
                     .build();
@@ -97,9 +96,13 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(mutated);
 
         } catch (JwtException e) {
-            throw new UnauthorizedException("Access token is invalid or expired.");
-        } catch (Exception e) {
-            throw new UnauthorizedException("Unexpected gateway authentication error.");
+            String code = e.getMessage();
+
+            if ("TOKEN_EXPIRED".equals(code)) {
+                throw new UnauthorizedException("ACCESS_TOKEN_EXPIRED", "Access token expired.");
+            }
+
+            throw new UnauthorizedException("ACCESS_TOKEN_INVALID", "Access token invalid.");
         }
     }
 

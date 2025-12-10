@@ -33,23 +33,22 @@ public class JwtValidator {
                     .parseSignedClaims(token);
 
         } catch (ExpiredJwtException e) {
-            // Token has expired
-            throw new JwtException("Token expired", e);
+            throw new JwtException("TOKEN_EXPIRED", e);
 
         } catch (UnsupportedJwtException e) {
-            throw new JwtException("Unsupported JWT", e);
+            throw new JwtException("UNSUPPORTED", e);
 
         } catch (MalformedJwtException e) {
-            throw new JwtException("Malformed JWT", e);
+            throw new JwtException("MALFORMED", e);
 
         } catch (SecurityException | SignatureException e) {
-            throw new JwtException("Invalid signature", e);
+            throw new JwtException("INVALID_SIGNATURE", e);
 
         } catch (IllegalArgumentException e) {
-            throw new JwtException("Invalid token", e);
+            throw new JwtException("INVALID_TOKEN", e);
 
         } catch (Exception e) {
-            throw new JwtException("JWT validation error", e);
+            throw new JwtException("JWT_ERROR", e);
         }
     }
 }
