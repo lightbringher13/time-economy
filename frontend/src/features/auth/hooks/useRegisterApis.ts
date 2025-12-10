@@ -14,10 +14,11 @@ import {
 } from "../api/authApi";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
+import { isApiError } from "@/shared/api/apiClient"; 
 
 export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
   const navigate = useNavigate();
-  const { reset, watch, getValues } = form;
+  const { reset, watch, getValues, setValue } = form;
 
   const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -118,10 +119,30 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
     setSendEmailCodeLoading(true);
     try {
       const code = await sendEmailCodeApi({ email });
+
+      // dev-only display
       setVerificationInfo(`Verification code (dev): ${code}`);
     } catch (err) {
       console.error("[Register] send email code failed", err);
-      setError("Failed to send verification code. Please try again.");
+
+      if (isApiError(err)) {
+        const api = err.response?.data;
+
+        switch (api?.code) {
+          case "EMAIL_ALREADY_USED":
+            setError("This email is already registered. Please use another email.");
+            break;
+
+          case "EMAIL_INVALID":
+            setError("This email is invalid.");
+            break;
+
+          default:
+            setError(api?.message || "Failed to send verification code.");
+        }
+      } else {
+        setError("Unexpected error occurred.");
+      }
     } finally {
       setSendEmailCodeLoading(false);
     }
@@ -169,17 +190,28 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
 
     const phoneNumber = getValues("phoneNumber");
     if (!phoneNumber?.trim()) {
-      setError("Phone number is required before sending code.");
+      setError("Phone number is required before sending verification code.");
       return;
     }
 
     setSendPhoneCodeLoading(true);
     try {
       await requestPhoneCodeApi({ phoneNumber });
-      setPhoneVerificationInfo("Phone verification code sent. (dev: check backend logs)");
+      setPhoneVerificationInfo("Verification SMS sent. (dev: check backend logs)");
     } catch (err) {
       console.error("[Register] send phone code failed", err);
-      setError("Failed to send phone verification code. Please try again.");
+
+      if (isApiError(err)) {
+        const api = err.response?.data;
+
+        if (api?.code === "PHONE_ALREADY_USED") {
+          setError("This phone number is already registered. Please use another one.");
+        } else {
+          setError(api?.message ?? "Failed to send phone verification code.");
+        }
+      } else {
+        setError("Failed to send phone verification code.");
+      }
     } finally {
       setSendPhoneCodeLoading(false);
     }
@@ -253,7 +285,33 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
       navigate(ROUTES.LOGIN, { replace: true });
     } catch (err) {
       console.error("[Register] register failed", err);
-      setError("Failed to register. Please check your information.");
+
+      if (isApiError(err)) {
+        const code = err.response?.data?.code;
+        const message = err.response?.data?.message;
+
+        switch (code) {
+          case "EMAIL_ALREADY_USED":
+            setError(message ?? "This email is already in use. Please use another email.");
+            // 🔽 이 이메일로는 다시 인증해야 하므로 FE 상태 초기화
+            setEmailVerified(false);
+            setVerificationInfo(null);
+            setValue("emailCode", "");
+            break;
+
+          case "PHONE_ALREADY_USED":
+            setError(message ?? "This phone number is already in use. Please use another phone number.");
+            setPhoneVerified(false);
+            setPhoneVerificationInfo(null);
+            setValue("phoneCode", "");
+            break;
+
+          default:
+            setError(message ?? "Failed to register. Please check your information.");
+        }
+      } else {
+        setError("Failed to register. Please check your information.");
+      }
     } finally {
       setLoading(false);
     }

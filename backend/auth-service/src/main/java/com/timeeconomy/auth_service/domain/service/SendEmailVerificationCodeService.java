@@ -1,7 +1,9 @@
 package com.timeeconomy.auth_service.domain.service;
 
+import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.model.EmailVerification;
 import com.timeeconomy.auth_service.domain.port.in.SendEmailVerificationCodeUseCase;
+import com.timeeconomy.auth_service.domain.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth_service.domain.port.out.EmailVerificationMailPort;
 import com.timeeconomy.auth_service.domain.port.out.EmailVerificationRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
 
     private final EmailVerificationRepositoryPort emailVerificationRepositoryPort;
     private final EmailVerificationMailPort emailVerificationMailPort;
+    private final AuthUserRepositoryPort authUserRepositoryPort;
 
     private final SecureRandom random = new SecureRandom();
 
@@ -34,6 +37,11 @@ public class SendEmailVerificationCodeService implements SendEmailVerificationCo
 
         String email = rawEmail.trim().toLowerCase();
         LocalDateTime now = LocalDateTime.now();
+
+        authUserRepositoryPort.findByEmail(email).ifPresent(existing -> {
+            // 여기서는 "이미 가입된 이메일입니다. 로그인 또는 비밀번호 찾기를 사용하세요" 같은 메시지로 매핑 가능
+            throw new EmailAlreadyUsedException("Email is already in use");
+        });
 
         // 1) generate & save verification code
         String code = generateCode();

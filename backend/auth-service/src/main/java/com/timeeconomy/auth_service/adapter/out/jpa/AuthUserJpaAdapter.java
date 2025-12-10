@@ -24,6 +24,12 @@ public class AuthUserJpaAdapter implements AuthUserRepositoryPort {
     }
 
     @Override
+    public Optional<AuthUser> findByPhoneNumber(String phoneNumber) {
+        return jpaRepository.findByPhoneNumber(phoneNumber)
+                .map(mapper::toDomain);
+    }
+
+    @Override
     public Optional<AuthUser> findById(Long id) {
         return jpaRepository.findById(id)
                 .map(mapper::toDomain);

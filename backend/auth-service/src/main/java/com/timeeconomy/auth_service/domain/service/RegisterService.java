@@ -4,6 +4,7 @@ import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailNotVerifiedException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
+import com.timeeconomy.auth_service.domain.exception.PhoneNumberAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.model.AuthUser;
 import com.timeeconomy.auth_service.domain.model.SignupSession;
 import com.timeeconomy.auth_service.domain.port.in.RegisterUseCase;
@@ -59,8 +60,20 @@ public class RegisterService implements RegisterUseCase {
 
         // 4) 중복 이메일 체크
         authUserRepositoryPort.findByEmail(email).ifPresent(existing -> {
+            session.setEmailVerified(false);
+            signupSessionRepositoryPort.save(session);
+
             throw new EmailAlreadyUsedException("Email is already in use");
         });
+
+        // ⭐ 4.5) 중복 전화번호 체크 추가
+        authUserRepositoryPort.findByPhoneNumber(command.phoneNumber())
+                .ifPresent(existing -> {
+                    session.setPhoneVerified(false);
+                    signupSessionRepositoryPort.save(session);
+
+                    throw new PhoneNumberAlreadyUsedException("Phone number is already in use");
+                });
 
         // 5) 비밀번호 해시
         String passwordHash = passwordEncoderPort.encode(command.password());

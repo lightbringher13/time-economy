@@ -23,11 +23,6 @@ export interface AuthResponse {
   accessToken: string;
 }
 
-export type ApiErrorResponse = {
-  code: string;
-  message: string;
-};
-
 export type SendEmailCodeRequest = {
   email: string;
 };

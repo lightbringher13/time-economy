@@ -10,5 +10,7 @@ public interface AuthUserRepositoryPort {
 
     Optional<AuthUser> findById(Long id);
 
+    Optional<AuthUser> findByPhoneNumber(String phoneNumber);
+
     AuthUser save(AuthUser user);
 }

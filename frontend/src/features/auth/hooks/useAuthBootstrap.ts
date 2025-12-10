@@ -1,12 +1,9 @@
 // src/features/auth/hooks/useAuthBootstrap.ts
 import { useEffect } from "react";
-import {
-  refreshApi,
-  isApiError,
-  REFRESH_FAMILY_REVOKED,
-} from "../api/authApi";
+import {refreshApi} from "../api/authApi";
 import { getMeApi } from "@/features/user/api/userApi";
 import { useAuthStore } from "@/store/useAuthStore";
+import { isApiError } from "@/shared/api/apiClient"; 
 
 export function useAuthBootstrap() {
   const login = useAuthStore((s) => s.login);
@@ -57,7 +54,7 @@ export function useAuthBootstrap() {
           const code = error.response?.data.code;
 
           // 🔹 Suspicious reuse → family revoked
-          if (code === REFRESH_FAMILY_REVOKED) {
+          if (code === "REFRESH_TOKEN_REUSE") {
             console.warn(
               "[bootstrap] suspicious refresh reuse, forcing logout"
             );
