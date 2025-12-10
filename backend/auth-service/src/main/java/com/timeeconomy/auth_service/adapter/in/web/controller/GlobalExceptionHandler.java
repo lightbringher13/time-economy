@@ -11,6 +11,8 @@ import com.timeeconomy.auth_service.domain.exception.InvalidPasswordResetTokenEx
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
+import com.timeeconomy.auth_service.domain.exception.PhoneNumberAlreadyUsedException;
+import com.timeeconomy.auth_service.domain.exception.RefreshTokenReuseException;
 import com.timeeconomy.auth_service.domain.exception.SessionAlreadyRevokedException;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.WeakPasswordException;
@@ -388,6 +390,45 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(PhoneNumberAlreadyUsedException.class)
+        public ResponseEntity<ApiErrorResponse> handlePhoneNumberAlreadyUsed(
+                PhoneNumberAlreadyUsedException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "PHONE_ALREADY_USED",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(RefreshTokenReuseException.class)
+        public ResponseEntity<ApiErrorResponse> handleReuse(
+                RefreshTokenReuseException ex,
+                HttpServletRequest request) {
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "REFRESH_TOKEN_REUSE",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(401).body(body);
         }
 
 

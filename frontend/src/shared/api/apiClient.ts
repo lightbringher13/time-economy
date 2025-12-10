@@ -2,6 +2,8 @@
 import axios from "axios";
 import type { AxiosInstance } from "axios";
 import { useAuthStore } from "@/store/useAuthStore";
+import { AxiosError } from "axios";
+import type { ApiErrorResponse } from "@/types/api";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ?? "http://localhost:8085/api";
@@ -123,3 +125,14 @@ apiClient.interceptors.response.use(
     }
   }
 );
+
+export function isApiError(
+  error: unknown
+): error is AxiosError<ApiErrorResponse> {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "isAxiosError" in error &&
+    (error as any).isAxiosError === true
+  );
+}

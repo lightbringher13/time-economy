@@ -1,6 +1,7 @@
 package com.timeeconomy.auth_service.domain.service;
 
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
+import com.timeeconomy.auth_service.domain.exception.RefreshTokenReuseException;
 import com.timeeconomy.auth_service.domain.model.AuthSession;
 import com.timeeconomy.auth_service.domain.port.in.RefreshUseCase;
 import com.timeeconomy.auth_service.domain.port.out.AuthSessionRepositoryPort;
@@ -128,7 +129,7 @@ public class RefreshService implements RefreshUseCase {
                             + ". All related sessions have been revoked. Please sign in again.");
         }
 
-        throw new InvalidRefreshTokenException("Refresh token reuse detected");
+        throw new RefreshTokenReuseException("Refresh token reuse detected");
     }
 
     private boolean isBenignRace(AuthSession session, RefreshCommand command, LocalDateTime now) {

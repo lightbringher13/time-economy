@@ -1,8 +1,10 @@
 package com.timeeconomy.auth_service.domain.service;
 
+import com.timeeconomy.auth_service.domain.exception.PhoneNumberAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.model.PhoneVerification;
 import com.timeeconomy.auth_service.domain.port.in.RequestPhoneVerificationUseCase;
 import com.timeeconomy.auth_service.domain.port.in.VerifyPhoneCodeUseCase;
+import com.timeeconomy.auth_service.domain.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth_service.domain.port.out.PhoneVerificationRepositoryPort;
 import com.timeeconomy.auth_service.domain.port.out.PhoneVerificationSmsPort;
 import com.timeeconomy.auth_service.domain.port.out.SignupSessionRepositoryPort;
@@ -27,6 +29,7 @@ public class PhoneVerificationService
     private final PhoneVerificationRepositoryPort phoneVerificationRepositoryPort;
     private final SignupSessionRepositoryPort signupSessionRepositoryPort;
     private final PhoneVerificationSmsPort phoneVerificationSmsPort;
+    private final AuthUserRepositoryPort authUserRepositoryPort;
     // TODO: later inject SmsSenderPort or PhoneVerificationSmsPort for real SMS
 
     @Override
@@ -36,6 +39,11 @@ public class PhoneVerificationService
                 ? command.countryCode()
                 : DEFAULT_COUNTRY_CODE;
 
+        authUserRepositoryPort.findByPhoneNumber(phoneNumber)
+                .ifPresent(existing -> {
+                    throw new PhoneNumberAlreadyUsedException("Phone number is already in use");
+                });
+        
         String code = generateNumericCode(CODE_LENGTH);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusMinutes(EXPIRES_MINUTES);
