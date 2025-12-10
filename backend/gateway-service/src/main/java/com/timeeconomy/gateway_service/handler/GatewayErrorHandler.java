@@ -25,25 +25,29 @@ public class GatewayErrorHandler implements WebExceptionHandler {
 
         HttpStatus status;
         String message;
+        String code;  // ⭐ 반드시 있어야 함
 
         // 1) 우리 custom 401
-        if (ex instanceof UnauthorizedException) {
+        if (ex instanceof UnauthorizedException ue) {
             status = HttpStatus.UNAUTHORIZED;
-            message = ex.getMessage();
+            message = ue.getMessage();
+            code = ue.getCode();   // ⭐ FE가 분석하는 핵심 값
         }
-        // 2) WebFlux에서 던지는 404, 405, 400 등 그대로 사용
+
+        // 2) WebFlux 내부에서 던지는 404, 405, 400 등
         else if (ex instanceof ResponseStatusException rse) {
-            // rse.getStatusCode()는 HttpStatusCode 타입이니까 value()로 int 꺼내서 HttpStatus로 변환
             status = HttpStatus.resolve(rse.getStatusCode().value());
-            if (status == null) {
-                status = HttpStatus.INTERNAL_SERVER_ERROR;
-            }
+            if (status == null) status = HttpStatus.INTERNAL_SERVER_ERROR;
+
             message = (rse.getReason() != null) ? rse.getReason() : rse.getMessage();
+            code = status.name();  // ex) BAD_REQUEST, NOT_FOUND
         }
-        // 3) 그 외는 전부 500
+
+        // 3) 나머지는 500
         else {
             status = HttpStatus.INTERNAL_SERVER_ERROR;
             message = "Internal gateway error";
+            code = "INTERNAL_ERROR";
         }
 
         var response = exchange.getResponse();
@@ -53,7 +57,7 @@ public class GatewayErrorHandler implements WebExceptionHandler {
         Map<String, Object> body = Map.of(
                 "success", false,
                 "service", "gateway-service",
-                "code", status.name(),
+                "code", code,
                 "message", message,
                 "status", status.value(),
                 "timestamp", Instant.now().toString(),
@@ -65,8 +69,8 @@ public class GatewayErrorHandler implements WebExceptionHandler {
             bytes = mapper.writeValueAsBytes(body);
         } catch (Exception e) {
             bytes = """
-                    {"success": false, "service": "gateway-service", "message": "Gateway error"}
-                    """.getBytes();
+                {"success": false, "service": "gateway-service", "message": "Gateway error"}
+            """.getBytes();
         }
 
         return response.writeWith(Mono.just(response.bufferFactory().wrap(bytes)));

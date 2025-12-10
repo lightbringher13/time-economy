@@ -1,7 +1,8 @@
 // features/auth/hooks/useChangePasswordForm.ts
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { changePasswordSchema, type ChangePasswordFormValues } from "../types/ChangePasswordForm";
+import { changePasswordSchema, type ChangePasswordFormValues } from "../types/changePasswordForm";
+
 
 export function useChangePasswordForm() {
   return useForm<ChangePasswordFormValues>({
