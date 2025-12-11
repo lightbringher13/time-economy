@@ -1,12 +1,13 @@
 package com.timeeconomy.auth_service.adapter.out.token;
 
-import com.timeeconomy.auth_service.domain.port.out.JwtTokenPort;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.MacAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import com.timeeconomy.auth_service.domain.auth.port.out.JwtTokenPort;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;

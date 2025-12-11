@@ -1,7 +1,8 @@
 package com.timeeconomy.auth_service.adapter.out.token;
 
-import com.timeeconomy.auth_service.domain.port.out.RefreshTokenPort;
 import org.springframework.stereotype.Component;
+
+import com.timeeconomy.auth_service.domain.auth.port.out.RefreshTokenPort;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
