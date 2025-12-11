@@ -92,6 +92,12 @@ public class AuthUser {
         this.updatedAt = now;
     }
 
+    public void updateEmail(String newEmail, LocalDateTime now) {
+        // later you can add more rules (e.g. history, flags, etc.)
+        this.email = newEmail;
+        this.updatedAt = now;
+    }
+
     /**
      * 로그인 실패 처리:
      * - 실패 카운트 증가
