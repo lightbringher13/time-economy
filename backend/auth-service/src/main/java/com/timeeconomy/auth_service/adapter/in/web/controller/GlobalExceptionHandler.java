@@ -5,10 +5,14 @@ import com.timeeconomy.auth_service.domain.exception.AuthSessionNotFoundExceptio
 import com.timeeconomy.auth_service.domain.exception.AuthUserNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.AuthenticationRequiredException;
 import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
+import com.timeeconomy.auth_service.domain.exception.EmailChangeEmailMismatchException;
+import com.timeeconomy.auth_service.domain.exception.EmailChangeRequestNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
 import com.timeeconomy.auth_service.domain.exception.InvalidCurrentPasswordException;
+import com.timeeconomy.auth_service.domain.exception.InvalidNewEmailCodeException;
 import com.timeeconomy.auth_service.domain.exception.InvalidPasswordResetTokenException;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
+import com.timeeconomy.auth_service.domain.exception.InvalidSecondFactorCodeException;
 import com.timeeconomy.auth_service.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNumberAlreadyUsedException;
@@ -432,4 +436,83 @@ public class GlobalExceptionHandler {
         }
 
 
+        @ExceptionHandler(EmailChangeRequestNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailChangeRequestNotFound(
+                EmailChangeRequestNotFoundException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.NOT_FOUND;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "EMAIL_CHANGE_REQUEST_NOT_FOUND",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(InvalidNewEmailCodeException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidNewEmailCode(
+                InvalidNewEmailCodeException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "INVALID_NEW_EMAIL_CODE",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(InvalidSecondFactorCodeException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidSecondFactorCode(
+                InvalidSecondFactorCodeException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "INVALID_SECOND_FACTOR_CODE",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
+
+        @ExceptionHandler(EmailChangeEmailMismatchException.class)
+        public ResponseEntity<ApiErrorResponse> handleEmailChangeEmailMismatch(
+                EmailChangeEmailMismatchException ex,
+                HttpServletRequest request
+        ) {
+        HttpStatus status = HttpStatus.CONFLICT;
+
+        ApiErrorResponse body = new ApiErrorResponse(
+                false,
+                serviceName,
+                "EMAIL_CHANGE_MISMATCH",
+                ex.getMessage(),
+                status.value(),
+                request.getRequestURI(),
+                Instant.now().toString()
+        );
+
+        return ResponseEntity.status(status).body(body);
+        }
 }

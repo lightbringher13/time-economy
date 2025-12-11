@@ -13,6 +13,7 @@ import HealthPage from "@/features/health/pages/HealthPage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
 import ChangePasswordPage from "@/features/auth/pages/ChangePasswordPage";
+import { ChangeEmailPage } from "@/features/auth/change-email/pages/ChangeEmailPage";
 
 export function AppRoutes() {
   return (
@@ -30,6 +31,7 @@ export function AppRoutes() {
         <Route path={ROUTES.PROFILE} element={<ProfilePage />} />
         <Route path={ROUTES.SESSIONS} element={<SessionsPage />} />
         <Route path={ROUTES.CHANGE_PASSWORD} element={<ChangePasswordPage />} />
+        <Route path={ROUTES.CHANGE_EMAIL} element={<ChangeEmailPage />} />
       </Route>
 
       {/* Fallback: root → dashboard */}

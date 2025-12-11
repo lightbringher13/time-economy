@@ -9,5 +9,6 @@ export const ROUTES = {
   HEALTH: "/health",
   FORGOT_PASSWORD: "/forgot-password",
   RESET_PASSWORD: "/reset-password",
-  CHANGE_PASSWORD: "/change-password"
+  CHANGE_PASSWORD: "/change-password",
+  CHANGE_EMAIL: "/change-email",
 } as const;

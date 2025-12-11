@@ -30,9 +30,9 @@ export default function ProfilePage() {
   if (!profile) return <p>No profile data.</p>;
 
   return (
-    
     <div style={{ maxWidth: 480, margin: "40px auto" }}>
       <h1>My Profile</h1>
+
       <div><strong>Email:</strong> {profile.email}</div>
       <div><strong>Name:</strong> {profile.name}</div>
       <div><strong>Phone:</strong> {profile.phoneNumber ?? "Not set"}</div>
@@ -41,9 +41,29 @@ export default function ProfilePage() {
       <div><strong>Status:</strong> {profile.status}</div>
       <div><strong>Created At:</strong> {new Date(profile.createdAt).toLocaleString()}</div>
       <div><strong>Updated At:</strong> {new Date(profile.updatedAt).toLocaleString()}</div>
-      <div style={{ marginTop: "20px" }}>
-        <Link to={ROUTES.CHANGE_PASSWORD} style={{ color: "blue" }}>
-          Change Password
+
+      <hr style={{ margin: "30px 0" }} />
+
+      <h2>Security Settings</h2>
+
+      <div style={{ marginTop: "10px" }}>
+        <strong>Email:</strong> {profile.email}
+        <Link to={ROUTES.CHANGE_EMAIL} style={{ marginLeft: 8, color: "blue" }}>
+          Change
+        </Link>
+      </div>
+
+      <div style={{ marginTop: "10px" }}>
+        <strong>Password:</strong>
+        <Link to={ROUTES.CHANGE_PASSWORD} style={{ marginLeft: 8, color: "blue" }}>
+          Change
+        </Link>
+      </div>
+
+      <div style={{ marginTop: "10px" }}>
+        <strong>Active Sessions:</strong>
+        <Link to={ROUTES.SESSIONS} style={{ marginLeft: 8, color: "blue" }}>
+          View Sessions
         </Link>
       </div>
     </div>
