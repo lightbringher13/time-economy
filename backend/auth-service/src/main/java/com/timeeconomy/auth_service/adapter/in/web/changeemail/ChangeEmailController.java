@@ -1,8 +1,8 @@
 package com.timeeconomy.auth_service.adapter.in.web.changeemail;
 
-import com.timeeconomy.auth_service.domain.port.in.RequestEmailChangeUseCase;
-import com.timeeconomy.auth_service.domain.port.in.VerifyNewEmailCodeUseCase;
-import com.timeeconomy.auth_service.domain.port.in.VerifySecondFactorUseCase;
+import com.timeeconomy.auth_service.domain.changeemail.port.in.RequestEmailChangeUseCase;
+import com.timeeconomy.auth_service.domain.changeemail.port.in.VerifyNewEmailCodeUseCase;
+import com.timeeconomy.auth_service.domain.changeemail.port.in.VerifySecondFactorUseCase;
 import com.timeeconomy.auth_service.adapter.in.web.changeemail.dto.request.RequestEmailChangeRequest;
 import com.timeeconomy.auth_service.adapter.in.web.changeemail.dto.request.VerifyNewEmailCodeRequest;
 import com.timeeconomy.auth_service.adapter.in.web.changeemail.dto.request.VerifySecondFactorRequest;
