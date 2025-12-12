@@ -1,7 +1,7 @@
 // src/App.tsx
 
 import { AppRoutes } from "@/routes/AppRoutes";
-import { useAuthBootstrap } from "@/features/auth/hooks/useAuthBootstrap";
+import { useAuthBootstrap } from "@/features/auth/common/hooks/useAuthBootstrap";
 import { useAuthStore } from "@/store/useAuthStore";
 import { AuthDebugPanel } from "@/shared/components/AuthDebugPanel";
 

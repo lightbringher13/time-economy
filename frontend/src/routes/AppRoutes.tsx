@@ -4,16 +4,16 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
 import { ProtectedRoute } from "./ProtectedRoute";
 
-import LoginPage from "@/features/auth/pages/LoginPage";
-import RegisterPage from "@/features/auth/pages/RegisterPage";
+import LoginPage from "@/features/auth/login/pages/LoginPage";
+import RegisterPage from "@/features/auth/register/pages/RegisterPage";
 import DashboardPage from "@/features/user/pages/DashboardPage";
 import ProfilePage from "@/features/user/pages/ProfilePage";
 import SessionsPage from "@/features/user/pages/SessionsPage";
 import HealthPage from "@/features/health/pages/HealthPage";
-import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
-import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
-import ChangePasswordPage from "@/features/auth/pages/ChangePasswordPage";
-import { ChangeEmailPage } from "@/features/auth/change-email/pages/ChangeEmailPage";
+import ForgotPasswordPage from "@/features/auth/passwordreset/pages/ForgotPasswordPage";
+import ResetPasswordPage from "@/features/auth/passwordreset/pages/ResetPasswordPage";
+import ChangePasswordPage from "@/features/auth/changepassword/pages/ChangePasswordPage";
+import { ChangeEmailPage } from "@/features/auth/changeemail/pages/ChangeEmailPage";
 
 export function AppRoutes() {
   return (
