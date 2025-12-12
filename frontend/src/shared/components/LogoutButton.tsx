@@ -1,6 +1,6 @@
 // src/shared/components/LogoutButton.tsx
 import { useNavigate } from "react-router-dom";
-import { logoutApi } from "@/features/auth/api/authApi";
+import { logoutApi } from "@/features/auth/common/api/authApi";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/routes/paths";
 
