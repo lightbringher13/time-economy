@@ -33,15 +33,9 @@ public class EmailChangeRequestEntity {
     @Column(name = "new_email", nullable = false, length = 255)
     private String newEmail;
 
-    @Column(name = "new_email_code", nullable = false, length = 10)
-    private String newEmailCode;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "second_factor_type", length = 20)
     private SecondFactorType secondFactorType;
-
-    @Column(name = "second_factor_code", length = 10)
-    private String secondFactorCode;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)

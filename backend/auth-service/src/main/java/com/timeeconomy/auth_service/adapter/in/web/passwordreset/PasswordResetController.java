@@ -3,9 +3,9 @@ package com.timeeconomy.auth_service.adapter.in.web.passwordreset;
 import com.timeeconomy.auth_service.adapter.in.web.passwordreset.dto.request.ChangePasswordRequest;
 import com.timeeconomy.auth_service.adapter.in.web.passwordreset.dto.request.PasswordResetRequest;
 import com.timeeconomy.auth_service.adapter.in.web.passwordreset.dto.request.PerformPasswordResetRequest;
+import com.timeeconomy.auth_service.domain.changepassword.port.in.ChangePasswordUseCase;
 import com.timeeconomy.auth_service.domain.exception.AuthenticationRequiredException;
 import com.timeeconomy.auth_service.domain.exception.WeakPasswordException;
-import com.timeeconomy.auth_service.domain.passwordreset.port.in.ChangePasswordUseCase;
 import com.timeeconomy.auth_service.domain.passwordreset.port.in.RequestPasswordResetUseCase;
 import com.timeeconomy.auth_service.domain.passwordreset.port.in.ResetPasswordUseCase;
 

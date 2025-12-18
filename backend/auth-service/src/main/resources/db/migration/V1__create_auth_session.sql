@@ -1,8 +1,3 @@
--- ============================================================
--- V1__create_auth_session.sql
--- Create table for storing refresh token sessions
--- ============================================================
-
 CREATE TABLE auth_session (
     id BIGSERIAL PRIMARY KEY,
 

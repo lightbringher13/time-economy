@@ -1,6 +1,6 @@
 // src/pages/LoginPage.tsx
 import { useState } from "react";
-import { loginApi } from "../../common/api/authApi";
+import { loginApi } from "../api/loginApi";
 import { getMeApi } from "@/features/user/api/userApi";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";

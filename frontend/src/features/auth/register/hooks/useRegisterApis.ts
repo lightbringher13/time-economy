@@ -1,20 +1,13 @@
-// features/auth/hooks/useRegisterApis.ts
 import { useEffect, useRef, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import type { RegisterFormValues } from "../schemas/registerForm";
-
-import {
-  signupBootstrapApi,
-  updateSignupProfileApi,
-  sendEmailCodeApi,
-  verifyEmailCodeApi,
-  requestPhoneCodeApi,
-  verifyPhoneCodeApi,
-} from "../../common/api/authApi";
+import { signupBootstrapApi, updateSignupProfileApi } from "../api/signupSessionApi";
 import { registerApi } from "../api/registerApi";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
-import { isApiError } from "@/shared/api/apiClient"; 
+import { isApiError } from "@/shared/api/apiClient";
+
+import { sendSignupOtpApi,verifySignupOtpApi } from "../api/signupSessionApi";
 
 export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
   const navigate = useNavigate();
@@ -72,74 +65,58 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
 
   // ========= 2) AUTOSAVE PROFILE =========
   useEffect(() => {
-  if (bootstrapLoading) return;
+    if (bootstrapLoading) return;
 
-  const subscription = watch((values) => {
-    const { email, name, phoneNumber, gender, birthDate } = values;
+    const subscription = watch((values) => {
+      const { email, name, phoneNumber, gender, birthDate } = values;
+      if (!email?.trim()) return;
 
-    // 세션은 "이메일이 한 번이라도 채워진 상태"에서만 저장
-    if (!email?.trim()) return;
+      if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
 
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-    }
+      autosaveTimerRef.current = window.setTimeout(() => {
+        updateSignupProfileApi({
+          email: email.trim(),
+          phoneNumber: phoneNumber?.trim() || null,
+          name: name?.trim() || null,
+          gender: gender || null,
+          birthDate: birthDate || null,
+        }).catch((err) => console.error("[Register] autosave failed", err));
+      }, 600);
+    });
 
-    autosaveTimerRef.current = window.setTimeout(() => {
-      updateSignupProfileApi({
-        email: email.trim(),                        // ✅ 추가
-        phoneNumber: phoneNumber?.trim() || null,   // ✅ 같이 저장
-        name: name?.trim() || null,
-        gender: gender || null,
-        birthDate: birthDate || null,
-      }).catch((err) => {
-        console.error("[Register] autosave failed", err);
-      });
-    }, 600);
-  });
+    return () => {
+      subscription.unsubscribe();
+      if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+    };
+  }, [bootstrapLoading, watch]);
 
-  return () => {
-    subscription.unsubscribe();
-    if (autosaveTimerRef.current) {
-      window.clearTimeout(autosaveTimerRef.current);
-    }
-  };
-}, [bootstrapLoading, watch]);
-
-  // ========= 3) EMAIL APIs =========
+  // ========= 3) EMAIL (verification-challenge) =========
   const handleSendEmailCode = async () => {
     setError(null);
     setVerificationInfo(null);
 
-    const email = getValues("email");
-    if (!email?.trim()) {
+    const email = getValues("email")?.trim();
+    if (!email) {
       setError("Email is required before sending code.");
       return;
     }
 
     setSendEmailCodeLoading(true);
     try {
-      const code = await sendEmailCodeApi({ email });
+      const res = await sendSignupOtpApi({
+        target: "EMAIL",
+      });
 
-      // dev-only display
-      setVerificationInfo(`Verification code (dev): ${code}`);
+      // dev-only
+      setVerificationInfo(
+        `Code sent. TTL=${res.ttlMinutes}min, to=${res.maskedDestination} (dev: check backend logs / email)`
+      );
     } catch (err) {
       console.error("[Register] send email code failed", err);
 
       if (isApiError(err)) {
         const api = err.response?.data;
-
-        switch (api?.code) {
-          case "EMAIL_ALREADY_USED":
-            setError("This email is already registered. Please use another email.");
-            break;
-
-          case "EMAIL_INVALID":
-            setError("This email is invalid.");
-            break;
-
-          default:
-            setError(api?.message || "Failed to send verification code.");
-        }
+        setError(api?.message || "Failed to send verification code.");
       } else {
         setError("Unexpected error occurred.");
       }
@@ -152,22 +129,26 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
     setError(null);
     setVerificationInfo(null);
 
-    const email = getValues("email");
-    const emailCode = getValues("emailCode");
+    const email = getValues("email")?.trim();
+    const code = getValues("emailCode")?.trim();
 
-    if (!email?.trim()) {
+    if (!email) {
       setError("Email is required.");
       return;
     }
-    if (!emailCode?.trim()) {
+    if (!code) {
       setError("Verification code is required.");
       return;
     }
 
     setVerifyEmailCodeLoading(true);
     try {
-      const res = await verifyEmailCodeApi({ email, code: emailCode });
-      if (res.verified) {
+      const res = await verifySignupOtpApi({
+        target: "EMAIL",
+        code,
+      });
+
+      if (res.success) {
         setEmailVerified(true);
         setVerificationInfo("Email verified successfully.");
       } else {
@@ -183,32 +164,32 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
     }
   };
 
-  // ========= 4) PHONE APIs =========
+  // ========= 4) PHONE (verification-challenge) =========
   const handleSendPhoneCode = async () => {
     setError(null);
     setPhoneVerificationInfo(null);
 
-    const phoneNumber = getValues("phoneNumber");
-    if (!phoneNumber?.trim()) {
+    const phone = getValues("phoneNumber")?.trim();
+    if (!phone) {
       setError("Phone number is required before sending verification code.");
       return;
     }
 
     setSendPhoneCodeLoading(true);
     try {
-      await requestPhoneCodeApi({ phoneNumber });
-      setPhoneVerificationInfo("Verification SMS sent. (dev: check backend logs)");
+      const res = await sendSignupOtpApi({
+        target: "PHONE",
+      });
+
+      setPhoneVerificationInfo(
+        `SMS sent. TTL=${res.ttlMinutes}min (dev: check backend logs).`
+      );
     } catch (err) {
       console.error("[Register] send phone code failed", err);
 
       if (isApiError(err)) {
         const api = err.response?.data;
-
-        if (api?.code === "PHONE_ALREADY_USED") {
-          setError("This phone number is already registered. Please use another one.");
-        } else {
-          setError(api?.message ?? "Failed to send phone verification code.");
-        }
+        setError(api?.message ?? "Failed to send phone verification code.");
       } else {
         setError("Failed to send phone verification code.");
       }
@@ -221,21 +202,25 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
     setError(null);
     setPhoneVerificationInfo(null);
 
-    const phoneNumber = getValues("phoneNumber");
-    const phoneCode = getValues("phoneCode");
+    const phone = getValues("phoneNumber")?.trim();
+    const code = getValues("phoneCode")?.trim();
 
-    if (!phoneNumber?.trim()) {
+    if (!phone) {
       setError("Phone number is required.");
       return;
     }
-    if (!phoneCode?.trim()) {
+    if (!code) {
       setError("Phone verification code is required.");
       return;
     }
 
     setVerifyPhoneCodeLoading(true);
     try {
-      const res = await verifyPhoneCodeApi({ phoneNumber, code: phoneCode });
+      const res = await verifySignupOtpApi({
+        target: "PHONE",
+        code,
+      });
+
       if (res.success) {
         setPhoneVerified(true);
         setPhoneVerificationInfo("Phone verified successfully.");
@@ -264,7 +249,6 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
       setError("Please verify your phone number before registering.");
       return;
     }
-
     if (values.password !== values.passwordConfirm) {
       setError("Passwords do not match.");
       return;
@@ -290,17 +274,18 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
         const code = err.response?.data?.code;
         const message = err.response?.data?.message;
 
+        // You can keep these if backend still returns them,
+        // otherwise handle generic errors.
         switch (code) {
           case "EMAIL_ALREADY_USED":
-            setError(message ?? "This email is already in use. Please use another email.");
-            // 🔽 이 이메일로는 다시 인증해야 하므로 FE 상태 초기화
+            setError(message ?? "This email is already in use.");
             setEmailVerified(false);
             setVerificationInfo(null);
             setValue("emailCode", "");
             break;
 
           case "PHONE_ALREADY_USED":
-            setError(message ?? "This phone number is already in use. Please use another phone number.");
+            setError(message ?? "This phone number is already in use.");
             setPhoneVerified(false);
             setPhoneVerificationInfo(null);
             setValue("phoneCode", "");
@@ -339,9 +324,7 @@ export function useRegisterApis(form: UseFormReturn<RegisterFormValues>) {
       onVerifyPhoneCode: handleVerifyPhoneCode,
     },
 
-    submitProps: {
-      loading,
-    },
+    submitProps: { loading },
 
     onSubmit,
   };

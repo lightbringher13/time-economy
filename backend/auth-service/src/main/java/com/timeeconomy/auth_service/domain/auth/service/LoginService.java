@@ -7,8 +7,8 @@ import com.timeeconomy.auth_service.domain.auth.port.out.AuthSessionRepositoryPo
 import com.timeeconomy.auth_service.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth_service.domain.auth.port.out.JwtTokenPort;
 import com.timeeconomy.auth_service.domain.auth.port.out.RefreshTokenPort;
+import com.timeeconomy.auth_service.domain.common.security.port.PasswordEncoderPort;
 import com.timeeconomy.auth_service.domain.exception.InvalidCredentialsException;
-import com.timeeconomy.auth_service.domain.port.out.PasswordEncoderPort;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

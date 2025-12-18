@@ -3,10 +3,10 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@/routes/paths";
-import { changePasswordApi } from "../../common/api/authApi";
+import { changePasswordApi } from "../api/changePasswordApi";
 import { useChangePasswordForm } from "../hooks/useChangePasswordForm";
 import type { ChangePasswordFormValues } from "../schemas/changePasswordForm";
-import type { ChangePasswordRequest } from "../../common/types/auth";
+import type { ChangePasswordRequest } from "../api/changePasswordApi.type";
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();

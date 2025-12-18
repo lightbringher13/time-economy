@@ -5,9 +5,9 @@ import com.timeeconomy.auth_service.domain.auth.port.in.RefreshUseCase;
 import com.timeeconomy.auth_service.domain.auth.port.out.AuthSessionRepositoryPort;
 import com.timeeconomy.auth_service.domain.auth.port.out.JwtTokenPort;
 import com.timeeconomy.auth_service.domain.auth.port.out.RefreshTokenPort;
+import com.timeeconomy.auth_service.domain.common.notification.port.EmailNotificationPort;
 import com.timeeconomy.auth_service.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth_service.domain.exception.RefreshTokenReuseException;
-import com.timeeconomy.auth_service.domain.port.out.EmailNotificationPort;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -124,10 +124,14 @@ public class RefreshService implements RefreshUseCase {
 
             emailNotificationPort.sendSecurityAlert(
                     session.getUserId(),
-                    "[Security Alert] Refresh token reuse detected",
-                    "We detected a suspicious reuse of your refresh token for device family: "
-                            + session.getFamilyId()
-                            + ". All related sessions have been revoked. Please sign in again.");
+                    "SECURITY_REFRESH_TOKEN_REUSE",
+                    java.util.Map.of(
+                            "familyId", session.getFamilyId(),
+                            "ipAddress", command.ipAddress(),
+                            "userAgent", command.userAgent(),
+                            "deviceInfo", command.deviceInfo()
+                    )
+            );
         }
 
         throw new RefreshTokenReuseException("Refresh token reuse detected");
