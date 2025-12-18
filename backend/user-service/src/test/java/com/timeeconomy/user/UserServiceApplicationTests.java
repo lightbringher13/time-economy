@@ -1,4 +1,4 @@
-package com.timeeconomy.user_service;
+package com.timeeconomy.user;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
