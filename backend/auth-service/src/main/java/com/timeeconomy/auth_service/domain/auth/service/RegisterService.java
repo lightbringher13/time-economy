@@ -3,15 +3,15 @@ package com.timeeconomy.auth_service.domain.auth.service;
 import com.timeeconomy.auth_service.domain.auth.model.AuthUser;
 import com.timeeconomy.auth_service.domain.auth.port.in.RegisterUseCase;
 import com.timeeconomy.auth_service.domain.auth.port.out.AuthUserRepositoryPort;
+import com.timeeconomy.auth_service.domain.common.integration.port.UserProfileSyncPort;
+import com.timeeconomy.auth_service.domain.common.security.port.PasswordEncoderPort;
 import com.timeeconomy.auth_service.domain.exception.EmailAlreadyUsedException;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth_service.domain.exception.EmailNotVerifiedException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNotVerifiedException;
 import com.timeeconomy.auth_service.domain.exception.PhoneNumberAlreadyUsedException;
-import com.timeeconomy.auth_service.domain.port.out.PasswordEncoderPort;
-import com.timeeconomy.auth_service.domain.port.out.UserProfileSyncPort;
 import com.timeeconomy.auth_service.domain.signupsession.model.SignupSession;
-import com.timeeconomy.auth_service.domain.signupsession.port.out.SignupSessionRepositoryPort;
+import com.timeeconomy.auth_service.domain.signupsession.port.out.SignupSessionStorePort;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,7 +25,7 @@ public class RegisterService implements RegisterUseCase {
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final PasswordEncoderPort passwordEncoderPort;
     private final UserProfileSyncPort userProfileSyncPort;
-    private final SignupSessionRepositoryPort signupSessionRepositoryPort;   // ⭐ NEW
+    private final SignupSessionStorePort signupSessionRepositoryPort;   // ⭐ NEW
 
     @Override
     public RegisterResult register(RegisterCommand command) {

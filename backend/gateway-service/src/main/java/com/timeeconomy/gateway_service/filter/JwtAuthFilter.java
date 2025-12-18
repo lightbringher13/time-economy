@@ -36,7 +36,11 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             "/api/auth/email/verify",
             "/api/auth/email/send-code",
             "/api/auth/signup/bootstrap",
-            "/api/auth/signup/profile"
+            "/api/auth/signup/profile",
+            "/api/auth/public/verification/otp",
+            "/api/auth/public/verification/otp/verify",
+            "/api/auth/signup/verify-otp",
+            "/api/auth/signup/send-otp"
     );
 
     // ✅ 필요하면 prefix 기반으로 완전 공개할 path들

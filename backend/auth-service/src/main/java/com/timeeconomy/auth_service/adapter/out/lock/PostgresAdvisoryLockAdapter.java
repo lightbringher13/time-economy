@@ -1,10 +1,11 @@
 package com.timeeconomy.auth_service.adapter.out.lock;
 
-import com.timeeconomy.auth_service.domain.port.out.DistributedLockPort;
-import com.timeeconomy.auth_service.domain.port.out.LockHandle;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+
+import com.timeeconomy.auth_service.domain.common.lock.port.DistributedLockPort;
+import com.timeeconomy.auth_service.domain.common.lock.port.LockHandle;
 
 /**
  * DistributedLockPort implementation using PostgreSQL advisory locks.

@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: authuser
       POSTGRES_PASSWORD: authpass
     ports:
-      - "5433:5432"   # for DBeaver / local debugging
+      - "5433:5432"
     volumes:
       - auth-db-data:/var/lib/postgresql/data
     networks:
@@ -21,17 +21,50 @@ services:
       POSTGRES_USER: useruser
       POSTGRES_PASSWORD: userpass
     ports:
-      - "5434:5432"   # for DBeaver / local debugging
+      - "5434:5432"
     volumes:
       - user-db-data:/var/lib/postgresql/data
+    networks:
+      - timeeconomy-net
+
+  # ✅ ADD: Redis
+  redis:
+    image: redis:7.4-alpine
+    container_name: time-economy-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - timeeconomy-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ✅ ADD: RedisInsight (GUI)
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: time-economy-redisinsight
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/data
     networks:
       - timeeconomy-net
 
 volumes:
   auth-db-data:
   user-db-data:
+  redis-data:
+  redisinsight-data:
 
 networks:
   timeeconomy-net:
-    name: timeeconomy-net   # important: fixed name for sharing
+    name: timeeconomy-net
     driver: bridge

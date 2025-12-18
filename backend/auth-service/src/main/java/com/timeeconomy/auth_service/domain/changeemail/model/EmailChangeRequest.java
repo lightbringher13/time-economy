@@ -1,4 +1,4 @@
-// src/main/java/com/timeeconomy/auth_service/domain/model/EmailChangeRequest.java
+// src/main/java/com/timeeconomy/auth_service/domain/changeemail/model/EmailChangeRequest.java
 package com.timeeconomy.auth_service.domain.changeemail.model;
 
 import lombok.Builder;
@@ -16,10 +16,7 @@ public class EmailChangeRequest {
     private final String oldEmail;
     private final String newEmail;
 
-    private String newEmailCode;
-
-    private SecondFactorType secondFactorType;  // PHONE or OLD_EMAIL
-    private String secondFactorCode;
+    private SecondFactorType secondFactorType;
 
     private EmailChangeStatus status;
 
@@ -28,8 +25,6 @@ public class EmailChangeRequest {
     private LocalDateTime updatedAt;
 
     private Long version;
-
-    // ========= Factory ==========
 
     public static EmailChangeRequest create(
             Long userId,
@@ -44,7 +39,6 @@ public class EmailChangeRequest {
                 .userId(userId)
                 .oldEmail(oldEmail)
                 .newEmail(newEmail)
-                .newEmailCode(newEmailCode)
                 .status(EmailChangeStatus.PENDING)
                 .expiresAt(expiresAt)
                 .createdAt(now)
@@ -52,8 +46,6 @@ public class EmailChangeRequest {
                 .version(0L)
                 .build();
     }
-
-    // ========= Business rules / state transitions ==========
 
     public boolean isExpired(LocalDateTime now) {
         return now.isAfter(expiresAt);
@@ -65,40 +57,35 @@ public class EmailChangeRequest {
                 || status == EmailChangeStatus.READY_TO_COMMIT;
     }
 
-    public void verifyNewEmailCode(String code, LocalDateTime now) {
+    // =========================================
+    // NEW: state transitions driven by challenges
+    // =========================================
+
+    public void markNewEmailVerified(LocalDateTime now) {
         if (isExpired(now)) {
             this.status = EmailChangeStatus.EXPIRED;
-            // optionally throw domain exception
-            // throw new EmailChangeExpiredException(...);
-            return;
-        }
-        if (!this.newEmailCode.equals(code)) {
-            // throw new InvalidNewEmailCodeException(...);
+            touch(now);
             return;
         }
         if (status != EmailChangeStatus.PENDING) {
-            // throw new InvalidStateTransitionException(...);
             return;
         }
         this.status = EmailChangeStatus.NEW_EMAIL_VERIFIED;
         touch(now);
     }
 
-    public void setSecondFactor(SecondFactorType type, String code, LocalDateTime now) {
+    public void setSecondFactorType(SecondFactorType type, LocalDateTime now) {
         this.secondFactorType = type;
-        this.secondFactorCode = code;
         touch(now);
     }
 
-    public void verifySecondFactor(String code, LocalDateTime now) {
+    public void markReadyToCommit(LocalDateTime now) {
         if (isExpired(now)) {
             this.status = EmailChangeStatus.EXPIRED;
+            touch(now);
             return;
         }
         if (status != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
-            return;
-        }
-        if (this.secondFactorCode == null || !this.secondFactorCode.equals(code)) {
             return;
         }
         this.status = EmailChangeStatus.READY_TO_COMMIT;

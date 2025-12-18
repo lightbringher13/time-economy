@@ -2,7 +2,7 @@ package com.timeeconomy.auth_service.domain.signupsession.service;
 
 import com.timeeconomy.auth_service.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth_service.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
-import com.timeeconomy.auth_service.domain.signupsession.port.out.SignupSessionRepositoryPort;
+import com.timeeconomy.auth_service.domain.signupsession.port.out.SignupSessionStorePort;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +15,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class GetSignupSessionStatusService implements GetSignupSessionStatusUseCase {
 
-    private final SignupSessionRepositoryPort signupSessionRepositoryPort;
+    private final SignupSessionStorePort signupSessionRepositoryPort;
 
     @Override
     @Transactional(readOnly = true)

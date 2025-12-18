@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://auth-db:5432/authdb
-    username: authuser
-    password: authpass
+    url: ${AUTH_DB_URL:jdbc:postgresql://auth-db:5432/authdb}
+    username: ${AUTH_DB_USERNAME:authuser}
+    password: ${AUTH_DB_PASSWORD:authpass}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -16,7 +16,23 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-  
+
+  # ✅ Redis (Docker network: redis:6379)
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}     # 비번 없으면 빈 값
+      database: ${REDIS_DATABASE:0}
+      timeout: 2s
+
+  # (선택) Spring Cache를 Redis로 쓰고 싶을 때만 켜기
+  # cache:
+  #   type: redis
+  #   redis:
+  #     time-to-live: 10m
+  #     cache-null-values: false
+
   mail:
     host: ${BREVO_HOST:smtp-relay.brevo.com}
     port: ${BREVO_PORT:587}
@@ -25,17 +41,20 @@ spring:
     properties:
       mail.smtp.auth: true
       mail.smtp.starttls.enable: true
+
 app:
   mail:
-    from: your-verified-email@something.com
+    from: ${APP_MAIL_FROM}
+  verification:
+    hmac-secret: ${VERIFICATION_HMAC_SECRET}
 
 brevo:
   sms:
-    api-key: ${BREVO_SMS_API_KEY}                      # 🔹 maps env → @Value
+    api-key: ${BREVO_SMS_API_KEY}
     sender-name: ${BREVO_SMS_SENDER_NAME:TimeEconomy}
 
 jwt:
-  secret: "super-super-long-random-secret-key-change-this-in-prod"
+  secret: ${JWT_SECRET}
   issuer: "timeeconomy-auth"
   access-token-exp-seconds: 900     # 15 min
   refresh-token-exp-days: 7

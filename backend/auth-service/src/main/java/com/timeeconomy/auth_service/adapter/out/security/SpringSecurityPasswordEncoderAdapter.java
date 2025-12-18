@@ -1,9 +1,10 @@
 package com.timeeconomy.auth_service.adapter.out.security;
 
-import com.timeeconomy.auth_service.domain.port.out.PasswordEncoderPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+
+import com.timeeconomy.auth_service.domain.common.security.port.PasswordEncoderPort;
 
 @Component
 @RequiredArgsConstructor

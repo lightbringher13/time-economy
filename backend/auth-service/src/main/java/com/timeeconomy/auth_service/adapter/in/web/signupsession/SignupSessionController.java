@@ -3,12 +3,20 @@ package com.timeeconomy.auth_service.adapter.in.web.signupsession;
 
 import org.springframework.http.HttpHeaders;
 
+import com.timeeconomy.auth_service.adapter.in.web.signupsession.dto.request.SendSignupOtpRequest;
 import com.timeeconomy.auth_service.adapter.in.web.signupsession.dto.request.UpdateSignupProfileRequest;
+import com.timeeconomy.auth_service.adapter.in.web.signupsession.dto.request.VerifySignupOtpRequest;
+import com.timeeconomy.auth_service.adapter.in.web.signupsession.dto.response.SendSignupOtpResponse;
 import com.timeeconomy.auth_service.adapter.in.web.signupsession.dto.response.SignupBootstrapResponse;
+import com.timeeconomy.auth_service.adapter.in.web.signupsession.dto.response.VerifySignupOtpResponse;
 import com.timeeconomy.auth_service.domain.exception.SignupSessionNotFoundException;
+import com.timeeconomy.auth_service.domain.signupsession.port.in.SendSignupOtpUseCase;
 import com.timeeconomy.auth_service.domain.signupsession.port.in.SignupBootstrapUseCase;
 import com.timeeconomy.auth_service.domain.signupsession.port.in.UpdateSignupProfileUseCase;
+import com.timeeconomy.auth_service.domain.signupsession.port.in.VerifySignupOtpUseCase;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import java.time.Duration;
@@ -28,6 +36,9 @@ public class SignupSessionController {
 
     private final SignupBootstrapUseCase signupBootstrapUseCase;
     private final UpdateSignupProfileUseCase updateSignupProfileUseCase;
+    private final VerifySignupOtpUseCase verifySignupOtpUseCase;
+    private final SendSignupOtpUseCase sendSignupOtpUseCase;
+
 
     /**
      * 🔹 Bootstrap endpoint
@@ -116,5 +127,66 @@ public class SignupSessionController {
         );
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/verify-otp")
+    public ResponseEntity<VerifySignupOtpResponse> verifyOtp(
+            @Valid @RequestBody VerifySignupOtpRequest req,
+            @CookieValue(name = "signup_session_id", required = false) String cookieSessionId
+    ) {
+        UUID sessionId = req.sessionId();
+
+        if (sessionId == null && cookieSessionId != null && !cookieSessionId.isBlank()) {
+            try {
+                sessionId = UUID.fromString(cookieSessionId);
+            } catch (Exception ignored) {
+                // keep null -> treat as invalid request
+            }
+        }
+
+        if (sessionId == null) {
+            // BigCom style: 400 for malformed request (missing session id)
+            return ResponseEntity.badRequest().build();
+        }
+
+        var result = verifySignupOtpUseCase.verify(
+                new VerifySignupOtpUseCase.Command(
+                        sessionId,
+                        req.target(),
+                        req.code()
+                )
+        );
+
+        return ResponseEntity.ok(new VerifySignupOtpResponse(
+                result.success(),
+                result.sessionId(),
+                result.emailVerified(),
+                result.phoneVerified(),
+                result.state()
+        ));
+    }
+
+    @PostMapping("/send-otp")
+    public ResponseEntity<SendSignupOtpResponse> sendOtp(
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) UUID sessionId,
+            @Valid @RequestBody SendSignupOtpRequest body,
+            HttpServletRequest http
+    ) {
+        if (sessionId == null) {
+            return ResponseEntity.ok(new SendSignupOtpResponse(false, null, null, 0, null, false, false, "EXPIRED_OR_NOT_FOUND"));
+        }
+
+        var result = sendSignupOtpUseCase.send(new SendSignupOtpUseCase.Command(sessionId, body.target()));
+
+        return ResponseEntity.ok(new SendSignupOtpResponse(
+                result.sent(),
+                result.sessionId(),
+                result.challengeId(),
+                result.ttlMinutes(),
+                result.maskedDestination(),
+                result.emailVerified(),
+                result.phoneVerified(),
+                result.state()
+        ));
     }
 }

@@ -107,6 +107,11 @@ public class SignupSession {
         this.updatedAt = now;
     }
 
+    public void markPhoneVerified(LocalDateTime now) {
+        this.phoneVerified = true;
+        this.updatedAt = now;
+    }
+
     public void markExpired(LocalDateTime now) {
         this.state = SignupSessionState.EXPIRED;
         this.updatedAt = now;

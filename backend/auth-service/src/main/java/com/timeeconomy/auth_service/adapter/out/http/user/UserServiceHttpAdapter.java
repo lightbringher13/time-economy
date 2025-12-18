@@ -1,7 +1,8 @@
 package com.timeeconomy.auth_service.adapter.out.http.user;
 
 import com.timeeconomy.auth_service.adapter.out.http.user.dto.CreateUserProfileRequest;
-import com.timeeconomy.auth_service.domain.port.out.UserProfileSyncPort;
+import com.timeeconomy.auth_service.domain.common.integration.port.UserProfileSyncPort;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

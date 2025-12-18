@@ -2,7 +2,7 @@ package com.timeeconomy.auth_service.domain.signupsession.service;
 
 import com.timeeconomy.auth_service.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth_service.domain.signupsession.port.in.SignupBootstrapUseCase;
-import com.timeeconomy.auth_service.domain.signupsession.port.out.SignupSessionRepositoryPort;
+import com.timeeconomy.auth_service.domain.signupsession.port.out.SignupSessionStorePort;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,7 @@ public class SignupBootstrapService implements SignupBootstrapUseCase {
 
     private static final Duration SIGNUP_SESSION_TTL = Duration.ofHours(24);
 
-    private final SignupSessionRepositoryPort signupSessionRepositoryPort;
+    private final SignupSessionStorePort signupSessionStorePort;
 
     @Override
     public Result bootstrap(Command command) {
@@ -29,7 +29,7 @@ public class SignupBootstrapService implements SignupBootstrapUseCase {
 
         // 1) try existing session id from cookie
         if (existingId != null) {
-            session = signupSessionRepositoryPort
+            session = signupSessionStorePort
                     .findActiveById(existingId, now)
                     .orElse(null);
         }
@@ -42,7 +42,7 @@ public class SignupBootstrapService implements SignupBootstrapUseCase {
                     now,
                     expiresAt
             );
-            session = signupSessionRepositoryPort.save(session);
+            session = signupSessionStorePort.save(session);
         }
 
         // 3) map to result
