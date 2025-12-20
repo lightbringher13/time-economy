@@ -1,8 +1,8 @@
-package com.timeeconomy.user.domain.port.out;
+package com.timeeconomy.user.domain.userprofile.port.out;
 
 import java.util.Optional;
 
-import com.timeeconomy.user.domain.model.UserProfile;
+import com.timeeconomy.user.domain.userprofile.model.UserProfile;
 
 public interface UserProfileRepositoryPort {
 

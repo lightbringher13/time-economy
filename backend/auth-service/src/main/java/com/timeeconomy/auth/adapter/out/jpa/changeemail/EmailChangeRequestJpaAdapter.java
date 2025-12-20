@@ -59,4 +59,9 @@ public class EmailChangeRequestJpaAdapter implements EmailChangeRequestRepositor
                 .findByUserIdAndStatus(userId, status)
                 .map(EmailChangeRequestMapper::toDomain);
     }
+
+    @Override
+    public Optional<EmailChangeRequest> findById(Long requestId) {
+        return repository.findById(requestId).map(EmailChangeRequestMapper::toDomain);
+    }
 }

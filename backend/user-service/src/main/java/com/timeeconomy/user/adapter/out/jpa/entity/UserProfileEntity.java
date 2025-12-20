@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import com.timeeconomy.user.domain.model.UserStatus;
+import com.timeeconomy.user.domain.userprofile.model.UserStatus;
 
 @Entity
 @Table(name = "user_profile")

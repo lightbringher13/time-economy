@@ -1,9 +1,5 @@
 package com.timeeconomy.auth.domain.changeemail.service;
 
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.timeeconomy.auth.domain.auth.model.AuthUser;
 import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
@@ -15,7 +11,6 @@ import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
 import com.timeeconomy.auth.domain.common.lock.port.DistributedLockPort;
 import com.timeeconomy.auth.domain.common.lock.port.LockHandle;
-import com.timeeconomy.auth.domain.common.notification.port.EmailNotificationPort;
 import com.timeeconomy.auth.domain.common.security.port.PasswordEncoderPort;
 import com.timeeconomy.auth.domain.exception.AuthUserNotFoundException;
 import com.timeeconomy.auth.domain.exception.EmailAlreadyUsedException;
@@ -24,13 +19,21 @@ import com.timeeconomy.auth.domain.exception.EmailChangeRequestNotFoundException
 import com.timeeconomy.auth.domain.exception.InvalidCurrentPasswordException;
 import com.timeeconomy.auth.domain.exception.InvalidNewEmailCodeException;
 import com.timeeconomy.auth.domain.exception.InvalidSecondFactorCodeException;
+import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
 import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -41,17 +44,24 @@ public class ChangeEmailService implements
 
     private static final long CHANGE_EMAIL_TTL_MINUTES = 30L;
 
-    // OTP policy (you can tune later)
     private static final Duration OTP_TTL = Duration.ofMinutes(10);
     private static final int OTP_MAX_ATTEMPTS = 5;
+
+    // Outbox event info
+    private static final String OUTBOX_AGGREGATE_TYPE = "EmailChangeRequest";
+    private static final String EVENT_EMAIL_CHANGE_COMMITTED = "EmailChangeCommitted.v1";
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final EmailChangeRequestRepositoryPort emailChangeRequestRepositoryPort;
     private final PasswordEncoderPort passwordEncoderPort;
-    private final EmailNotificationPort emailNotificationPort;
     private final DistributedLockPort distributedLockPort;
-
     private final VerificationChallengeUseCase verificationChallengeUseCase;
+
+    // ✅ OUTBOX
+    private final OutboxEventRepositoryPort outboxEventRepositoryPort;
+
+    // ✅ Boot 4 / Jackson 3
+    private final JsonMapper jsonMapper;
 
     // ============ 1) Request email change ============
 
@@ -84,7 +94,6 @@ public class ChangeEmailService implements
                     emailChangeRequestRepositoryPort.save(existing);
                 });
 
-        // create request aggregate (codes no longer stored here)
         LocalDateTime expiresAt = now.plusMinutes(CHANGE_EMAIL_TTL_MINUTES);
         EmailChangeRequest request = EmailChangeRequest.create(
                 userId,
@@ -97,7 +106,7 @@ public class ChangeEmailService implements
 
         EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-        // create OTP challenge for NEW email
+        // create OTP for NEW email
         verificationChallengeUseCase.createOtp(new VerificationChallengeUseCase.CreateOtpCommand(
                 VerificationSubjectType.USER,
                 userId.toString(),
@@ -106,14 +115,11 @@ public class ChangeEmailService implements
                 newEmail,
                 OTP_TTL,
                 OTP_MAX_ATTEMPTS,
-                null, // requestIp (optional; pass from controller later)
-                null  // userAgent (optional)
+                null,
+                null
         ));
 
-        return new RequestEmailChangeResult(
-                saved.getId(),
-                maskEmail(newEmail)
-        );
+        return new RequestEmailChangeResult(saved.getId(), maskEmail(newEmail));
     }
 
     // ============ 2) Verify code sent to NEW email ============
@@ -125,10 +131,7 @@ public class ChangeEmailService implements
 
         EmailChangeRequest request = emailChangeRequestRepositoryPort
                 .findByIdAndUserId(command.requestId(), command.userId())
-                .orElseThrow(() -> new EmailChangeRequestNotFoundException(
-                        command.userId(),
-                        command.requestId()
-                ));
+                .orElseThrow(() -> new EmailChangeRequestNotFoundException(command.userId(), command.requestId()));
 
         if (request.isExpired(now)) {
             request.markExpired(now);
@@ -140,7 +143,6 @@ public class ChangeEmailService implements
             throw new InvalidNewEmailCodeException();
         }
 
-        // verify NEW-email OTP via challenge service
         var verify = verificationChallengeUseCase.verifyOtp(new VerificationChallengeUseCase.VerifyOtpCommand(
                 VerificationSubjectType.USER,
                 command.userId().toString(),
@@ -154,10 +156,8 @@ public class ChangeEmailService implements
             throw new InvalidNewEmailCodeException();
         }
 
-        // mark request state
         request.markNewEmailVerified(now);
 
-        // decide second factor
         AuthUser user = authUserRepositoryPort.findById(command.userId())
                 .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
 
@@ -193,13 +193,9 @@ public class ChangeEmailService implements
         }
 
         request.setSecondFactorType(type, now);
-
         EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-        return new VerifyNewEmailCodeResult(
-                saved.getId(),
-                type
-        );
+        return new VerifyNewEmailCodeResult(saved.getId(), type);
     }
 
     // ============ 3) Verify second factor AND commit ============
@@ -214,10 +210,7 @@ public class ChangeEmailService implements
 
             EmailChangeRequest request = emailChangeRequestRepositoryPort
                     .findByIdAndUserId(command.requestId(), command.userId())
-                    .orElseThrow(() -> new EmailChangeRequestNotFoundException(
-                            command.userId(),
-                            command.requestId()
-                    ));
+                    .orElseThrow(() -> new EmailChangeRequestNotFoundException(command.userId(), command.requestId()));
 
             if (request.isExpired(now)) {
                 request.markExpired(now);
@@ -235,7 +228,6 @@ public class ChangeEmailService implements
             }
 
             boolean secondOk;
-
             if (type == SecondFactorType.PHONE) {
                 AuthUser user = authUserRepositoryPort.findById(command.userId())
                         .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
@@ -280,25 +272,33 @@ public class ChangeEmailService implements
                 throw new EmailChangeEmailMismatchException();
             }
 
+            // ✅ Commit change
             user.updateEmail(request.getNewEmail(), now);
             authUserRepositoryPort.save(user);
 
             request.markCompleted(now);
             EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-            // notify old & new email
-            emailNotificationPort.notifyEmailChangedOldEmail(
-                    request.getOldEmail(),
-                    request.getNewEmail()
-            );
-            emailNotificationPort.notifyEmailChangedNewEmail(
-                    request.getNewEmail()
+            // ✅ OUTBOX EVENT (minimal payload: requestId + userId)
+            String payloadJson = toJson(Map.of(
+                    "requestId", saved.getId().toString(),
+                    "userId", saved.getUserId(),
+                    "oldEmail", saved.getOldEmail(),
+                    "newEmail", saved.getNewEmail(),
+                    "occurredAt", now.toString()
+            ));
+
+            outboxEventRepositoryPort.save(
+                    OutboxEvent.newPending(
+                            OUTBOX_AGGREGATE_TYPE,
+                            saved.getId().toString(),
+                            EVENT_EMAIL_CHANGE_COMMITTED,
+                            payloadJson,
+                            now
+                    )
             );
 
-            return new VerifySecondFactorResult(
-                    saved.getId(),
-                    request.getNewEmail()
-            );
+            return new VerifySecondFactorResult(saved.getId(), request.getNewEmail());
         }
     }
 
@@ -308,5 +308,13 @@ public class ChangeEmailService implements
         int atIdx = email.indexOf('@');
         if (atIdx <= 1) return "***" + email.substring(atIdx);
         return email.charAt(0) + "***" + email.substring(atIdx);
+    }
+
+    private String toJson(Object payload) {
+        try {
+            return jsonMapper.writeValueAsString(payload);
+        } catch (JacksonException e) {
+            throw new IllegalStateException("Failed to serialize outbox payload", e);
+        }
     }
 }

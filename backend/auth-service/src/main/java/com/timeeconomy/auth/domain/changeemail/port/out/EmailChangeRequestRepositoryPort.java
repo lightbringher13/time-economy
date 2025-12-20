@@ -18,4 +18,6 @@ public interface EmailChangeRequestRepositoryPort {
 
     // optional: for cleanup, queries, etc.
     Optional<EmailChangeRequest> findByUserIdAndStatus(Long userId, EmailChangeStatus status);
+
+    Optional<EmailChangeRequest> findById(Long requestId);
 }

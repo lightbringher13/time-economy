@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.*;
 
 import com.timeeconomy.user.adapter.in.web.dto.CreateUserRequest;
 import com.timeeconomy.user.adapter.in.web.dto.UserProfileResponse;
-import com.timeeconomy.user.domain.port.in.CreateUserProfileUseCase;
-import com.timeeconomy.user.domain.port.in.GetUserProfileByIdUseCase;
+import com.timeeconomy.user.domain.userprofile.port.in.CreateUserProfileUseCase;
+import com.timeeconomy.user.domain.userprofile.port.in.GetUserProfileByIdUseCase;
 
 @RestController
 @RequestMapping("/internal/users")

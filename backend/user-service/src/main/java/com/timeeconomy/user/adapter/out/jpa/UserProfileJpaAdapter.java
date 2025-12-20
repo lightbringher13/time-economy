@@ -6,8 +6,8 @@ import org.springframework.stereotype.Repository;
 import com.timeeconomy.user.adapter.out.jpa.entity.UserProfileEntity;
 import com.timeeconomy.user.adapter.out.jpa.mapper.UserProfileMapper;
 import com.timeeconomy.user.adapter.out.jpa.repository.UserProfileJpaRepository;
-import com.timeeconomy.user.domain.model.UserProfile;
-import com.timeeconomy.user.domain.port.out.UserProfileRepositoryPort;
+import com.timeeconomy.user.domain.userprofile.model.UserProfile;
+import com.timeeconomy.user.domain.userprofile.port.out.UserProfileRepositoryPort;
 
 import java.util.Optional;
 
