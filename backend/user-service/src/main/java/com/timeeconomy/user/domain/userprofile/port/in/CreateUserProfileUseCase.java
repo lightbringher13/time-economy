@@ -1,4 +1,4 @@
-package com.timeeconomy.user.domain.port.in;
+package com.timeeconomy.user.domain.userprofile.port.in;
 
 import java.time.LocalDate;
 

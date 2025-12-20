@@ -1,15 +1,15 @@
-package com.timeeconomy.user.domain.service;
+package com.timeeconomy.user.domain.userprofile.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import com.timeeconomy.user.domain.exception.InvalidUserProfileException;
 import com.timeeconomy.user.domain.exception.UserProfileNotFoundException;
-import com.timeeconomy.user.domain.model.UserProfile;
-import com.timeeconomy.user.domain.model.UserStatus;
-import com.timeeconomy.user.domain.port.in.CreateUserProfileUseCase;
-import com.timeeconomy.user.domain.port.in.GetUserProfileByIdUseCase;
-import com.timeeconomy.user.domain.port.out.UserProfileRepositoryPort;
+import com.timeeconomy.user.domain.userprofile.model.UserProfile;
+import com.timeeconomy.user.domain.userprofile.model.UserStatus;
+import com.timeeconomy.user.domain.userprofile.port.in.CreateUserProfileUseCase;
+import com.timeeconomy.user.domain.userprofile.port.in.GetUserProfileByIdUseCase;
+import com.timeeconomy.user.domain.userprofile.port.out.UserProfileRepositoryPort;
 
 import java.time.LocalDateTime;
 

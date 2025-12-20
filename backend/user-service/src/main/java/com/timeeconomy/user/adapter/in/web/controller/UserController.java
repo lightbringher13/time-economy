@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.timeeconomy.user.adapter.in.web.dto.UserProfileResponse;
 import com.timeeconomy.user.domain.exception.AuthenticationRequiredException;
-import com.timeeconomy.user.domain.port.in.GetUserProfileByIdUseCase;
+import com.timeeconomy.user.domain.userprofile.port.in.GetUserProfileByIdUseCase;
 
 @RestController
 @RequestMapping("/api/users")

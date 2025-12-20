@@ -97,4 +97,22 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
                 || s == EmailChangeStatus.CANCELED
                 || s == EmailChangeStatus.EXPIRED;
     }
+
+    @Override
+    public Optional<EmailChangeRequest> findById(Long id) {
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1) Redis first (fast path for in-flight)
+        Optional<EmailChangeRequest> fromRedis = redisStore.findById(id, now);
+        if (fromRedis.isPresent()) return fromRedis;
+
+        // 2) DB fallback (history / durability)
+        Optional<EmailChangeRequest> fromDb = jpa.findById(id);
+
+        // 3) Optional: read-through cache only if it's active (don’t re-cache terminal history)
+        fromDb.filter(r -> r.isActive() && !r.isExpired(now))
+            .ifPresent(r -> redisStore.upsert(r, now));
+
+        return fromDb;
+    }
 }

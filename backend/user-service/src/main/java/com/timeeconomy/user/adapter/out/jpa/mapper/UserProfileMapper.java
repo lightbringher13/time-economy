@@ -3,7 +3,7 @@ package com.timeeconomy.user.adapter.out.jpa.mapper;
 import org.springframework.stereotype.Component;
 
 import com.timeeconomy.user.adapter.out.jpa.entity.UserProfileEntity;
-import com.timeeconomy.user.domain.model.UserProfile;
+import com.timeeconomy.user.domain.userprofile.model.UserProfile;
 
 @Component
 public class UserProfileMapper {

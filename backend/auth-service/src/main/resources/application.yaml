@@ -47,6 +47,8 @@ app:
     from: ${APP_MAIL_FROM}
   verification:
     hmac-secret: ${VERIFICATION_HMAC_SECRET}
+  internal:
+    token: ${APP_INTERNAL_TOKEN}
 
 brevo:
   sms:
