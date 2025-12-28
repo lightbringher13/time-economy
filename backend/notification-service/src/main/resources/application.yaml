@@ -1,3 +1,43 @@
 spring:
   application:
     name: notification-service
+
+  datasource:
+    url: ${USER_DB_URL:jdbc:postgresql://notification-db:5432/notificationdb}
+    username: ${USER_DB_USERNAME:notiuser}
+    password: ${USER_DB_PASSWORD:notipass}
+    driver-class-name: org.postgresql.Driver
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:notification-service}
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+
+      # If you use JSON (recommended)
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+
+      properties:
+        schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
+        specific.avro.reader: true
+
+    listener:
+      ack-mode: manual
+# Topics (so you don't hardcode in Java)
+topics:
+  auth:
+    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v1}
+    email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:auth.email.change.committed.v1}
+
+brevo:
+  api-key: ${BREVO_API_KEY:}
+  base-url: ${BREVO_BASE_URL:https://api.brevo.com}
+  from-email: ${BREVO_FROM_EMAIL:no-reply@timeeconomy.com}
+  from-name: ${BREVO_FROM_NAME:TimeEconomy}
+  templates:
+    welcome-email: 2
+    email-change-new: 3
+    email-change-old: 4

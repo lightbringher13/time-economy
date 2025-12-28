@@ -1,3 +1,0 @@
-ALTER TABLE user_profile
-ADD COLUMN birth_date DATE NULL,
-ADD COLUMN gender VARCHAR(10) NULL;

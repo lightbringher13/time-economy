@@ -23,18 +23,20 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
+    # Confluent Schema Registry location
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://schema-registry:8081}
+
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP_ID:user-service}
       auto-offset-reset: earliest
       enable-auto-commit: false
 
-      # If you use JSON (recommended)
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
 
       properties:
-        spring.json.trusted.packages: "com.timeeconomy.*"
-        spring.json.use.type.headers: false
+        specific.avro.reader: true   # keep GenericRecord / primitives for now
 
     listener:
       ack-mode: manual
@@ -42,15 +44,12 @@ spring:
 # Topics (so you don't hardcode in Java)
 topics:
   auth:
-    user-registered: ${TOPIC_AUTH_USER_REGISTERED:timeeconomy.AuthUserRegistered.v1}
-    email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:timeeconomy.EmailChangeCommitted.v1}
+    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v1}
+    email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:auth.email.change.committed.v1}
 
 jwt:
   secret: ${JWT_SECRET:super-super-long-random-secret-key-change-this-in-prod}
   issuer: ${JWT_ISSUER:timeeconomy-auth}
-
-server:
-  port: ${SERVER_PORT:8081}
 
 logging:
   level:

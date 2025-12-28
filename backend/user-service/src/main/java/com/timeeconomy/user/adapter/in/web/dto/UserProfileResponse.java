@@ -1,7 +1,7 @@
 package com.timeeconomy.user.adapter.in.web.dto;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 import com.timeeconomy.user.domain.userprofile.model.UserProfile;
 import com.timeeconomy.user.domain.userprofile.model.UserStatus;
@@ -14,8 +14,8 @@ public record UserProfileResponse(
         LocalDate birthDate,
         String gender,
         UserStatus status,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        Instant createdAt,
+        Instant updatedAt
 ) {
 
     public static UserProfileResponse from(UserProfile profile) {

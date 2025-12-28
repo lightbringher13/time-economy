@@ -11,13 +11,12 @@ import com.timeeconomy.auth.domain.exception.PhoneNumberAlreadyUsedException;
 import com.timeeconomy.auth.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -34,8 +33,8 @@ public class RegisterService implements RegisterUseCase {
     // ✅ OUTBOX
     private final OutboxEventRepositoryPort outboxEventRepositoryPort;
 
-    // ✅ Boot 4 / Jackson 3
-    private final JsonMapper jsonMapper;
+    // ✅ OUTBOX PAYLOAD SERIALIZER (port)
+    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
 
     @Override
     @Transactional
@@ -88,7 +87,7 @@ public class RegisterService implements RegisterUseCase {
         signupSessionRepositoryPort.save(session);
 
         // ✅ OUTBOX EVENT APPEND (for CDC / Debezium)
-        String payloadJson = toJson(new AuthUserRegisteredPayload(
+        String payloadJson = outboxPayloadSerializerPort.serialize(new AuthUserRegisteredPayload(
                 saved.getId(),
                 saved.getEmail(),
                 saved.getPhoneNumber(),
@@ -100,9 +99,9 @@ public class RegisterService implements RegisterUseCase {
         ));
 
         OutboxEvent event = OutboxEvent.newPending(
-                "auth_user",                         // aggregateType
-                saved.getId().toString(),             // aggregateId
-                "AuthUserRegistered.v1",            // eventType
+                "auth_user",               // aggregateType
+                saved.getId().toString(),   // aggregateId
+                "AuthUserRegistered.v1",    // eventType
                 payloadJson,
                 now
         );
@@ -115,15 +114,6 @@ public class RegisterService implements RegisterUseCase {
     private String normalizeEmail(String raw) {
         if (raw == null) return null;
         return raw.trim().toLowerCase();
-    }
-
-    private String toJson(Object payload) {
-        try {
-            return jsonMapper.writeValueAsString(payload);
-        } catch (JacksonException e) {
-            // fail fast: if we can't write outbox, we should not complete registration
-            throw new IllegalStateException("Failed to serialize outbox payload", e);
-        }
     }
 
     // ✅ payload schema (versioned by eventType: ...v1)

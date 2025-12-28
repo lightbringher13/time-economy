@@ -19,23 +19,15 @@ echo ">>> Waiting for Kafka Connect..."
 until curl -fsS "$CONNECT_URL/connectors" >/dev/null 2>&1; do
   sleep 2
 done
-
 echo ">>> Kafka Connect is up"
 
-# if exists -> PUT config, else -> POST create
-if curl -fsS "$CONNECT_URL/connectors/$NAME" >/dev/null 2>&1; then
-  echo ">>> Connector exists, updating..."
-  curl -fsS -X PUT \
-    -H "Content-Type: application/json" \
-    --data @"$CONFIG_FILE" \
-    "$CONNECT_URL/connectors/$NAME/config" >/dev/null
-else
-  echo ">>> Connector missing, creating..."
-  BODY="$(printf '{"name":"%s","config":%s}' "$NAME" "$(cat "$CONFIG_FILE")")"
-  curl -fsS -X POST \
-    -H "Content-Type: application/json" \
-    -d "$BODY" \
-    "$CONNECT_URL/connectors" >/dev/null
-fi
+echo ">>> Applying connector config (create-or-update via PUT)..."
+curl -fsS -X PUT \
+  -H "Content-Type: application/json" \
+  --data @"$CONFIG_FILE" \
+  "$CONNECT_URL/connectors/$NAME/config" >/dev/null
 
+echo ">>> Connector status:"
+curl -sS "$CONNECT_URL/connectors/$NAME/status" || true
+echo
 echo ">>> Done."

@@ -1,0 +1,61 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'com.github.davidmc24.gradle.plugin.avro' version '1.9.1'
+}
+
+group = 'com.timeeconomy'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Required for generated SpecificRecord classes at runtime
+    api 'org.apache.avro:avro:1.11.3'
+}
+
+avro {
+    stringType = "String"
+    fieldVisibility = "PRIVATE"
+    createSetters = false
+    // optional: enables lombok-like "withX" style methods (rarely needed)
+    // createOptionalGetters = true
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = "event-contracts"
+        }
+    }
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/lightbringher13/time-economy")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+                password = project.findProperty("gpr.key")  ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+}
+
+/**
+ * Usually not needed because the plugin wires generation automatically,
+ * but keeping it explicit is fine.
+ */
+tasks.named('compileJava') {
+    dependsOn tasks.named('generateAvroJava')
+}

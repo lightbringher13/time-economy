@@ -8,6 +8,9 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "outbox_events")
 @Getter @Setter
@@ -25,6 +28,7 @@ public class OutboxEventEntity {
     @Column(name = "event_type", nullable = false, length = 200)
     private String eventType;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private String payload;
 

@@ -1,11 +1,10 @@
 package com.timeeconomy.user.adapter.out.jpa.entity;
 
+import com.timeeconomy.user.domain.userprofile.model.UserStatus;
 import jakarta.persistence.*;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-
-import com.timeeconomy.user.domain.userprofile.model.UserStatus;
 
 @Entity
 @Table(name = "user_profile")
@@ -13,7 +12,7 @@ public class UserProfileEntity {
 
     @Id
     @Column(name = "id", nullable = false)
-    private Long id;    // auth-service userId 재사용
+    private Long id; // auth-service userId
 
     @Column(name = "email", nullable = false, length = 255, unique = true)
     private String email;
@@ -24,11 +23,9 @@ public class UserProfileEntity {
     @Column(name = "phone_number", length = 30)
     private String phoneNumber;
 
-    // ⭐ NEW
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
-    // ⭐ NEW
     @Column(name = "gender", length = 10)
     private String gender;
 
@@ -36,15 +33,14 @@ public class UserProfileEntity {
     @Column(name = "status", nullable = false, length = 20)
     private UserStatus status;
 
+    // ✅ match domain: UTC-safe
     @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    private Instant updatedAt;
 
-    // JPA 기본 생성자
-    protected UserProfileEntity() {
-    }
+    protected UserProfileEntity() {}
 
     public UserProfileEntity(
             Long id,
@@ -54,8 +50,8 @@ public class UserProfileEntity {
             LocalDate birthDate,
             String gender,
             UserStatus status,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            Instant createdAt,
+            Instant updatedAt
     ) {
         this.id = id;
         this.email = email;
@@ -67,8 +63,6 @@ public class UserProfileEntity {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
-
-    // ===== Getters/Setters =====
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -91,9 +85,9 @@ public class UserProfileEntity {
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

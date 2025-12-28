@@ -24,13 +24,13 @@
   "transforms.outbox.table.field.event.type": "event_type",
   "transforms.outbox.table.field.event.payload": "payload",
 
-  "transforms.outbox.table.expand.json.payload": "true",
+  "transforms.outbox.table.expand.json.payload": "false",
 
   "transforms.outbox.route.by.field": "event_type",
   "transforms.outbox.route.topic.replacement": "timeeconomy.${routedByValue}",
 
-  "key.converter": "org.apache.kafka.connect.json.JsonConverter",
-  "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-  "key.converter.schemas.enable": "false",
-  "value.converter.schemas.enable": "false"
+  "key.converter": "io.confluent.connect.avro.AvroConverter",
+  "value.converter": "io.confluent.connect.avro.AvroConverter",
+  "key.converter.schema.registry.url": "http://schema-registry:8081",
+  "value.converter.schema.registry.url": "http://schema-registry:8081"
 }

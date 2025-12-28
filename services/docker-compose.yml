@@ -13,6 +13,18 @@ services:
   user-service:
     image: timeeconomy/user-service
     container_name: user-service
+    env_file:
+    - ../.env
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - timeeconomy-net
+  
+  notification-service:
+    image: timeeconomy/notification-service
+    container_name: notification-service
+    env_file:
+    - ../.env
     environment:
       SPRING_PROFILES_ACTIVE: docker
     networks:

@@ -11,7 +11,7 @@ import com.timeeconomy.user.domain.userprofile.port.in.CreateUserProfileUseCase;
 import com.timeeconomy.user.domain.userprofile.port.in.GetUserProfileByIdUseCase;
 import com.timeeconomy.user.domain.userprofile.port.out.UserProfileRepositoryPort;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +36,7 @@ public class UserProfileService implements
             return;
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
 
         UserProfile profile = new UserProfile(
                 command.userId(),

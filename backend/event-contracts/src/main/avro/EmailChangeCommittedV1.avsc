@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "EmailChangeCommittedV1",
+  "namespace": "com.timeeconomy.contracts.auth.v1",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAtEpochMillis", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+
+    { "name": "userId", "type": "long" },
+    { "name": "oldEmail", "type": "string" },
+    { "name": "newEmail", "type": "string" }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "type": "record",
+  "name": "AuthUserRegisteredV1",
+  "namespace": "com.timeeconomy.contracts.auth.v1",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAtEpochMillis", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+
+    { "name": "userId", "type": "long" },
+    { "name": "email", "type": "string" },
+    { "name": "phoneNumber", "type": ["null", "string"], "default": null },
+
+    { "name": "name", "type": ["null", "string"], "default": null },
+    { "name": "gender", "type": ["null", "string"], "default": null },
+    { "name": "birthDateEpochDays", "type": ["null", { "type": "int", "logicalType": "date" }], "default": null },
+
+    { "name": "signupSessionId", "type": ["null", { "type": "string", "logicalType": "uuid" }], "default": null }
+  ]
+}

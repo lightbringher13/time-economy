@@ -1,0 +1,64 @@
+services:
+  connect:
+    build:
+      context: ./connect
+    container_name: connect
+    depends_on:
+      kafka:
+        condition: service_healthy
+      auth-db:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: "kafka:9092"
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "connect-cluster"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "connect"
+      CONNECT_REST_ADVERTISED_PORT: "8083"
+
+      CONNECT_CONFIG_STORAGE_TOPIC: "connect_configs"
+      CONNECT_OFFSET_STORAGE_TOPIC: "connect_offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "connect_statuses"
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+
+      CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+    networks:
+      - timeeconomy-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/connectors >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  connector-init:
+    image: curlimages/curl:8.6.0
+    container_name: connector-init
+    depends_on:
+      connect:
+        condition: service_healthy
+    volumes:
+      - ./debezium/connectors:/connectors:ro
+    entrypoint: ["/bin/sh", "/connectors/init.sh"]
+    restart: "no"
+    networks:
+      - timeeconomy-net
+
+  kafka-ui:
+    depends_on:
+      connect:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: "connect"
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: "http://connect:8083"

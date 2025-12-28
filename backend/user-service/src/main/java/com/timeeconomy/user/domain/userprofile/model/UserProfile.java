@@ -1,12 +1,12 @@
 package com.timeeconomy.user.domain.userprofile.model;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Objects;
 
 public class UserProfile {
 
-    private Long id;                // auth-service의 userId 사용 (PK로 쓸 예정이면 OK)
+    private Long id;                // auth-service userId (PK)
     private String email;
     private String name;
     private String phoneNumber;
@@ -15,8 +15,9 @@ public class UserProfile {
     private LocalDate birthDate;
     private String gender;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    // ✅ UTC-safe timestamps
+    private Instant createdAt;
+    private Instant updatedAt;
 
     // 생성자 (신규 생성용)
     public UserProfile(
@@ -27,8 +28,8 @@ public class UserProfile {
             UserStatus status,
             LocalDate birthDate,
             String gender,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            Instant createdAt,
+            Instant updatedAt
     ) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.email = Objects.requireNonNull(email, "email must not be null");
@@ -41,7 +42,7 @@ public class UserProfile {
         this.birthDate = birthDate;
         this.gender = gender;
 
-        LocalDateTime base = (createdAt != null ? createdAt : LocalDateTime.now());
+        Instant base = (createdAt != null ? createdAt : Instant.now());
         this.createdAt = base;
         this.updatedAt = (updatedAt != null ? updatedAt : base);
     }
@@ -53,9 +54,6 @@ public class UserProfile {
     // ✅ AuthUserRegistered(v1) event support (domain methods)
     // =========================================================
 
-    /**
-     * auth.user.registered.v1 이벤트 기반 신규 프로필 생성
-     */
     public static UserProfile createFromAuthUserRegistered(
             Long userId,
             String email,
@@ -63,9 +61,9 @@ public class UserProfile {
             String phoneNumber,
             LocalDate birthDate,
             String gender,
-            LocalDateTime occurredAt
+            Instant occurredAt
     ) {
-        LocalDateTime now = (occurredAt != null ? occurredAt : LocalDateTime.now());
+        Instant now = (occurredAt != null ? occurredAt : Instant.now());
 
         return new UserProfile(
                 userId,
@@ -80,18 +78,13 @@ public class UserProfile {
         );
     }
 
-    /**
-     * auth.user.registered.v1 이벤트를 기존 프로필에 반영
-     * - Kafka 재처리(중복 소비)에도 안전하도록 "같은 값이면 그대로 덮어씀" 전략
-     * - auth-service가 identity source of truth라면 email 동기화는 여기서 수행
-     */
     public void applyAuthUserRegistered(
             String email,
             String name,
             String phoneNumber,
             LocalDate birthDate,
             String gender,
-            LocalDateTime occurredAt
+            Instant occurredAt
     ) {
         this.email = Objects.requireNonNull(email, "email must not be null");
         this.name = name;
@@ -99,7 +92,6 @@ public class UserProfile {
         this.birthDate = birthDate;
         this.gender = gender;
 
-        // 등록 이벤트니까 ACTIVE로 보정 (원하면 제거 가능)
         if (this.status == null) {
             this.status = UserStatus.ACTIVE;
         }
@@ -120,17 +112,15 @@ public class UserProfile {
     public void applyEmailChangeCommitted(
             String oldEmail,
             String newEmail,
-            LocalDateTime occurredAt
+            Instant occurredAt
     ) {
         Objects.requireNonNull(newEmail, "newEmail must not be null");
 
-        // duplicate replay: already applied
         if (this.email != null && this.email.equalsIgnoreCase(newEmail)) {
             touchUpdatedAt(occurredAt);
             return;
         }
 
-        // stale / out-of-order guard
         if (this.email == null || !this.email.equalsIgnoreCase(oldEmail)) {
             throw new IllegalStateException(
                     "Stale EmailChangeCommitted event. currentEmail=%s, event.oldEmail=%s, event.newEmail=%s"
@@ -156,16 +146,15 @@ public class UserProfile {
     }
 
     public void touchUpdatedAt() {
-        this.updatedAt = LocalDateTime.now();
+        this.updatedAt = Instant.now();
     }
 
-    // ✅ overload: event timestamp를 쓰고 싶을 때
-    public void touchUpdatedAt(LocalDateTime when) {
-        this.updatedAt = (when != null ? when : LocalDateTime.now());
+    public void touchUpdatedAt(Instant when) {
+        this.updatedAt = (when != null ? when : Instant.now());
     }
 
     // =========================================================
-    // Getter/Setter (가능하면 setter는 점점 줄이는 방향 추천)
+    // Getters/Setters
     // =========================================================
 
     public Long getId() { return id; }
@@ -189,9 +178,9 @@ public class UserProfile {
     public String getGender() { return gender; }
     public void setGender(String gender) { this.gender = gender; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

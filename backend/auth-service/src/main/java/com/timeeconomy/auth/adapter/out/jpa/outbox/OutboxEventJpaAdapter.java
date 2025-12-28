@@ -4,6 +4,7 @@ import com.timeeconomy.auth.adapter.out.jpa.outbox.entity.OutboxEventEntity;
 import com.timeeconomy.auth.adapter.out.jpa.outbox.mapper.OutboxEventMapper;
 import com.timeeconomy.auth.adapter.out.jpa.outbox.repository.OutboxEventJpaRepository;
 import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
+import com.timeeconomy.auth.domain.outbox.model.OutboxStatus;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -37,21 +38,18 @@ public class OutboxEventJpaAdapter implements OutboxEventRepositoryPort {
     @Override
     @Transactional
     public List<OutboxEvent> claimBatch(String workerId, int limit, Duration lease, LocalDateTime now) {
-        var rows = repo.claimBatch(
-                workerId,
-                limit,
-                lease.getSeconds(),
-                now.atOffset(ZoneOffset.UTC)
-        );
+        var rows = repo.claimBatch(workerId, limit, lease.getSeconds(), now.atOffset(ZoneOffset.UTC));
         return rows.stream().map(mapper::toDomain).toList();
     }
 
     @Override
     @Transactional
-    public void markSent(UUID id, LocalDateTime sentAt, LocalDateTime now) {
-        repo.markSent(
+    public int markSent(UUID id, String workerId, LocalDateTime sentAt, LocalDateTime now) {
+        return repo.markSentOwned(
                 id,
-                com.timeeconomy.auth.domain.outbox.model.OutboxStatus.SENT,
+                workerId,
+                OutboxStatus.PROCESSING,
+                OutboxStatus.SENT,
                 sentAt.atOffset(ZoneOffset.UTC),
                 now.atOffset(ZoneOffset.UTC)
         );
@@ -59,14 +57,20 @@ public class OutboxEventJpaAdapter implements OutboxEventRepositoryPort {
 
     @Override
     @Transactional
-    public void markFailed(UUID id, String error, LocalDateTime now) {
+    public int markFailed(UUID id, String workerId, int attempts, String error, LocalDateTime now) {
         String safeError = error == null ? null : (error.length() > 500 ? error.substring(0, 500) : error);
 
-        repo.markFailed(
+        long delaySeconds = (attempts <= 0) ? 1L : Math.min((1L << Math.min(attempts, 10)), 300L);
+        LocalDateTime nextAvailableAt = now.plusSeconds(delaySeconds);
+
+        return repo.markFailedOwned(
                 id,
-                com.timeeconomy.auth.domain.outbox.model.OutboxStatus.FAILED,
+                workerId,
+                OutboxStatus.PROCESSING,
+                OutboxStatus.FAILED,
                 safeError,
-                now.atOffset(ZoneOffset.UTC)
+                now.atOffset(ZoneOffset.UTC),
+                nextAvailableAt.atOffset(ZoneOffset.UTC)
         );
     }
 }
