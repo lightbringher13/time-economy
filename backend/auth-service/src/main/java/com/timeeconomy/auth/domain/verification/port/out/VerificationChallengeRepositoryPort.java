@@ -1,7 +1,7 @@
 package com.timeeconomy.auth.domain.verification.port.out;
 
 import java.util.Optional;
-
+import java.time.Duration;
 import com.timeeconomy.auth.domain.verification.model.*;
 
 public interface VerificationChallengeRepositoryPort {
@@ -9,6 +9,10 @@ public interface VerificationChallengeRepositoryPort {
     VerificationChallenge save(VerificationChallenge challenge);
 
     Optional<VerificationChallenge> findById(String id);
+
+    void put(String challengeId, String rawCode, Duration ttl);
+
+    Optional<String> getAndDelete(String challengeId);
 
     /**
      * 핵심 조회: subject+purpose+channel 에 대해 현재 활성 PENDING 1개

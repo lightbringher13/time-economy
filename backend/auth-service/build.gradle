@@ -50,7 +50,7 @@ dependencies {
   implementation 'org.springframework.boot:spring-boot-starter-json'     // ✅ for JsonMapper
   implementation 'org.springframework.boot:spring-boot-starter-mail'
   implementation "io.confluent:kafka-avro-serializer:7.6.1"
-  implementation "com.timeeconomy:event-contracts:0.0.1-SNAPSHOT"
+  implementation "com.timeeconomy:event-contracts:0.0.1"
   implementation 'org.springframework.boot:spring-boot-starter-kafka'
   implementation 'org.flywaydb:flyway-database-postgresql'
 

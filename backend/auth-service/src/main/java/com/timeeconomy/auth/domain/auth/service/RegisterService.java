@@ -14,13 +14,12 @@ import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
+import com.timeeconomy.auth.domain.auth.model.payload.AuthUserRegisteredPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -115,16 +114,5 @@ public class RegisterService implements RegisterUseCase {
         if (raw == null) return null;
         return raw.trim().toLowerCase();
     }
-
-    // ✅ payload schema (versioned by eventType: ...v1)
-    record AuthUserRegisteredPayload(
-            Long userId,
-            String email,
-            String phoneNumber,
-            String name,
-            String gender,
-            LocalDate birthDate,
-            UUID signupSessionId,
-            LocalDateTime occurredAt
-    ) {}
+    
 }

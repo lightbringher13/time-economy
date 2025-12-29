@@ -5,6 +5,7 @@ import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
+import com.timeeconomy.auth.domain.changeemail.model.payload.EmailChangeCommittedPayload;
 import com.timeeconomy.auth.domain.changeemail.port.in.RequestEmailChangeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifyNewEmailCodeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase;
@@ -21,6 +22,7 @@ import com.timeeconomy.auth.domain.exception.InvalidNewEmailCodeException;
 import com.timeeconomy.auth.domain.exception.InvalidSecondFactorCodeException;
 import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
@@ -28,12 +30,9 @@ import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUse
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -55,13 +54,10 @@ public class ChangeEmailService implements
     private final EmailChangeRequestRepositoryPort emailChangeRequestRepositoryPort;
     private final PasswordEncoderPort passwordEncoderPort;
     private final DistributedLockPort distributedLockPort;
-    private final VerificationChallengeUseCase verificationChallengeUseCase;
-
-    // ✅ OUTBOX
     private final OutboxEventRepositoryPort outboxEventRepositoryPort;
+    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
 
-    // ✅ Boot 4 / Jackson 3
-    private final JsonMapper jsonMapper;
+    private final VerificationChallengeUseCase verificationChallengeUseCase;
 
     // ============ 1) Request email change ============
 
@@ -279,14 +275,15 @@ public class ChangeEmailService implements
             request.markCompleted(now);
             EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-            // ✅ OUTBOX EVENT (minimal payload: requestId + userId)
-            String payloadJson = toJson(Map.of(
-                    "requestId", saved.getId().toString(),
-                    "userId", saved.getUserId(),
-                    "oldEmail", saved.getOldEmail(),
-                    "newEmail", saved.getNewEmail(),
-                    "occurredAt", now.toString()
-            ));
+            String payloadJson = outboxPayloadSerializerPort.serialize(
+                    new EmailChangeCommittedPayload(
+                            saved.getId().toString(),
+                            saved.getUserId(),
+                            saved.getOldEmail(),
+                            saved.getNewEmail(),
+                            now
+                    )
+            );
 
             outboxEventRepositoryPort.save(
                     OutboxEvent.newPending(
@@ -308,13 +305,5 @@ public class ChangeEmailService implements
         int atIdx = email.indexOf('@');
         if (atIdx <= 1) return "***" + email.substring(atIdx);
         return email.charAt(0) + "***" + email.substring(atIdx);
-    }
-
-    private String toJson(Object payload) {
-        try {
-            return jsonMapper.writeValueAsString(payload);
-        } catch (JacksonException e) {
-            throw new IllegalStateException("Failed to serialize outbox payload", e);
-        }
     }
 }

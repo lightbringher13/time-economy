@@ -32,4 +32,8 @@ public final class VerificationRedisKeys {
     public static String latest(String destinationNorm, VerificationPurpose p, VerificationChannel c) {
         return "vc:latest:" + destinationNorm + ":" + p.name() + ":" + c.name();
     }
+
+    public static String raw(String id) {
+    return "vc:raw:" + id;
+}
 }

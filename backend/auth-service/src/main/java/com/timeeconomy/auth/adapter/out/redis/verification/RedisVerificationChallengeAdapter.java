@@ -146,6 +146,17 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         return findById(id);
     }
 
+    @Override
+    public void put(String challengeId, String rawCode, Duration ttl) {
+        redis.opsForValue().set(raw(challengeId), rawCode, ttl);
+    }
+
+    @Override
+    public Optional<String> getAndDelete(String challengeId) {
+        String v = redis.opsForValue().getAndDelete(raw(challengeId));
+        return Optional.ofNullable(v);
+    }
+
     // -------------------------
     // Index helpers
     // -------------------------

@@ -5,13 +5,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.timeeconomy.auth.domain.common.notification.port.VerificationNotificationPort;
+import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChallenge;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationStatus;
+import com.timeeconomy.auth.domain.verification.model.payload.VerificationOtpDeliveryRequestedPayload;
 import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasherPort;
 
+import java.util.UUID;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -25,6 +30,8 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
     private final VerificationChallengeRepositoryPort repo;
     private final VerificationTokenHasherPort hasher;
     private final VerificationNotificationPort notifier;
+    private final OutboxEventRepositoryPort outboxEventRepositoryPort;
+    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
     private final java.time.Clock clock;
 
     private final SecureRandom random = new SecureRandom();
@@ -68,6 +75,32 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
         );
 
         VerificationChallenge saved = repo.save(challenge);
+        
+        repo.put(saved.getId(), rawCode, command.ttl());
+        
+        int ttlSeconds = (int) Math.max(1, command.ttl().toSeconds());
+
+        String payloadJson = outboxPayloadSerializerPort.serialize(
+                new VerificationOtpDeliveryRequestedPayload(
+                        UUID.fromString(saved.getId()), // saved.getId() is String -> UUID
+                        command.purpose().name(),
+                        command.channel().name(),
+                        command.subjectType().name(),
+                        command.subjectId(),
+                        normalizeDestination(command.channel(), command.destination()),
+                        ttlSeconds
+                )
+        );
+
+        OutboxEvent event = OutboxEvent.newPending(
+                "verification_challenge",
+                saved.getId(),
+                "VerificationOtpDeliveryRequested.v1",
+                payloadJson,
+                now
+        );
+
+        outboxEventRepositoryPort.save(event);
 
         // 3) notify
         notifier.sendOtp(command.channel(), command.destination(), command.purpose(), rawCode, ttlMinutes);
