@@ -18,8 +18,9 @@ import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasher
 
 import java.util.UUID;
 import java.security.SecureRandom;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Base64;
+import java.time.Duration;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +44,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
     @Override
     @Transactional
     public CreateOtpResult createOtp(CreateOtpCommand command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
 
         // 1) cancel active pending (unique index safe + prevent duplicate flows)
         repo.findActivePending(command.subjectType(), command.subjectId(), command.purpose(), command.channel())
@@ -57,7 +58,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
         String codeHash = hasher.hash(rawCode);
 
         int ttlMinutes = (int) Math.max(1, command.ttl().toMinutes());
-        LocalDateTime expiresAt = now.plus(command.ttl());
+        Instant expiresAt = now.plus(command.ttl());
 
         VerificationChallenge challenge = VerificationChallenge.createOtpPending(
                 command.purpose(),
@@ -116,7 +117,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
     @Override
     @Transactional
     public VerifyOtpResult verifyOtp(VerifyOtpCommand command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
 
         var pendingOpt = repo.findActivePending(command.subjectType(), command.subjectId(), command.purpose(), command.channel());
         if (pendingOpt.isEmpty()) return new VerifyOtpResult(false);
@@ -128,7 +129,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
         if (!pending.getDestinationNorm().equals(norm)) return new VerifyOtpResult(false);
 
         // expiry
-        pending.markExpiredIfNeeded(now);
+        pending.expireIfNeeded(now);
         if (pending.getStatus() != VerificationStatus.PENDING) {
             repo.save(pending);
             return new VerifyOtpResult(false);
@@ -163,7 +164,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
     @Override
     @Transactional
     public CreateLinkResult createLink(CreateLinkCommand command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
 
         // 1) cancel active pending for same subject+purpose+channel
         repo.findActivePending(command.subjectType(), command.subjectId(), command.purpose(), command.channel())
@@ -177,12 +178,11 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
         String tokenHash = hasher.hash(rawToken);
 
         int ttlMinutes = (int) Math.max(1, command.ttl().toMinutes());
-        LocalDateTime expiresAt = now.plus(command.ttl());
+        Instant expiresAt = now.plus(command.ttl());
 
         // token can have its own TTL (often same as challenge TTL)
-        LocalDateTime tokenExpiresAt = now.plus(
-                command.tokenTtl() != null ? command.tokenTtl() : command.ttl()
-        );
+        Duration tokenTtl = (command.tokenTtl() != null) ? command.tokenTtl() : command.ttl();
+        Instant tokenExpiresAt = now.plus(tokenTtl);
 
         VerificationChallenge challenge = VerificationChallenge.createLinkPending(
                 command.purpose(),
@@ -225,7 +225,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
     @Override
     @Transactional
     public VerifyLinkResult verifyLink(VerifyLinkCommand command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
 
         String tokenHash = hasher.hash(command.token());
 
@@ -238,7 +238,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
 
         VerificationChallenge pending = pendingOpt.get();
 
-        pending.markExpiredIfNeeded(now);
+        pending.expireIfNeeded(now);
         if (pending.getStatus() != VerificationStatus.PENDING) {
             repo.save(pending);
             return new VerifyLinkResult(false, null, null);
@@ -273,7 +273,7 @@ public class VerificationChallengeService implements VerificationChallengeUseCas
     @Override
     @Transactional
     public void consume(ConsumeCommand command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
 
         VerificationChallenge ch = repo.findById(command.challengeId())
                 .orElseThrow(() -> new IllegalArgumentException("Challenge not found: " + command.challengeId()));

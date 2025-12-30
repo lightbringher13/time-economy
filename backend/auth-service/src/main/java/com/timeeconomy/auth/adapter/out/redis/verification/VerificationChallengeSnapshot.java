@@ -17,22 +17,23 @@ public record VerificationChallengeSnapshot(
 
         String codeHash,
         String tokenHash,
-        String tokenExpiresAt,
+
+        Long tokenExpiresAtEpochMillis,
 
         String status,
 
-        String expiresAt,
-        String verifiedAt,
-        String consumedAt,
+        Long expiresAtEpochMillis,
+        Long verifiedAtEpochMillis,
+        Long consumedAtEpochMillis,
 
-        String attemptCount,
-        String maxAttempts,
-        String sentCount,
-        String lastSentAt,
+        int attemptCount,
+        int maxAttempts,
+        int sentCount,
+        Long lastSentAtEpochMillis,
 
         String requestIp,
         String userAgent,
 
-        String createdAt,
-        String updatedAt
+        Long createdAtEpochMillis,
+        Long updatedAtEpochMillis
 ) {}

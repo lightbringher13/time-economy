@@ -4,12 +4,11 @@ import com.timeeconomy.auth.domain.outbox.model.OutboxStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
-
-import java.time.OffsetDateTime;
-import java.util.UUID;
-
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "outbox_events")
@@ -36,11 +35,12 @@ public class OutboxEventEntity {
     @Column(name = "status", nullable = false, length = 20)
     private OutboxStatus status;
 
+    // ✅ Instant-friendly timestamps (TIMESTAMPTZ)
     @Column(name = "occurred_at", nullable = false)
-    private OffsetDateTime occurredAt;
+    private Instant occurredAt;
 
     @Column(name = "available_at", nullable = false)
-    private OffsetDateTime availableAt;
+    private Instant availableAt;
 
     @Column(name = "attempts", nullable = false)
     private int attempts;
@@ -52,14 +52,14 @@ public class OutboxEventEntity {
     private String lockedBy;
 
     @Column(name = "locked_at")
-    private OffsetDateTime lockedAt;
+    private Instant lockedAt;
 
     @Column(name = "created_at", nullable = false)
-    private OffsetDateTime createdAt;
+    private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
-    private OffsetDateTime updatedAt;
+    private Instant updatedAt;
 
     @Column(name = "sent_at")
-    private OffsetDateTime sentAt;
+    private Instant sentAt;
 }

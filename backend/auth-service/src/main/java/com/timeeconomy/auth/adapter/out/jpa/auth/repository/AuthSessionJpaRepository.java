@@ -10,38 +10,39 @@ import org.springframework.data.repository.query.Param;
 
 import com.timeeconomy.auth.adapter.out.jpa.auth.entity.AuthSessionEntity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 public interface AuthSessionJpaRepository extends JpaRepository<AuthSessionEntity, Long> {
 
-  Optional<AuthSessionEntity> findByTokenHash(String tokenHash);
+    Optional<AuthSessionEntity> findByTokenHash(String tokenHash);
 
-  List<AuthSessionEntity> findByUserIdAndRevokedFalse(Long userId);
+    List<AuthSessionEntity> findByUserIdAndRevokedFalse(Long userId);
 
-  @Query("""
-          SELECT s FROM AuthSessionEntity s
-          WHERE s.familyId = :familyId
-            AND s.revoked = false
-            AND s.expiresAt > :now
-          ORDER BY s.expiresAt DESC
-      """)
-  Optional<AuthSessionEntity> findLatestActiveByFamily(
-      @Param("familyId") String familyId, // ✅ @Param is valid *here*
-      @Param("now") LocalDateTime now);
+    @Query("""
+        SELECT s FROM AuthSessionEntity s
+         WHERE s.familyId = :familyId
+           AND s.revoked = false
+           AND s.expiresAt > :now
+         ORDER BY s.expiresAt DESC
+    """)
+    Optional<AuthSessionEntity> findLatestActiveByFamily(
+            @Param("familyId") String familyId,
+            @Param("now") Instant now
+    );
 
-  @Lock(LockModeType.PESSIMISTIC_WRITE)
-  @Query("SELECT s FROM AuthSessionEntity s WHERE s.tokenHash = :tokenHash")
-  AuthSessionEntity findByTokenHashForUpdate(String tokenHash);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM AuthSessionEntity s WHERE s.tokenHash = :tokenHash")
+    AuthSessionEntity findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
-  @Modifying
-  @Query("""
-          UPDATE AuthSessionEntity s
-             SET s.revoked = true,
-                 s.revokedAt = :now
-           WHERE s.familyId = :familyId
-             AND s.revoked = false
-      """)
-  int revokeFamily(String familyId, LocalDateTime now);
+    @Modifying
+    @Query("""
+        UPDATE AuthSessionEntity s
+           SET s.revoked = true,
+               s.revokedAt = :now
+         WHERE s.familyId = :familyId
+           AND s.revoked = false
+    """)
+    int revokeFamily(@Param("familyId") String familyId, @Param("now") Instant now);
 }

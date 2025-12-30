@@ -10,7 +10,8 @@ import com.timeeconomy.auth.domain.exception.AuthSessionNotFoundException;
 import com.timeeconomy.auth.domain.exception.MissingRefreshTokenException;
 import com.timeeconomy.auth.domain.exception.SessionAlreadyRevokedException;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,8 @@ public class LogoutService implements LogoutUseCase {
 
     private final AuthSessionRepositoryPort authSessionRepositoryPort;
     private final RefreshTokenPort refreshTokenPort;
+
+    private final Clock clock;
 
     @Override
     public void logout(LogoutCommand command) {
@@ -39,8 +42,8 @@ public class LogoutService implements LogoutUseCase {
         if (session.isRevoked()) {
             throw new SessionAlreadyRevokedException();
         }
-
-        session.revoke(LocalDateTime.now());
+        Instant now = Instant.now(clock);
+        session.revoke(now);
         authSessionRepositoryPort.save(session);
     }
 }

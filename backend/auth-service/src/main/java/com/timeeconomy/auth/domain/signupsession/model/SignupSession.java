@@ -1,7 +1,7 @@
 package com.timeeconomy.auth.domain.signupsession.model;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -25,9 +25,9 @@ public class SignupSession {
 
     private SignupSessionState state;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime expiresAt;
+    private Instant createdAt;
+    private Instant updatedAt;
+    private Instant expiresAt;
 
     // ----------------------------------------------------
     // Constructors
@@ -39,18 +39,25 @@ public class SignupSession {
      */
     public static SignupSession createNew(
             String email,
-            LocalDateTime now,
-            LocalDateTime expiresAt
+            Instant now,
+            Instant expiresAt
     ) {
         Objects.requireNonNull(now, "now must not be null");
         Objects.requireNonNull(expiresAt, "expiresAt must not be null");
 
         SignupSession session = new SignupSession();
         session.id = UUID.randomUUID();
-        session.email = null;
+        session.email = email; // ✅ bug fix (was null)
         session.emailVerified = false;
+        session.phoneNumber = null;
         session.phoneVerified = false;
+
+        session.name = null;
+        session.gender = null;
+        session.birthDate = null;
+
         session.state = SignupSessionState.EMAIL_PENDING;
+
         session.createdAt = now;
         session.updatedAt = now;
         session.expiresAt = expiresAt;
@@ -58,14 +65,13 @@ public class SignupSession {
     }
 
     // Default constructor for mapper / frameworks
-    public SignupSession() {
-    }
+    public SignupSession() {}
 
     // ----------------------------------------------------
     // Domain behavior
     // ----------------------------------------------------
 
-    public boolean isExpired(LocalDateTime now) {
+    public boolean isExpired(Instant now) {
         return expiresAt != null && now.isAfter(expiresAt);
     }
 
@@ -73,7 +79,7 @@ public class SignupSession {
         return state == SignupSessionState.COMPLETED;
     }
 
-    public void markEmailVerified(LocalDateTime now) {
+    public void markEmailVerified(Instant now) {
         this.emailVerified = true;
         if (this.state == SignupSessionState.EMAIL_PENDING) {
             this.state = SignupSessionState.EMAIL_VERIFIED;
@@ -81,11 +87,12 @@ public class SignupSession {
         this.updatedAt = now;
     }
 
-    public void updateProfile(String name,
-                          String gender,
-                          LocalDate birthDate,
-                          LocalDateTime now) {
-
+    public void updateProfile(
+            String name,
+            String gender,
+            LocalDate birthDate,
+            Instant now
+    ) {
         this.name = name;
         this.gender = gender;
         this.birthDate = birthDate;
@@ -97,22 +104,22 @@ public class SignupSession {
         this.updatedAt = now;
     }
 
-    public void updateEmail(String newEmail, LocalDateTime now) {
+    public void updateEmail(String newEmail, Instant now) {
         this.email = newEmail;
         this.updatedAt = now;
     }
 
-    public void markCompleted(LocalDateTime now) {
+    public void markCompleted(Instant now) {
         this.state = SignupSessionState.COMPLETED;
         this.updatedAt = now;
     }
 
-    public void markPhoneVerified(LocalDateTime now) {
+    public void markPhoneVerified(Instant now) {
         this.phoneVerified = true;
         this.updatedAt = now;
     }
 
-    public void markExpired(LocalDateTime now) {
+    public void markExpired(Instant now) {
         this.state = SignupSessionState.EXPIRED;
         this.updatedAt = now;
     }
@@ -148,12 +155,12 @@ public class SignupSession {
     public SignupSessionState getState() { return state; }
     public void setState(SignupSessionState state) { this.state = state; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
-    public LocalDateTime getExpiresAt() { return expiresAt; }
-    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public Instant getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 }

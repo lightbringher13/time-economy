@@ -11,8 +11,9 @@ import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRe
 import static com.timeeconomy.auth.adapter.out.redis.verification.VerificationRedisKeys.*;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
+import java.time.Clock;
 
 @Primary
 @Component
@@ -20,19 +21,20 @@ import java.util.*;
 public class RedisVerificationChallengeAdapter implements VerificationChallengeRepositoryPort {
 
     private final StringRedisTemplate redis;
+    private final Clock clock;
 
     @Override
     public VerificationChallenge save(VerificationChallenge challenge) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         String id = challenge.getId();
         if (id == null || id.isBlank()) {
-            id = UUID.randomUUID().toString();   // or ULID if you prefer sortable ids
+            id = UUID.randomUUID().toString();
             challenge.setId(id);
         }
 
         // expire check (optional guard)
-        challenge.markExpiredIfNeeded(now);
+        challenge.expireIfNeeded(now);
 
         Duration ttl = ttlFrom(challenge, now);
 
@@ -64,7 +66,7 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         VerificationChallenge c = VerificationChallengeSnapshotMapper.toDomain(snap);
 
         // extra guard: if expired pending, delete and return empty
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
         if (c.getStatus() == VerificationStatus.PENDING && c.isExpired(now)) {
             redis.delete(ch(id));
             return Optional.empty();
@@ -191,11 +193,6 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         }
     }
 
-    /**
-     * When a challenge becomes non-PENDING, we must:
-     * 1) remove the pending pointer SAFELY (do not delete a newer pending)
-     * 2) optionally remove verify-index keys for this exact challenge (cleanup)
-     */
     private void cleanupIndexesForTerminalOrNonPending(VerificationChallenge c, String id) {
         // SAFE pending-pointer cleanup (compare-and-delete)
         String pk = pending(c.getSubjectType(), c.getSubjectId(), c.getPurpose(), c.getChannel());
@@ -232,51 +229,63 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
     }
 
     // -------------------------
-    // TTL policy
+    // TTL policy (Instant)
     // -------------------------
 
-    private static Duration ttlFrom(VerificationChallenge c, LocalDateTime now) {
-        LocalDateTime exp = c.getExpiresAt();
+    private static Duration ttlFrom(VerificationChallenge c, Instant now) {
+        Instant exp = c.getExpiresAt();
 
-        // if tokenExpiresAt exists and is later, keep record until then
-        if (c.getTokenExpiresAt() != null && c.getTokenExpiresAt().isAfter(exp)) {
-            exp = c.getTokenExpiresAt();
+        // keep record until later of (expiresAt, tokenExpiresAt)
+        Instant tokenExp = c.getTokenExpiresAt();
+        if (tokenExp != null && (exp == null || tokenExp.isAfter(exp))) {
+            exp = tokenExp;
         }
 
+        if (exp == null) return Duration.ofHours(24);
+
         Duration d = Duration.between(now, exp);
-        if (d.isNegative() || d.isZero()) return Duration.ofSeconds(1);
-        return d;
+        return (d.isNegative() || d.isZero()) ? Duration.ofSeconds(1) : d;
     }
 
     // -------------------------
-    // Hash mapping
+    // Hash mapping (epoch millis snapshot)
     // -------------------------
 
     private static Map<String, String> toHash(VerificationChallengeSnapshot s) {
         Map<String, String> m = new HashMap<>();
+
         m.put("schemaVersion", String.valueOf(s.schemaVersion()));
         m.put("id", n(s.id()));
+
         m.put("purpose", n(s.purpose()));
         m.put("channel", n(s.channel()));
         m.put("subjectType", n(s.subjectType()));
         m.put("subjectId", n(s.subjectId()));
+
         m.put("destination", n(s.destination()));
         m.put("destinationNorm", n(s.destinationNorm()));
+
         m.put("codeHash", n(s.codeHash()));
         m.put("tokenHash", n(s.tokenHash()));
-        m.put("tokenExpiresAt", n(s.tokenExpiresAt()));
+        m.put("tokenExpiresAtEpochMillis", nLong(s.tokenExpiresAtEpochMillis()));
+
         m.put("status", n(s.status()));
-        m.put("expiresAt", n(s.expiresAt()));
-        m.put("verifiedAt", n(s.verifiedAt()));
-        m.put("consumedAt", n(s.consumedAt()));
-        m.put("attemptCount", n(s.attemptCount()));
-        m.put("maxAttempts", n(s.maxAttempts()));
-        m.put("sentCount", n(s.sentCount()));
-        m.put("lastSentAt", n(s.lastSentAt()));
+
+        m.put("expiresAtEpochMillis", nLong(s.expiresAtEpochMillis()));
+        m.put("verifiedAtEpochMillis", nLong(s.verifiedAtEpochMillis()));
+        m.put("consumedAtEpochMillis", nLong(s.consumedAtEpochMillis()));
+
+        m.put("attemptCount", String.valueOf(s.attemptCount()));
+        m.put("maxAttempts", String.valueOf(s.maxAttempts()));
+        m.put("sentCount", String.valueOf(s.sentCount()));
+        m.put("lastSentAtEpochMillis", nLong(s.lastSentAtEpochMillis()));
+
         m.put("requestIp", n(s.requestIp()));
         m.put("userAgent", n(s.userAgent()));
-        m.put("createdAt", n(s.createdAt()));
-        m.put("updatedAt", n(s.updatedAt()));
+
+        m.put("createdAtEpochMillis", nLong(s.createdAtEpochMillis()));
+        m.put("updatedAtEpochMillis", nLong(s.updatedAtEpochMillis()));
+
         return m;
     }
 
@@ -284,27 +293,35 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         return VerificationChallengeSnapshot.builder()
                 .schemaVersion(parseInt(get(raw, "schemaVersion"), 0))
                 .id(blankToNull(get(raw, "id")))
+
                 .purpose(blankToNull(get(raw, "purpose")))
                 .channel(blankToNull(get(raw, "channel")))
                 .subjectType(blankToNull(get(raw, "subjectType")))
                 .subjectId(blankToNull(get(raw, "subjectId")))
+
                 .destination(blankToNull(get(raw, "destination")))
                 .destinationNorm(blankToNull(get(raw, "destinationNorm")))
+
                 .codeHash(blankToNull(get(raw, "codeHash")))
                 .tokenHash(blankToNull(get(raw, "tokenHash")))
-                .tokenExpiresAt(blankToNull(get(raw, "tokenExpiresAt")))
+                .tokenExpiresAtEpochMillis(parseLongObj(get(raw, "tokenExpiresAtEpochMillis")))
+
                 .status(blankToNull(get(raw, "status")))
-                .expiresAt(blankToNull(get(raw, "expiresAt")))
-                .verifiedAt(blankToNull(get(raw, "verifiedAt")))
-                .consumedAt(blankToNull(get(raw, "consumedAt")))
-                .attemptCount(blankToNull(get(raw, "attemptCount")))
-                .maxAttempts(blankToNull(get(raw, "maxAttempts")))
-                .sentCount(blankToNull(get(raw, "sentCount")))
-                .lastSentAt(blankToNull(get(raw, "lastSentAt")))
+
+                .expiresAtEpochMillis(parseLongObj(get(raw, "expiresAtEpochMillis")))
+                .verifiedAtEpochMillis(parseLongObj(get(raw, "verifiedAtEpochMillis")))
+                .consumedAtEpochMillis(parseLongObj(get(raw, "consumedAtEpochMillis")))
+
+                .attemptCount(parseInt(get(raw, "attemptCount"), 0))
+                .maxAttempts(parseInt(get(raw, "maxAttempts"), 5))
+                .sentCount(parseInt(get(raw, "sentCount"), 1))
+                .lastSentAtEpochMillis(parseLongObj(get(raw, "lastSentAtEpochMillis")))
+
                 .requestIp(blankToNull(get(raw, "requestIp")))
                 .userAgent(blankToNull(get(raw, "userAgent")))
-                .createdAt(blankToNull(get(raw, "createdAt")))
-                .updatedAt(blankToNull(get(raw, "updatedAt")))
+
+                .createdAtEpochMillis(parseLongObj(get(raw, "createdAtEpochMillis")))
+                .updatedAtEpochMillis(parseLongObj(get(raw, "updatedAtEpochMillis")))
                 .build();
     }
 
@@ -314,9 +331,16 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
     }
 
     private static int parseInt(String s, int def) {
-        try { return Integer.parseInt(s); } catch (Exception e) { return def; }
+        try { return (s == null || s.isBlank()) ? def : Integer.parseInt(s); }
+        catch (Exception e) { return def; }
+    }
+
+    private static Long parseLongObj(String s) {
+        try { return (s == null || s.isBlank()) ? null : Long.valueOf(s); }
+        catch (Exception e) { return null; }
     }
 
     private static String n(String s) { return s == null ? "" : s; }
+    private static String nLong(Long v) { return v == null ? "" : String.valueOf(v); }
     private static String blankToNull(String s) { return (s == null || s.isBlank()) ? null : s; }
 }

@@ -7,9 +7,10 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.port.in.SignupBootstrapUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 
-import java.time.LocalDateTime;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
+import java.time.Clock;
 
 // domain.service
 @Service
@@ -19,10 +20,11 @@ public class SignupBootstrapService implements SignupBootstrapUseCase {
     private static final Duration SIGNUP_SESSION_TTL = Duration.ofHours(24);
 
     private final SignupSessionStorePort signupSessionStorePort;
+    private final Clock clock;
 
     @Override
     public Result bootstrap(Command command) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
         UUID existingId = command.existingSessionId();
 
         SignupSession session = null;
@@ -36,7 +38,7 @@ public class SignupBootstrapService implements SignupBootstrapUseCase {
 
         // 2) if no active session → create new empty session
         if (session == null) {
-            LocalDateTime expiresAt = now.plus(SIGNUP_SESSION_TTL);
+            Instant expiresAt = now.plus(SIGNUP_SESSION_TTL);
             session = SignupSession.createNew(
                     null,           // email 아직 모름
                     now,

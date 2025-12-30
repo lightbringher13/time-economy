@@ -13,21 +13,25 @@ import com.timeeconomy.auth.domain.auth.port.out.RefreshTokenPort;
 import com.timeeconomy.auth.domain.common.security.port.PasswordEncoderPort;
 import com.timeeconomy.auth.domain.exception.InvalidCredentialsException;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
 public class LoginService implements LoginUseCase {
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
-    private static final long REFRESH_TTL_DAYS = 7L;
+    private static final Duration REFRESH_TTL_DAYS = Duration.ofDays(7);
+
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final AuthSessionRepositoryPort authSessionRepositoryPort;
     private final JwtTokenPort jwtTokenPort;
     private final RefreshTokenPort refreshTokenPort;
     private final PasswordEncoderPort passwordEncoderPort;
+
+    private final Clock clock;
 
     @Override
     public LoginResult login(LoginCommand command) {
@@ -36,7 +40,7 @@ public class LoginService implements LoginUseCase {
         AuthUser user = authUserRepositoryPort.findByEmail(command.email())
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid email or password"));
 
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        Instant now = Instant.now(clock);
 
         // 2) 계정 상태 체크 (LOCKED, DELETED, PENDING 등은 로그인 불가)
         if (!user.isActive()) {
@@ -68,7 +72,7 @@ public class LoginService implements LoginUseCase {
         String rawRefreshToken = refreshTokenPort.generateRefreshToken();
         String hashedRefreshToken = refreshTokenPort.hashRefreshToken(rawRefreshToken);
 
-        LocalDateTime expiresAt = now.plusDays(REFRESH_TTL_DAYS);
+        Instant expiresAt = now.plus(REFRESH_TTL_DAYS);
 
         AuthSession session = new AuthSession(
                 userId,

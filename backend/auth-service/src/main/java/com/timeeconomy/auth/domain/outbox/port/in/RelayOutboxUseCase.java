@@ -1,7 +1,7 @@
 package com.timeeconomy.auth.domain.outbox.port.in;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public interface RelayOutboxUseCase {
 
@@ -11,7 +11,7 @@ public interface RelayOutboxUseCase {
             String workerId,
             int limit,
             Duration lease,
-            LocalDateTime now
+            Instant now
     ) {
         public long leaseSeconds() {
             return lease == null ? 0L : lease.getSeconds();

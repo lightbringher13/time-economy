@@ -1,6 +1,6 @@
 package com.timeeconomy.auth.adapter.in.web.auth.dto.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import com.timeeconomy.auth.domain.auth.port.in.ListSessionsUseCase;
 
@@ -10,9 +10,9 @@ public record SessionResponseDto(
         String deviceInfo,
         String ipAddress,
         String userAgent,
-        LocalDateTime createdAt,
-        LocalDateTime lastUsedAt,
-        LocalDateTime expiresAt,
+        Instant createdAt,
+        Instant lastUsedAt,
+        Instant expiresAt,
         boolean revoked,
         boolean current
 ) {

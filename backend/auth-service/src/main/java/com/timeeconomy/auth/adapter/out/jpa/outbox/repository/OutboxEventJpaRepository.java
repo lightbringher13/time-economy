@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,7 +39,7 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntit
             @Param("workerId") String workerId,
             @Param("limit") int limit,
             @Param("leaseSeconds") long leaseSeconds,
-            @Param("now") OffsetDateTime now
+            @Param("now") Instant now
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -60,8 +60,8 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntit
             @Param("workerId") String workerId,
             @Param("processing") OutboxStatus processing,
             @Param("sent") OutboxStatus sent,
-            @Param("sentAt") OffsetDateTime sentAt,
-            @Param("now") OffsetDateTime now
+            @Param("sentAt") Instant sentAt,
+            @Param("now") Instant now
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -83,7 +83,7 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntit
             @Param("processing") OutboxStatus processing,
             @Param("failed") OutboxStatus failed,
             @Param("error") String error,
-            @Param("now") OffsetDateTime now,
-            @Param("nextAvailableAt") OffsetDateTime nextAvailableAt
+            @Param("now") Instant now,
+            @Param("nextAvailableAt") Instant nextAvailableAt
     );
 }

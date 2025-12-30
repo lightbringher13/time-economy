@@ -10,7 +10,8 @@ import com.timeeconomy.auth.domain.auth.port.out.AuthSessionRepositoryPort;
 import com.timeeconomy.auth.domain.auth.port.out.RefreshTokenPort;
 import com.timeeconomy.auth.domain.exception.InvalidRefreshTokenException;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,8 @@ public class LogoutSessionService implements LogoutSessionUseCase {
 
     private final RefreshTokenPort refreshTokenPort;
     private final AuthSessionRepositoryPort authSessionRepositoryPort;
+
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -46,8 +49,9 @@ public class LogoutSessionService implements LogoutSessionUseCase {
             throw new InvalidRefreshTokenException("Forbidden");
         }
 
+        Instant now = Instant.now(clock);
         // Step 4: revoke target session
-        targetSession.revoke(LocalDateTime.now());
+        targetSession.revoke(now);
         authSessionRepositoryPort.save(targetSession);
     }
 }

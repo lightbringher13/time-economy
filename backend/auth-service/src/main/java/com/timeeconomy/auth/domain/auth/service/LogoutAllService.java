@@ -3,7 +3,8 @@ package com.timeeconomy.auth.domain.auth.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,8 @@ public class LogoutAllService implements LogoutAllUseCase {
 
     private final AuthSessionRepositoryPort authSessionRepositoryPort;
 
+    private final Clock clock;
+
     @Override
     @Transactional
     public void logoutAll(LogoutAllCommand command) {
@@ -27,7 +30,7 @@ public class LogoutAllService implements LogoutAllUseCase {
             throw new AuthUserNotFoundException(userId);
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
         authSessionRepositoryPort.revokeAllByUserId(userId, now);
     }
 }

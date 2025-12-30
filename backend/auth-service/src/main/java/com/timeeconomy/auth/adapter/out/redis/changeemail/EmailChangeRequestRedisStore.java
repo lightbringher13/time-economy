@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -18,7 +18,7 @@ public class EmailChangeRequestRedisStore {
 
     private final StringRedisTemplate redis;
 
-    public void upsert(EmailChangeRequest req, LocalDateTime now) {
+    public void upsert(EmailChangeRequest req, Instant now) {
         if (req.getId() == null) {
             throw new IllegalArgumentException("Redis store requires non-null request id");
         }
@@ -34,21 +34,22 @@ public class EmailChangeRequestRedisStore {
         // active pointer: only when active & not expired
         if (req.getUserId() != null && req.isActive() && !req.isExpired(now)) {
             String ak = EmailChangeRedisKeys.activeByUserKey(req.getUserId());
-            redis.opsForValue().set(ak, req.getId().toString(), ttl);
+            redis.opsForValue().set(ak, String.valueOf(req.getId()), ttl);
         }
     }
 
-    public Optional<EmailChangeRequest> findById(Long id, LocalDateTime now) {
+    public Optional<EmailChangeRequest> findById(Long id, Instant now) {
         String rk = EmailChangeRedisKeys.requestKey(id);
 
         Map<Object, Object> raw = redis.opsForHash().entries(rk);
         if (raw == null || raw.isEmpty()) return Optional.empty();
 
-        EmailChangeRequestSnapshot snap = EmailChangeRequestSnapshotMapper.upgradeIfNeeded(fromHash(raw));
+        EmailChangeRequestSnapshot snap = fromHash(raw);
         EmailChangeRequest req = EmailChangeRequestSnapshotMapper.toDomain(snap);
 
-        // guard for stale keys
-        if (req.getExpiresAt() != null && !req.getExpiresAt().isAfter(now)) {
+        // guard for stale keys (TTL should handle it too)
+        Instant expiresAt = req.getExpiresAt();
+        if (expiresAt != null && !expiresAt.isAfter(now)) {
             redis.delete(rk);
             return Optional.empty();
         }
@@ -70,7 +71,6 @@ public class EmailChangeRequestRedisStore {
     public void deleteAllForRequest(Long requestId, Long userId) {
         redis.delete(EmailChangeRedisKeys.requestKey(requestId));
         if (userId != null) {
-            // safe delete; if you want strict delete-only-when-matches, you can compare value first
             redis.delete(EmailChangeRedisKeys.activeByUserKey(userId));
         }
     }
@@ -78,37 +78,49 @@ public class EmailChangeRequestRedisStore {
     // ---------- hash mapping ----------
     private static Map<String, String> toHash(EmailChangeRequestSnapshot s) {
         Map<String, String> m = new HashMap<>();
+
         m.put("schemaVersion", String.valueOf(s.schemaVersion()));
-        m.put("id", n(s.id()));
-        m.put("userId", n(s.userId()));
-        m.put("oldEmail", n(s.oldEmail()));
-        m.put("newEmail", n(s.newEmail()));
-        m.put("secondFactorType", n(s.secondFactorType()));
-        m.put("status", n(s.status()));
-        m.put("expiresAt", n(s.expiresAt()));
-        m.put("createdAt", n(s.createdAt()));
-        m.put("updatedAt", n(s.updatedAt()));
-        m.put("version", n(s.version()));
+
+        m.put("id", nLong(s.id()));
+        m.put("userId", nLong(s.userId()));
+
+        m.put("oldEmail", nStr(s.oldEmail()));
+        m.put("newEmail", nStr(s.newEmail()));
+
+        m.put("secondFactorType", nStr(s.secondFactorType()));
+        m.put("status", nStr(s.status()));
+
+        m.put("expiresAtEpochMillis", nLong(s.expiresAtEpochMillis()));
+        m.put("createdAtEpochMillis", nLong(s.createdAtEpochMillis()));
+        m.put("updatedAtEpochMillis", nLong(s.updatedAtEpochMillis()));
+
+        m.put("version", nLong(s.version()));
+
         return m;
     }
 
     private static EmailChangeRequestSnapshot fromHash(Map<Object, Object> raw) {
         return EmailChangeRequestSnapshot.builder()
-                .schemaVersion(parseInt(get(raw, "schemaVersion"), 0))
-                .id(blankToNull(get(raw, "id")))
-                .userId(blankToNull(get(raw, "userId")))
+                .schemaVersion(parseInt(get(raw, "schemaVersion"), 1))
+
+                .id(parseLong(get(raw, "id")))
+                .userId(parseLong(get(raw, "userId")))
+
                 .oldEmail(blankToNull(get(raw, "oldEmail")))
                 .newEmail(blankToNull(get(raw, "newEmail")))
+
                 .secondFactorType(blankToNull(get(raw, "secondFactorType")))
                 .status(blankToNull(get(raw, "status")))
-                .expiresAt(blankToNull(get(raw, "expiresAt")))
-                .createdAt(blankToNull(get(raw, "createdAt")))
-                .updatedAt(blankToNull(get(raw, "updatedAt")))
-                .version(blankToNull(get(raw, "version")))
+
+                .expiresAtEpochMillis(parseLong(get(raw, "expiresAtEpochMillis")))
+                .createdAtEpochMillis(parseLong(get(raw, "createdAtEpochMillis")))
+                .updatedAtEpochMillis(parseLong(get(raw, "updatedAtEpochMillis")))
+
+                .version(parseLong(get(raw, "version")))
                 .build();
     }
 
-    private static Duration ttlFrom(LocalDateTime expiresAt, LocalDateTime now) {
+    private static Duration ttlFrom(Instant expiresAt, Instant now) {
         if (expiresAt == null) return Duration.ofHours(24);
         Duration d = Duration.between(now, expiresAt);
         return (d.isNegative() || d.isZero()) ? Duration.ofSeconds(1) : d;
@@ -119,7 +131,18 @@ public class EmailChangeRequestRedisStore {
         return v == null ? "" : String.valueOf(v);
     }
 
-    private static int parseInt(String s, int def) { try { return Integer.parseInt(s); } catch (Exception e) { return def; } }
-    private static String n(String s) { return s == null ? "" : s; }
+    private static int parseInt(String s, int def) {
+        try { return (s == null || s.isBlank()) ? def : Integer.parseInt(s); }
+        catch (Exception e) { return def; }
+    }
+
+    private static Long parseLong(String s) {
+        try { return (s == null || s.isBlank()) ? null : Long.valueOf(s); }
+        catch (Exception e) { return null; }
+    }
+
+    private static String nStr(String s) { return s == null ? "" : s; }
+    private static String nLong(Long v) { return v == null ? "" : String.valueOf(v); }
+
     private static String blankToNull(String s) { return (s == null || s.isBlank()) ? null : s; }
 }

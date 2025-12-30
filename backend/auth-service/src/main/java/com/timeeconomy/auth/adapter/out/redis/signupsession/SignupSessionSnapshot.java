@@ -8,17 +8,17 @@ public record SignupSessionSnapshot(
         String id,
 
         String email,
-        String emailVerified,
+        boolean emailVerified,
         String phoneNumber,
-        String phoneVerified,
+        boolean phoneVerified,
 
         String name,
         String gender,
-        String birthDate,
+        Integer birthDateEpochDays, // LocalDate.toEpochDay()
 
         String state,
 
-        String createdAt,
-        String updatedAt,
-        String expiresAt
+        Long createdAtEpochMillis,   // Instant.toEpochMilli()
+        Long updatedAtEpochMillis,
+        Long expiresAtEpochMillis
 ) {}

@@ -1,7 +1,7 @@
 package com.timeeconomy.auth.domain.auth.model.payload;
 
+import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 public record AuthUserRegisteredPayload(
@@ -12,5 +12,5 @@ public record AuthUserRegisteredPayload(
         String gender,
         LocalDate birthDate,
         UUID signupSessionId,
-        LocalDateTime occurredAt
+        Instant occurredAt
 ) {}

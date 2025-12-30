@@ -1,51 +1,55 @@
+-- ============================================================
+-- Auth Session (Instant-friendly)
+-- ============================================================
 CREATE TABLE auth_session (
     id BIGSERIAL PRIMARY KEY,
 
-    -- User identity comes from user-service
     user_id BIGINT NOT NULL,
-
-    -- Device family (one per browser install)
     family_id VARCHAR(100) NOT NULL,
 
-    -- Refresh token hash
+    -- refresh token hash (should be unique)
     token_hash VARCHAR(255) NOT NULL,
 
-    -- Device / environment info
     device_info VARCHAR(255),
     ip_address VARCHAR(45),
     user_agent TEXT,
 
-    -- Timestamps
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_used_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL,
+    -- ✅ Instant-friendly timestamps (UTC-safe)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
 
-    -- State flags
+    -- state flags
     revoked BOOLEAN NOT NULL DEFAULT FALSE,
-    revoked_at TIMESTAMP,
+    revoked_at TIMESTAMPTZ,
     reuse_detected BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- ============================================================
--- Indexes for performance
+-- Indexes
 -- ============================================================
 
--- Search by token hash (most common)
-CREATE INDEX idx_auth_session_token_hash
+-- Fast lookup by token hash (most common)
+CREATE UNIQUE INDEX ux_auth_session_token_hash
     ON auth_session (token_hash);
 
--- Search by family
+-- Family-level session management / rotation
 CREATE INDEX idx_auth_session_family
     ON auth_session (family_id);
 
--- Search by user
+-- Query sessions by user
 CREATE INDEX idx_auth_session_user
     ON auth_session (user_id);
 
--- Filter by expiration
+-- Expiry-based cleanup / queries
 CREATE INDEX idx_auth_session_expires
     ON auth_session (expires_at);
 
--- Filter by revoked
+-- Revoked flag filtering
 CREATE INDEX idx_auth_session_revoked
     ON auth_session (revoked);
+
+-- Optional but useful: "my active sessions" queries
+-- (e.g., WHERE user_id=? AND revoked=false ORDER BY last_used_at DESC)
+CREATE INDEX idx_auth_session_user_active_last_used
+    ON auth_session (user_id, revoked, last_used_at DESC);

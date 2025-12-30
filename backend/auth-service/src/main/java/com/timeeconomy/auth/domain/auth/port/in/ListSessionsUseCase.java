@@ -1,6 +1,6 @@
 package com.timeeconomy.auth.domain.auth.port.in;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 public interface ListSessionsUseCase {
@@ -19,9 +19,9 @@ public interface ListSessionsUseCase {
             String deviceInfo,
             String ipAddress,
             String userAgent,
-            LocalDateTime createdAt,
-            LocalDateTime lastUsedAt,
-            LocalDateTime expiresAt,
+            Instant createdAt,
+            Instant lastUsedAt,
+            Instant expiresAt,
             boolean revoked,
             boolean current // 현재 요청이 사용한 세션인지 표시
     ) { }

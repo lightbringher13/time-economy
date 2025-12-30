@@ -1,10 +1,9 @@
-// src/main/java/com/timeeconomy/auth_service/domain/changeemail/model/EmailChangeRequest.java
 package com.timeeconomy.auth.domain.changeemail.model;
 
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Getter
 @Builder
@@ -20,9 +19,9 @@ public class EmailChangeRequest {
 
     private EmailChangeStatus status;
 
-    private final LocalDateTime expiresAt;
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final Instant expiresAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
 
     private Long version;
 
@@ -30,9 +29,9 @@ public class EmailChangeRequest {
             Long userId,
             String oldEmail,
             String newEmail,
-            String newEmailCode,
-            LocalDateTime expiresAt,
-            LocalDateTime now
+            String newEmailCode, // (currently unused; keep if API compatibility matters)
+            Instant expiresAt,
+            Instant now
     ) {
         return EmailChangeRequest.builder()
                 .id(null)
@@ -47,7 +46,7 @@ public class EmailChangeRequest {
                 .build();
     }
 
-    public boolean isExpired(LocalDateTime now) {
+    public boolean isExpired(Instant now) {
         return now.isAfter(expiresAt);
     }
 
@@ -58,10 +57,10 @@ public class EmailChangeRequest {
     }
 
     // =========================================
-    // NEW: state transitions driven by challenges
+    // state transitions driven by challenges
     // =========================================
 
-    public void markNewEmailVerified(LocalDateTime now) {
+    public void markNewEmailVerified(Instant now) {
         if (isExpired(now)) {
             this.status = EmailChangeStatus.EXPIRED;
             touch(now);
@@ -74,12 +73,12 @@ public class EmailChangeRequest {
         touch(now);
     }
 
-    public void setSecondFactorType(SecondFactorType type, LocalDateTime now) {
+    public void setSecondFactorType(SecondFactorType type, Instant now) {
         this.secondFactorType = type;
         touch(now);
     }
 
-    public void markReadyToCommit(LocalDateTime now) {
+    public void markReadyToCommit(Instant now) {
         if (isExpired(now)) {
             this.status = EmailChangeStatus.EXPIRED;
             touch(now);
@@ -92,22 +91,22 @@ public class EmailChangeRequest {
         touch(now);
     }
 
-    public void markCompleted(LocalDateTime now) {
+    public void markCompleted(Instant now) {
         this.status = EmailChangeStatus.COMPLETED;
         touch(now);
     }
 
-    public void markCanceled(LocalDateTime now) {
+    public void markCanceled(Instant now) {
         this.status = EmailChangeStatus.CANCELED;
         touch(now);
     }
 
-    public void markExpired(LocalDateTime now) {
+    public void markExpired(Instant now) {
         this.status = EmailChangeStatus.EXPIRED;
         touch(now);
     }
 
-    private void touch(LocalDateTime now) {
+    private void touch(Instant now) {
         this.updatedAt = now;
     }
 

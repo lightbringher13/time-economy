@@ -14,8 +14,9 @@ import com.timeeconomy.auth.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth.domain.exception.RefreshTokenReuseException;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
+import java.time.Clock;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,7 +30,9 @@ public class RefreshService implements RefreshUseCase {
     private final JwtTokenPort jwtTokenPort;
     private final EmailNotificationPort emailNotificationPort;
 
-    private static final long REFRESH_TTL_DAYS = 7L;
+    private final Clock clock;
+
+    private static final Duration REFRESH_TTL_DAYS = Duration.ofDays(7);
     private static final long BENIGN_RACE_WINDOW_SECONDS = 15L;
 
     @Override
@@ -46,7 +49,7 @@ public class RefreshService implements RefreshUseCase {
         AuthSession session = authSessionRepositoryPort.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new InvalidRefreshTokenException("Refresh token not found"));
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         // 1) already revoked → reuse path
         if (session.isRevoked()) {
@@ -70,7 +73,7 @@ public class RefreshService implements RefreshUseCase {
         String newRawRefresh = refreshTokenPort.generateRefreshToken();
         String newHash = refreshTokenPort.hashRefreshToken(newRawRefresh);
 
-        LocalDateTime expiresAt = now.plusDays(REFRESH_TTL_DAYS);
+        Instant expiresAt = now.plus(REFRESH_TTL_DAYS);
 
         AuthSession newSession = new AuthSession(
                 session.getUserId(),
@@ -94,7 +97,7 @@ public class RefreshService implements RefreshUseCase {
                 newSession.getFamilyId());
     }
 
-    private RefreshResult handleReuse(AuthSession session, RefreshCommand command, LocalDateTime now) {
+    private RefreshResult handleReuse(AuthSession session, RefreshCommand command, Instant now) {
         // ⭐ BENIGN CASE — normal behavior
         if (isBenignRace(session, command, now)) {
 
@@ -137,8 +140,8 @@ public class RefreshService implements RefreshUseCase {
         throw new RefreshTokenReuseException("Refresh token reuse detected");
     }
 
-    private boolean isBenignRace(AuthSession session, RefreshCommand command, LocalDateTime now) {
-        LocalDateTime revokedAt = session.getRevokedAt();
+    private boolean isBenignRace(AuthSession session, RefreshCommand command, Instant now) {
+        Instant revokedAt = session.getRevokedAt();
         if (revokedAt == null) {
             return false;
         }

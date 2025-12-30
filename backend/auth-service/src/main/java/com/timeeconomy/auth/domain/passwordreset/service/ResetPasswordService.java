@@ -15,7 +15,8 @@ import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.Clock;
 
 @Service
 @RequiredArgsConstructor
@@ -26,13 +27,14 @@ public class ResetPasswordService implements ResetPasswordUseCase {
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final PasswordEncoderPort passwordEncoderPort;
     private final AuthSessionRepositoryPort authSessionRepositoryPort;
+    private final Clock clock;
 
     @Override
     @Transactional
     public Result resetPassword(Command command) {
         String rawToken = command.rawToken();
         String newPassword = command.newPassword();
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         // 1) verify token via verification-challenge
         var verify = verificationChallengeUseCase.verifyLink(

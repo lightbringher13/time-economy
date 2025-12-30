@@ -1,6 +1,6 @@
 package com.timeeconomy.auth.domain.outbox.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -16,18 +16,19 @@ public class OutboxEvent {
 
     private OutboxStatus status;
 
-    private final LocalDateTime occurredAt;
-    private LocalDateTime availableAt;
+    // ✅ Instant-friendly timestamps
+    private final Instant occurredAt;
+    private Instant availableAt;
 
     private int attempts;
     private String lastError;
 
     private String lockedBy;
-    private LocalDateTime lockedAt;
+    private Instant lockedAt;
 
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
-    private LocalDateTime sentAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
+    private Instant sentAt;
 
     // ✅ keep constructor hidden
     private OutboxEvent(
@@ -37,15 +38,15 @@ public class OutboxEvent {
             String eventType,
             String payload,
             OutboxStatus status,
-            LocalDateTime occurredAt,
-            LocalDateTime availableAt,
+            Instant occurredAt,
+            Instant availableAt,
             int attempts,
             String lastError,
             String lockedBy,
-            LocalDateTime lockedAt,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt,
-            LocalDateTime sentAt
+            Instant lockedAt,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant sentAt
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.aggregateType = Objects.requireNonNull(aggregateType, "aggregateType");
@@ -70,7 +71,7 @@ public class OutboxEvent {
             String aggregateId,
             String eventType,
             String payloadJson,
-            LocalDateTime now
+            Instant now
     ) {
         return new OutboxEvent(
                 UUID.randomUUID(),
@@ -91,7 +92,7 @@ public class OutboxEvent {
         );
     }
 
-    // ✅ rehydrate (for JPA/Redis/DB mapping)
+    // ✅ rehydrate (for DB/JPA mapping)
     public static OutboxEvent rehydrate(
             UUID id,
             String aggregateType,
@@ -99,15 +100,15 @@ public class OutboxEvent {
             String eventType,
             String payload,
             OutboxStatus status,
-            LocalDateTime occurredAt,
-            LocalDateTime availableAt,
+            Instant occurredAt,
+            Instant availableAt,
             int attempts,
             String lastError,
             String lockedBy,
-            LocalDateTime lockedAt,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt,
-            LocalDateTime sentAt
+            Instant lockedAt,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant sentAt
     ) {
         return new OutboxEvent(
                 id, aggregateType, aggregateId, eventType, payload, status,
@@ -116,28 +117,41 @@ public class OutboxEvent {
         );
     }
 
-    // getters/setters as needed...
+    // ---------------------------------------------------------
+    // Getters
+    // ---------------------------------------------------------
     public UUID getId() { return id; }
     public String getAggregateType() { return aggregateType; }
     public String getAggregateId() { return aggregateId; }
     public String getEventType() { return eventType; }
     public String getPayload() { return payload; }
     public OutboxStatus getStatus() { return status; }
-    public LocalDateTime getOccurredAt() { return occurredAt; }
-    public LocalDateTime getAvailableAt() { return availableAt; }
+
+    public Instant getOccurredAt() { return occurredAt; }
+    public Instant getAvailableAt() { return availableAt; }
+
     public int getAttempts() { return attempts; }
     public String getLastError() { return lastError; }
-    public String getLockedBy() { return lockedBy; }
-    public LocalDateTime getLockedAt() { return lockedAt; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public LocalDateTime getSentAt() { return sentAt; }
 
+    public String getLockedBy() { return lockedBy; }
+    public Instant getLockedAt() { return lockedAt; }
+
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public Instant getSentAt() { return sentAt; }
+
+    // ---------------------------------------------------------
+    // Setters / state transitions
+    // ---------------------------------------------------------
     public void setStatus(OutboxStatus status) { this.status = status; }
     public void setAttempts(int attempts) { this.attempts = attempts; }
     public void setLastError(String lastError) { this.lastError = lastError; }
+
     public void setLockedBy(String lockedBy) { this.lockedBy = lockedBy; }
-    public void setLockedAt(LocalDateTime lockedAt) { this.lockedAt = lockedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-    public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
+    public void setLockedAt(Instant lockedAt) { this.lockedAt = lockedAt; }
+
+    public void setAvailableAt(Instant availableAt) { this.availableAt = availableAt; }
+
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+    public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }
 }

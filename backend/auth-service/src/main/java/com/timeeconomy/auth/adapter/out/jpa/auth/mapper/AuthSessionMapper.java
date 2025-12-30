@@ -19,12 +19,15 @@ public class AuthSessionMapper {
         e.setDeviceInfo(domain.getDeviceInfo());
         e.setIpAddress(domain.getIpAddress());
         e.setUserAgent(domain.getUserAgent());
+
+        // ✅ Instant
         e.setCreatedAt(domain.getCreatedAt());
         e.setLastUsedAt(domain.getLastUsedAt());
         e.setExpiresAt(domain.getExpiresAt());
         e.setRevoked(domain.isRevoked());
         e.setRevokedAt(domain.getRevokedAt());
         e.setReuseDetected(domain.isReuseDetected());
+
         return e;
     }
 
@@ -39,12 +42,15 @@ public class AuthSessionMapper {
         d.setDeviceInfo(e.getDeviceInfo());
         d.setIpAddress(e.getIpAddress());
         d.setUserAgent(e.getUserAgent());
+
+        // ✅ Instant
         d.setCreatedAt(e.getCreatedAt());
         d.setLastUsedAt(e.getLastUsedAt());
         d.setExpiresAt(e.getExpiresAt());
         d.setRevoked(e.isRevoked());
         d.setRevokedAt(e.getRevokedAt());
         d.setReuseDetected(e.isReuseDetected());
+
         return d;
     }
 }

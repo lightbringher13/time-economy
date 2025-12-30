@@ -2,7 +2,7 @@ package com.timeeconomy.auth.domain.changeemail.port.in;
 
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 public interface GetEmailChangeRequestInternalUseCase {
 
@@ -14,8 +14,8 @@ public interface GetEmailChangeRequestInternalUseCase {
             String oldEmail,
             String newEmail,
             EmailChangeStatus status,
-            LocalDateTime expiresAt,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            Instant expiresAt,
+            Instant createdAt,
+            Instant updatedAt
     ) {}
 }

@@ -1,23 +1,19 @@
-// src/main/java/com/timeeconomy/auth_service/adapter/out/persistence/entity/EmailChangeRequestEntity.java
+// src/main/java/com/timeeconomy/auth/adapter/out/jpa/changeemail/entity/EmailChangeRequestEntity.java
 package com.timeeconomy.auth.adapter.out.jpa.changeemail.entity;
-
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-
-import java.time.LocalDateTime;
 
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.Instant;
 
 @Entity
 @Table(name = "email_change_requests")
 @Getter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder(toBuilder = true)
 public class EmailChangeRequestEntity {
 
     @Id
@@ -41,14 +37,15 @@ public class EmailChangeRequestEntity {
     @Column(name = "status", nullable = false, length = 30)
     private EmailChangeStatus status;
 
-    @Column(name = "expires_at", nullable = false)
-    private LocalDateTime expiresAt;
+    // ✅ Instant-friendly timestamps (Postgres: TIMESTAMPTZ)
+    @Column(name = "expires_at", nullable = false, columnDefinition = "timestamptz")
+    private Instant expiresAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
+    private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    @Column(name = "updated_at", nullable = false, columnDefinition = "timestamptz")
+    private Instant updatedAt;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -56,14 +53,14 @@ public class EmailChangeRequestEntity {
 
     @PrePersist
     void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         if (createdAt == null) createdAt = now;
-        updatedAt = now;
+        if (updatedAt == null) updatedAt = now;
         if (version == null) version = 0L;
     }
 
     @PreUpdate
     void onUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = Instant.now();
     }
 }

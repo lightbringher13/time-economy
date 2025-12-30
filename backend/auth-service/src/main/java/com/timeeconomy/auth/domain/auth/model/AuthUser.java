@@ -1,6 +1,6 @@
 package com.timeeconomy.auth.domain.auth.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -24,16 +24,16 @@ public class AuthUser {
 
     // 보안/상태
     private int failedLoginAttempts;
-    private LocalDateTime lockedAt;
-    private LocalDateTime lastLoginAt;
+    private Instant lockedAt;
+    private Instant lastLoginAt;
 
     // 연락처 + 인증 상태
     private String phoneNumber;
     private boolean emailVerified;
     private boolean phoneVerified;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
 
     // ---------------------------------------------------------
     // Constructors
@@ -54,7 +54,7 @@ public class AuthUser {
         this.emailVerified = false;
         this.phoneVerified = false;
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
     }
@@ -68,8 +68,7 @@ public class AuthUser {
     }
 
     // for mapper / JPA 어댑터
-    public AuthUser() {
-    }
+    public AuthUser() {}
 
     // ---------------------------------------------------------
     // Domain behavior
@@ -85,15 +84,14 @@ public class AuthUser {
      * - lockedAt 초기화
      * - lastLoginAt / updatedAt 갱신
      */
-    public void markLoginSuccess(LocalDateTime now) {
+    public void markLoginSuccess(Instant now) {
         this.failedLoginAttempts = 0;
         this.lockedAt = null;
         this.lastLoginAt = now;
         this.updatedAt = now;
     }
 
-    public void updateEmail(String newEmail, LocalDateTime now) {
-        // later you can add more rules (e.g. history, flags, etc.)
+    public void updateEmail(String newEmail, Instant now) {
         this.email = newEmail;
         this.updatedAt = now;
     }
@@ -103,7 +101,7 @@ public class AuthUser {
      * - 실패 카운트 증가
      * - 임계 횟수 초과 시 계정 잠금
      */
-    public void markLoginFailure(LocalDateTime now, int maxAttemptsBeforeLock) {
+    public void markLoginFailure(Instant now, int maxAttemptsBeforeLock) {
         this.failedLoginAttempts++;
         this.updatedAt = now;
 
@@ -113,20 +111,20 @@ public class AuthUser {
         }
     }
 
-    public void activate(LocalDateTime now) {
+    public void activate(Instant now) {
         this.status = AuthStatus.ACTIVE;
         this.failedLoginAttempts = 0;
         this.lockedAt = null;
         this.updatedAt = now;
     }
 
-    public void lock(LocalDateTime now) {
+    public void lock(Instant now) {
         this.status = AuthStatus.LOCKED;
         this.lockedAt = now;
         this.updatedAt = now;
     }
 
-    public void markDeleted(LocalDateTime now) {
+    public void markDeleted(Instant now) {
         this.status = AuthStatus.DELETED;
         this.updatedAt = now;
     }
@@ -134,7 +132,7 @@ public class AuthUser {
     /**
      * 이메일 인증 완료 처리
      */
-    public void markEmailVerified(LocalDateTime now) {
+    public void markEmailVerified(Instant now) {
         this.emailVerified = true;
         this.updatedAt = now;
     }
@@ -142,7 +140,7 @@ public class AuthUser {
     /**
      * 휴대전화 인증 완료 처리
      */
-    public void markPhoneVerified(LocalDateTime now) {
+    public void markPhoneVerified(Instant now) {
         this.phoneVerified = true;
         this.updatedAt = now;
     }
@@ -169,11 +167,11 @@ public class AuthUser {
     public int getFailedLoginAttempts() { return failedLoginAttempts; }
     public void setFailedLoginAttempts(int failedLoginAttempts) { this.failedLoginAttempts = failedLoginAttempts; }
 
-    public LocalDateTime getLockedAt() { return lockedAt; }
-    public void setLockedAt(LocalDateTime lockedAt) { this.lockedAt = lockedAt; }
+    public Instant getLockedAt() { return lockedAt; }
+    public void setLockedAt(Instant lockedAt) { this.lockedAt = lockedAt; }
 
-    public LocalDateTime getLastLoginAt() { return lastLoginAt; }
-    public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+    public Instant getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
 
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
@@ -184,9 +182,9 @@ public class AuthUser {
     public boolean isPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

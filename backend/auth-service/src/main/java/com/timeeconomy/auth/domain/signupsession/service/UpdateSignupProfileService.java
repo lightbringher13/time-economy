@@ -9,7 +9,8 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.port.in.UpdateSignupProfileUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -17,12 +18,13 @@ import java.util.UUID;
 public class UpdateSignupProfileService implements UpdateSignupProfileUseCase {
 
     private final SignupSessionStorePort signupSessionRepositoryPort;
-
+    private final Clock clock;
+    
     @Override
     @Transactional
     public void updateProfile(Command cmd) {
         UUID sessionId = cmd.sessionId();
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         SignupSession session = signupSessionRepositoryPort
                 .findActiveById(sessionId, now)

@@ -23,16 +23,16 @@ public class AuthUserMapper {
         e.setStatus(domain.getStatus() != null ? domain.getStatus().name() : null);
 
         e.setFailedLoginAttempts(domain.getFailedLoginAttempts());
-        e.setLockedAt(domain.getLockedAt());
-        e.setLastLoginAt(domain.getLastLoginAt());
+        e.setLockedAt(domain.getLockedAt());       // ✅ Instant
+        e.setLastLoginAt(domain.getLastLoginAt()); // ✅ Instant
 
-        // ⭐️ NEW FIELDS
         e.setPhoneNumber(domain.getPhoneNumber());
         e.setEmailVerified(domain.isEmailVerified());
         e.setPhoneVerified(domain.isPhoneVerified());
 
-        e.setCreatedAt(domain.getCreatedAt());
-        e.setUpdatedAt(domain.getUpdatedAt());
+        e.setCreatedAt(domain.getCreatedAt()); // ✅ Instant
+        e.setUpdatedAt(domain.getUpdatedAt()); // ✅ Instant
+
         return e;
     }
 
@@ -50,16 +50,16 @@ public class AuthUserMapper {
         d.setStatus(e.getStatus() != null ? AuthStatus.valueOf(e.getStatus()) : null);
 
         d.setFailedLoginAttempts(e.getFailedLoginAttempts());
-        d.setLockedAt(e.getLockedAt());
-        d.setLastLoginAt(e.getLastLoginAt());
+        d.setLockedAt(e.getLockedAt());       // ✅ Instant
+        d.setLastLoginAt(e.getLastLoginAt()); // ✅ Instant
 
-        // ⭐️ NEW FIELDS
         d.setPhoneNumber(e.getPhoneNumber());
         d.setEmailVerified(e.isEmailVerified());
         d.setPhoneVerified(e.isPhoneVerified());
 
-        d.setCreatedAt(e.getCreatedAt());
-        d.setUpdatedAt(e.getUpdatedAt());
+        d.setCreatedAt(e.getCreatedAt()); // ✅ Instant
+        d.setUpdatedAt(e.getUpdatedAt()); // ✅ Instant
+
         return d;
     }
 }

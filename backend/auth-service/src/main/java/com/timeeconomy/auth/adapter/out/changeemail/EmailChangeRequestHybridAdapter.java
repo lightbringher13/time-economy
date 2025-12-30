@@ -10,8 +10,9 @@ import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
+import java.time.Clock;
 
 @Primary
 @Component
@@ -21,9 +22,11 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
     private final EmailChangeRequestJpaAdapter jpa; // concrete injection avoids self-injection
     private final EmailChangeRequestRedisStore redisStore;
 
+    private final Clock clock;
+
     @Override
     public EmailChangeRequest save(EmailChangeRequest request) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         // If id is null, we MUST create DB row first (Long id is DB-generated)
         EmailChangeRequest persisted = (request.getId() == null) ? jpa.save(request) : request;
@@ -42,7 +45,7 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
 
     @Override
     public Optional<EmailChangeRequest> findActiveByUserId(Long userId) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         // 1) Try Redis pointer -> Redis hash
         Optional<EmailChangeRequest> fromRedis = redisStore.findActiveIdByUserId(userId)
@@ -64,7 +67,7 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
 
     @Override
     public Optional<EmailChangeRequest> findByIdAndUserId(Long id, Long userId) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         // Prefer Redis for in-flight requests
         Optional<EmailChangeRequest> fromRedis = redisStore.findById(id, now)
@@ -100,7 +103,7 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
 
     @Override
     public Optional<EmailChangeRequest> findById(Long id) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         // 1) Redis first (fast path for in-flight)
         Optional<EmailChangeRequest> fromRedis = redisStore.findById(id, now);

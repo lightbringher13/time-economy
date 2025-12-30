@@ -1,8 +1,8 @@
 package com.timeeconomy.auth.domain.verification.model;
 
-import java.util.UUID;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 public class VerificationChallenge {
 
@@ -20,24 +20,24 @@ public class VerificationChallenge {
     // hashes only (never store raw code/token)
     private String codeHash;    // OTP
     private String tokenHash;   // link token
-    private LocalDateTime tokenExpiresAt;
+    private Instant tokenExpiresAt;
 
     private VerificationStatus status;
 
-    private final LocalDateTime expiresAt;
-    private LocalDateTime verifiedAt;
-    private LocalDateTime consumedAt;
+    private final Instant expiresAt;
+    private Instant verifiedAt;
+    private Instant consumedAt;
 
     private int attemptCount;
     private int maxAttempts;
     private int sentCount;
-    private LocalDateTime lastSentAt;
+    private Instant lastSentAt;
 
     private String requestIp;
     private String userAgent;
 
-    private final LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private final Instant createdAt;
+    private Instant updatedAt;
 
     public VerificationChallenge(
             String id,
@@ -49,19 +49,19 @@ public class VerificationChallenge {
             String destinationNorm,
             String codeHash,
             String tokenHash,
-            LocalDateTime tokenExpiresAt,
+            Instant tokenExpiresAt,
             VerificationStatus status,
-            LocalDateTime expiresAt,
-            LocalDateTime verifiedAt,
-            LocalDateTime consumedAt,
+            Instant expiresAt,
+            Instant verifiedAt,
+            Instant consumedAt,
             int attemptCount,
             int maxAttempts,
             int sentCount,
-            LocalDateTime lastSentAt,
+            Instant lastSentAt,
             String requestIp,
             String userAgent,
-            LocalDateTime createdAt,
-            LocalDateTime updatedAt
+            Instant createdAt,
+            Instant updatedAt
     ) {
         this.id = id;
         this.purpose = Objects.requireNonNull(purpose, "purpose");
@@ -104,18 +104,20 @@ public class VerificationChallenge {
             String destination,
             String destinationNorm,
             String codeHash,
-            LocalDateTime expiresAt,
+            Instant expiresAt,
             int maxAttempts,
-            LocalDateTime now,
+            Instant now,
             String requestIp,
             String userAgent
     ) {
         if (codeHash == null || codeHash.isBlank()) {
             throw new IllegalArgumentException("codeHash is required for OTP challenge");
         }
+        Objects.requireNonNull(now, "now");
+        Objects.requireNonNull(expiresAt, "expiresAt");
 
         return new VerificationChallenge(
-                null,
+                UUID.randomUUID().toString(),
                 purpose,
                 channel,
                 subjectType,
@@ -148,16 +150,18 @@ public class VerificationChallenge {
             String destination,
             String destinationNorm,
             String tokenHash,
-            LocalDateTime tokenExpiresAt,
-            LocalDateTime expiresAt,
+            Instant tokenExpiresAt,
+            Instant expiresAt,
             int maxAttempts,
-            LocalDateTime now,
+            Instant now,
             String requestIp,
             String userAgent
     ) {
         if (tokenHash == null || tokenHash.isBlank()) {
             throw new IllegalArgumentException("tokenHash is required for LINK challenge");
         }
+        Objects.requireNonNull(now, "now");
+        Objects.requireNonNull(expiresAt, "expiresAt");
 
         return new VerificationChallenge(
                 UUID.randomUUID().toString(),
@@ -193,29 +197,18 @@ public class VerificationChallenge {
         return status == VerificationStatus.PENDING;
     }
 
-    public boolean isExpired(LocalDateTime now) {
+    public boolean isExpired(Instant now) {
         return now.isAfter(expiresAt);
     }
 
-    public void expireIfNeeded(LocalDateTime now) {
+    public void expireIfNeeded(Instant now) {
         if (status == VerificationStatus.PENDING && isExpired(now)) {
             status = VerificationStatus.EXPIRED;
             updatedAt = now;
         }
     }
 
-    public void markExpiredIfNeeded(LocalDateTime now) {
-        if (status != VerificationStatus.PENDING) {
-            return; // 이미 끝난 챌린지는 건드리지 않음
-        }
-
-        if (now.isAfter(expiresAt)) {
-            status = VerificationStatus.EXPIRED;
-            updatedAt = now;
-        }
-    }
-
-    public void cancel(LocalDateTime now) {
+    public void cancel(Instant now) {
         if (status == VerificationStatus.CONSUMED) {
             throw new IllegalStateException("Cannot cancel a CONSUMED challenge");
         }
@@ -223,7 +216,7 @@ public class VerificationChallenge {
         updatedAt = now;
     }
 
-    public void recordAttempt(LocalDateTime now) {
+    public void recordAttempt(Instant now) {
         if (status != VerificationStatus.PENDING) return;
         attemptCount++;
         updatedAt = now;
@@ -233,7 +226,7 @@ public class VerificationChallenge {
         return attemptCount >= maxAttempts;
     }
 
-    public void markVerified(LocalDateTime now) {
+    public void markVerified(Instant now) {
         if (status != VerificationStatus.PENDING) {
             throw new IllegalStateException("Cannot verify when status=" + status);
         }
@@ -252,7 +245,7 @@ public class VerificationChallenge {
         updatedAt = now;
     }
 
-    public void consume(LocalDateTime now) {
+    public void consume(Instant now) {
         if (status != VerificationStatus.VERIFIED) {
             throw new IllegalStateException("Cannot consume when status=" + status);
         }
@@ -261,7 +254,7 @@ public class VerificationChallenge {
         updatedAt = now;
     }
 
-    public void recordSent(LocalDateTime now) {
+    public void recordSent(Instant now) {
         sentCount++;
         lastSentAt = now;
         updatedAt = now;
@@ -284,23 +277,23 @@ public class VerificationChallenge {
 
     public String getCodeHash() { return codeHash; }
     public String getTokenHash() { return tokenHash; }
-    public LocalDateTime getTokenExpiresAt() { return tokenExpiresAt; }
+    public Instant getTokenExpiresAt() { return tokenExpiresAt; }
 
     public VerificationStatus getStatus() { return status; }
 
-    public LocalDateTime getExpiresAt() { return expiresAt; }
-    public LocalDateTime getVerifiedAt() { return verifiedAt; }
-    public LocalDateTime getConsumedAt() { return consumedAt; }
+    public Instant getExpiresAt() { return expiresAt; }
+    public Instant getVerifiedAt() { return verifiedAt; }
+    public Instant getConsumedAt() { return consumedAt; }
 
     public int getAttemptCount() { return attemptCount; }
     public int getMaxAttempts() { return maxAttempts; }
 
     public int getSentCount() { return sentCount; }
-    public LocalDateTime getLastSentAt() { return lastSentAt; }
+    public Instant getLastSentAt() { return lastSentAt; }
 
     public String getRequestIp() { return requestIp; }
     public String getUserAgent() { return userAgent; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }

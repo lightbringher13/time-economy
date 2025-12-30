@@ -32,7 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.Clock;
 
 @Service
 @RequiredArgsConstructor
@@ -41,8 +42,8 @@ public class ChangeEmailService implements
         VerifyNewEmailCodeUseCase,
         VerifySecondFactorUseCase {
 
-    private static final long CHANGE_EMAIL_TTL_MINUTES = 30L;
 
+    private static final Duration CHANGE_EMAIL_TTL_MINUTES = Duration.ofMinutes(30);
     private static final Duration OTP_TTL = Duration.ofMinutes(10);
     private static final int OTP_MAX_ATTEMPTS = 5;
 
@@ -57,6 +58,8 @@ public class ChangeEmailService implements
     private final OutboxEventRepositoryPort outboxEventRepositoryPort;
     private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
 
+    private final Clock clock;
+
     private final VerificationChallengeUseCase verificationChallengeUseCase;
 
     // ============ 1) Request email change ============
@@ -64,7 +67,7 @@ public class ChangeEmailService implements
     @Override
     @Transactional
     public RequestEmailChangeResult requestEmailChange(RequestEmailChangeCommand command) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         Long userId = command.userId();
         String currentPassword = command.currentPassword();
@@ -90,7 +93,7 @@ public class ChangeEmailService implements
                     emailChangeRequestRepositoryPort.save(existing);
                 });
 
-        LocalDateTime expiresAt = now.plusMinutes(CHANGE_EMAIL_TTL_MINUTES);
+        Instant expiresAt = now.plus(CHANGE_EMAIL_TTL_MINUTES);
         EmailChangeRequest request = EmailChangeRequest.create(
                 userId,
                 user.getEmail(),
@@ -123,7 +126,7 @@ public class ChangeEmailService implements
     @Override
     @Transactional
     public VerifyNewEmailCodeResult verifyNewEmailCode(VerifyNewEmailCodeCommand command) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         EmailChangeRequest request = emailChangeRequestRepositoryPort
                 .findByIdAndUserId(command.requestId(), command.userId())
@@ -199,7 +202,7 @@ public class ChangeEmailService implements
     @Override
     @Transactional
     public VerifySecondFactorResult verifySecondFactorAndCommit(VerifySecondFactorCommand command) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
         String lockKey = "change-email:user:" + command.userId();
 
         try (LockHandle lock = distributedLockPort.acquireLock(lockKey)) {

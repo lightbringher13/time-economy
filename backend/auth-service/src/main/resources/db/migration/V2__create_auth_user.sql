@@ -14,18 +14,21 @@ CREATE TABLE auth_user (
     status                   VARCHAR(20) NOT NULL,
 
     failed_login_attempts    INT NOT NULL DEFAULT 0,
-    locked_at                TIMESTAMP NULL,
 
-    last_login_at            TIMESTAMP NULL,
+    -- ✅ Instant-friendly timestamps
+    locked_at                TIMESTAMPTZ NULL,
+    last_login_at            TIMESTAMPTZ NULL,
 
     -- Contact + verification flags
     phone_number             VARCHAR(30) NOT NULL UNIQUE,
     email_verified           BOOLEAN NOT NULL DEFAULT FALSE,
     phone_verified           BOOLEAN NOT NULL DEFAULT FALSE,
 
-    created_at               TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at               TIMESTAMP NOT NULL DEFAULT NOW()
+    -- ✅ Instant-friendly timestamps
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Optional: if you frequently query by status
+-- Useful indexes (optional)
 -- CREATE INDEX idx_auth_user_status ON auth_user(status);
+-- CREATE INDEX idx_auth_user_user_id ON auth_user(user_id);

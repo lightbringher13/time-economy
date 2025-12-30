@@ -8,7 +8,8 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -16,12 +17,13 @@ import java.util.UUID;
 public class GetSignupSessionStatusService implements GetSignupSessionStatusUseCase {
 
     private final SignupSessionStorePort signupSessionRepositoryPort;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
     public Result getStatus(Query query) {
         UUID sessionId = query.sessionId();
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         return signupSessionRepositoryPort.findActiveById(sessionId, now)
                 .map(session -> mapToResult(session))

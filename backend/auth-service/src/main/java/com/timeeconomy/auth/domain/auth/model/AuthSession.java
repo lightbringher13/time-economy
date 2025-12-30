@@ -1,29 +1,31 @@
 package com.timeeconomy.auth.domain.auth.model;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Objects;
 
 /**
  * Domain Model for authentication sessions / refresh tokens.
  * Pure domain: no JPA, no Spring.
+ *
+ * Uses Instant (UTC) to match TIMESTAMPTZ in DB.
  */
 public class AuthSession {
 
     private Long id;                   // DB primary key
     private Long userId;               // Provided by user-service
     private String familyId;           // Identifies the device family
-    private String tokenHash;          // Hashed refresh token
+    private String tokenHash;          // Hashed refresh token (unique)
 
     private String deviceInfo;         // "Mac Chrome", "iPhone Safari"
     private String ipAddress;
     private String userAgent;
 
-    private LocalDateTime createdAt;
-    private LocalDateTime lastUsedAt;
-    private LocalDateTime expiresAt;
+    private Instant createdAt;
+    private Instant lastUsedAt;
+    private Instant expiresAt;
 
     private boolean revoked;
-    private LocalDateTime revokedAt;
+    private Instant revokedAt;
     private boolean reuseDetected;
 
     // ---------------------------------------------------------
@@ -37,23 +39,27 @@ public class AuthSession {
             String deviceInfo,
             String ipAddress,
             String userAgent,
-            LocalDateTime createdAt,
-            LocalDateTime expiresAt
+            Instant createdAt,
+            Instant expiresAt
     ) {
-        this.userId = Objects.requireNonNull(userId);
-        this.familyId = Objects.requireNonNull(familyId);
-        this.tokenHash = Objects.requireNonNull(tokenHash);
+        this.userId = Objects.requireNonNull(userId, "userId");
+        this.familyId = Objects.requireNonNull(familyId, "familyId");
+        this.tokenHash = Objects.requireNonNull(tokenHash, "tokenHash");
+        this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
+
         this.deviceInfo = deviceInfo;
         this.ipAddress = ipAddress;
         this.userAgent = userAgent;
-        this.createdAt = createdAt;
-        this.lastUsedAt = createdAt;
-        this.expiresAt = expiresAt;
+
+        this.lastUsedAt = this.createdAt;
+
         this.revoked = false;
+        this.revokedAt = null;
         this.reuseDetected = false;
     }
 
-    // For JPA or mapping later
+    // For mapping
     public AuthSession() {}
 
     // ---------------------------------------------------------
@@ -61,12 +67,13 @@ public class AuthSession {
     // ---------------------------------------------------------
 
     /** Mark that this session was used (refresh triggered). */
-    public void markUsed(LocalDateTime now) {
-        this.lastUsedAt = now;
+    public void markUsed(Instant now) {
+        this.lastUsedAt = Objects.requireNonNull(now, "now");
     }
 
     /** Revoke this session. */
-    public void revoke(LocalDateTime now) {
+    public void revoke(Instant now) {
+        Objects.requireNonNull(now, "now");
         if (!this.revoked) {
             this.revoked = true;
             this.revokedAt = now;
@@ -79,8 +86,15 @@ public class AuthSession {
     }
 
     /** Check if expired. */
-    public boolean isExpired(LocalDateTime now) {
+    public boolean isExpired(Instant now) {
+        Objects.requireNonNull(now, "now");
         return expiresAt.isBefore(now);
+    }
+
+    // Optional: treat revoked OR reuseDetected as "not usable"
+    public boolean isActive(Instant now) {
+        Objects.requireNonNull(now, "now");
+        return !revoked && !reuseDetected && !isExpired(now);
     }
 
     // ---------------------------------------------------------
@@ -91,31 +105,38 @@ public class AuthSession {
     public void setId(Long id) { this.id = id; }
 
     public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
+
     public String getFamilyId() { return familyId; }
+    public void setFamilyId(String familyId) { this.familyId = familyId; }
+
     public String getTokenHash() { return tokenHash; }
+    public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
 
     public String getDeviceInfo() { return deviceInfo; }
-    public String getIpAddress() { return ipAddress; }
-    public String getUserAgent() { return userAgent; }
+    public void setDeviceInfo(String deviceInfo) { this.deviceInfo = deviceInfo; }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getLastUsedAt() { return lastUsedAt; }
-    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public String getIpAddress() { return ipAddress; }
+    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
+
+    public String getUserAgent() { return userAgent; }
+    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
+
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public Instant getLastUsedAt() { return lastUsedAt; }
+    public void setLastUsedAt(Instant lastUsedAt) { this.lastUsedAt = lastUsedAt; }
+
+    public Instant getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
 
     public boolean isRevoked() { return revoked; }
-    public LocalDateTime getRevokedAt() { return revokedAt; }
-    public boolean isReuseDetected() { return reuseDetected; }
-
-    public void setUserId(Long userId) { this.userId = userId; }
-    public void setFamilyId(String familyId) { this.familyId = familyId; }
-    public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
-    public void setDeviceInfo(String deviceInfo) { this.deviceInfo = deviceInfo; }
-    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
-    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-    public void setLastUsedAt(LocalDateTime lastUsedAt) { this.lastUsedAt = lastUsedAt; }
-    public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
     public void setRevoked(boolean revoked) { this.revoked = revoked; }
-    public void setRevokedAt(LocalDateTime revokedAt) { this.revokedAt = revokedAt; }
+
+    public Instant getRevokedAt() { return revokedAt; }
+    public void setRevokedAt(Instant revokedAt) { this.revokedAt = revokedAt; }
+
+    public boolean isReuseDetected() { return reuseDetected; }
     public void setReuseDetected(boolean reuseDetected) { this.reuseDetected = reuseDetected; }
 }

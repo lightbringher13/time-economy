@@ -17,7 +17,7 @@ import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUse
 
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Slf4j
 @Service
@@ -34,7 +34,7 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
     @Override
     @Transactional
     public Result send(Command command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
 
         var sessionOpt = signupSessionStorePort.findActiveById(command.sessionId(), now);
         if (sessionOpt.isEmpty()) {

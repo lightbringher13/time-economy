@@ -5,7 +5,6 @@ import com.timeeconomy.auth.adapter.out.kafka.outbox.mapper.JacksonPayloadReader
 import com.timeeconomy.auth.domain.auth.model.payload.AuthUserRegisteredPayload;
 import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
 import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
-import com.timeeconomy.auth.adapter.out.kafka.outbox.mapper.AvroTimeUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.avro.specific.SpecificRecord;
 import org.springframework.stereotype.Component;
@@ -30,7 +29,7 @@ public class AuthUserRegisteredV1Mapper implements EventTypeAvroMapper {
                 // ⚠️ recommended: eventId is uuid-string logicalType → String
                 .setEventId(UUID.fromString(event.getId().toString()))
                 // timestamp-millis → long
-                .setOccurredAtEpochMillis(AvroTimeUtil.toInstantUtc(event.getOccurredAt()))
+                .setOccurredAtEpochMillis(event.getOccurredAt())
                 .setUserId(p.userId())
                 .setEmail(p.email())
                 .setPhoneNumber(p.phoneNumber())

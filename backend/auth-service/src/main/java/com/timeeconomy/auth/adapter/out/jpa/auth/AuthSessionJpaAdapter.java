@@ -10,13 +10,13 @@ import com.timeeconomy.auth.adapter.out.jpa.auth.repository.AuthSessionJpaReposi
 import com.timeeconomy.auth.domain.auth.model.AuthSession;
 import com.timeeconomy.auth.domain.auth.port.out.AuthSessionRepositoryPort;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
+public class AuthSessionJpaAdapter implements AuthSessionRepositoryPort {
 
     private final AuthSessionJpaRepository jpaRepository;
     private final AuthSessionMapper mapper;
@@ -28,23 +28,20 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
         return mapper.toDomain(saved);
     }
 
-    // ✅ 새로 추가한 메서드 구현
     @Override
-    public Optional<AuthSession> findLatestActiveByFamily(String familyId, LocalDateTime now) {
+    public Optional<AuthSession> findLatestActiveByFamily(String familyId, Instant now) {
         return jpaRepository.findLatestActiveByFamily(familyId, now)
                 .map(mapper::toDomain);
     }
 
     @Override
     public Optional<AuthSession> findById(Long id) {
-        return jpaRepository.findById(id)
-                .map(mapper::toDomain);
+        return jpaRepository.findById(id).map(mapper::toDomain);
     }
 
     @Override
     public Optional<AuthSession> findByTokenHash(String tokenHash) {
-        return jpaRepository.findByTokenHash(tokenHash)
-                .map(mapper::toDomain);
+        return jpaRepository.findByTokenHash(tokenHash).map(mapper::toDomain);
     }
 
     @Override
@@ -62,17 +59,19 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
     }
 
     @Override
-    public void revokeById(Long id, LocalDateTime now) {
+    @Transactional
+    public void revokeById(Long id, Instant now) {
         jpaRepository.findById(id).ifPresent(entity -> {
             entity.setRevoked(true);
             entity.setRevokedAt(now);
+            // save() 없어도 flush 때 반영되지만, 명확하게 두고 싶으면 유지 가능
             jpaRepository.save(entity);
         });
     }
 
     @Override
     @Transactional
-    public void revokeAllByUserId(Long userId, LocalDateTime now) {
+    public void revokeAllByUserId(Long userId, Instant now) {
         List<AuthSessionEntity> sessions = jpaRepository.findByUserIdAndRevokedFalse(userId);
 
         if (sessions.isEmpty()) {
@@ -89,7 +88,7 @@ public class AuthSessionJpadapter implements AuthSessionRepositoryPort {
 
     @Override
     @Transactional
-    public void revokeFamily(String familyId, LocalDateTime now) {
+    public void revokeFamily(String familyId, Instant now) {
         jpaRepository.revokeFamily(familyId, now);
     }
 }

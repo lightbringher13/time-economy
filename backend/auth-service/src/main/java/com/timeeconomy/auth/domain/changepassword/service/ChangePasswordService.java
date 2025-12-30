@@ -12,7 +12,8 @@ import com.timeeconomy.auth.domain.exception.AuthUserNotFoundException;
 import com.timeeconomy.auth.domain.exception.InvalidCurrentPasswordException;
 import com.timeeconomy.auth.domain.exception.WeakPasswordException;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.Clock;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +21,7 @@ public class ChangePasswordService implements ChangePasswordUseCase {
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final PasswordEncoderPort passwordEncoderPort;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -44,7 +46,7 @@ public class ChangePasswordService implements ChangePasswordUseCase {
         String newHash = passwordEncoderPort.encode(newPassword);
 
         // 5) 유저 도메인 업데이트
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
         user.setPasswordHash(newHash);
         user.setFailedLoginAttempts(0);
         user.setLockedAt(null);

@@ -19,10 +19,11 @@ CREATE TABLE email_change_requests (
     -- EXPIRED
     status VARCHAR(30) NOT NULL,
 
-    expires_at TIMESTAMP NOT NULL,
+    -- ✅ Instant-friendly timestamps
+    expires_at TIMESTAMPTZ NOT NULL,
 
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- Optimistic locking
     version BIGINT NOT NULL DEFAULT 0

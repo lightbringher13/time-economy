@@ -15,7 +15,7 @@ import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
 import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Slf4j
@@ -30,7 +30,7 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
     @Override
     @Transactional
     public Result verify(Command command) {
-        LocalDateTime now = LocalDateTime.now(clock);
+        Instant now = Instant.now(clock);
         UUID sessionId = command.sessionId();
 
         var sessionOpt = signupSessionStorePort.findActiveById(sessionId, now);

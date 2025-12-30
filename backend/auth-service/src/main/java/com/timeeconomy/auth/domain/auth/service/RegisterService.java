@@ -19,7 +19,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+
+
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +38,8 @@ public class RegisterService implements RegisterUseCase {
     // ✅ OUTBOX PAYLOAD SERIALIZER (port)
     private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
 
+    private final Clock clock;
+
     @Override
     @Transactional
     public RegisterResult register(RegisterCommand command) {
@@ -42,7 +47,7 @@ public class RegisterService implements RegisterUseCase {
             throw new SignupSessionNotFoundException("Missing signup session");
         }
 
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
 
         SignupSession session = signupSessionRepositoryPort
                 .findActiveById(command.signupSessionId(), now)

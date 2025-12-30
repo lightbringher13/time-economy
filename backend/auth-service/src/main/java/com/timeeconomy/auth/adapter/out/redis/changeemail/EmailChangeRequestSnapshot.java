@@ -6,18 +6,18 @@ import lombok.Builder;
 public record EmailChangeRequestSnapshot(
         int schemaVersion,
 
-        String id,
-        String userId,
+        Long id,
+        Long userId,
 
         String oldEmail,
         String newEmail,
 
-        String secondFactorType,
-        String status,
+        String secondFactorType, // enum name
+        String status,           // enum name
 
-        String expiresAt,
-        String createdAt,
-        String updatedAt,
+        Long expiresAtEpochMillis,
+        Long createdAtEpochMillis,
+        Long updatedAtEpochMillis,
 
-        String version
+        Long version
 ) {}

@@ -1,6 +1,5 @@
 package com.timeeconomy.auth.adapter.out.kafka.outbox.mapper.events;
 
-import com.timeeconomy.auth.adapter.out.kafka.outbox.mapper.AvroTimeUtil;
 import com.timeeconomy.auth.adapter.out.kafka.outbox.mapper.EventTypeAvroMapper;
 import com.timeeconomy.auth.adapter.out.kafka.outbox.mapper.JacksonPayloadReader;
 import com.timeeconomy.auth.domain.changeemail.model.payload.EmailChangeCommittedPayload;
@@ -29,7 +28,7 @@ public class EmailChangeCommittedV1Mapper implements EventTypeAvroMapper {
 
         return EmailChangeCommittedV1.newBuilder()
                 .setEventId(UUID.fromString(event.getId().toString()))
-                .setOccurredAtEpochMillis(AvroTimeUtil.toInstantUtc(event.getOccurredAt()))
+                .setOccurredAtEpochMillis(event.getOccurredAt())
                 .setUserId(p.userId())
                 .setOldEmail(p.oldEmail())
                 .setNewEmail(p.newEmail())
