@@ -17,10 +17,6 @@ public class AuthUserEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 외부 도메인 유저 ID (optional)
-    @Column(name = "user_id", unique = true)
-    private Long userId;
-
     @Column(name = "email", nullable = false, unique = true, length = 255)
     private String email;
 
@@ -63,9 +59,6 @@ public class AuthUserEntity {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }

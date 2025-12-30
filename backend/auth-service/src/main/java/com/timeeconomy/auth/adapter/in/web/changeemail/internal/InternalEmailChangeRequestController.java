@@ -1,11 +1,12 @@
-package com.timeeconomy.auth.adapter.in.web.changeemail;
+package com.timeeconomy.auth.adapter.in.web.changeemail.internal;
 
-import com.timeeconomy.auth.domain.changeemail.port.in.GetEmailChangeRequestInternalUseCase;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import com.timeeconomy.auth.domain.changeemail.port.in.internal.GetEmailChangeRequestInternalUseCase;
 
 @RestController
 @RequiredArgsConstructor

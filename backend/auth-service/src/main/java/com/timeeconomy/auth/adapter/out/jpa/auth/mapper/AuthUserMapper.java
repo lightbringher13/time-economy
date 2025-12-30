@@ -17,7 +17,6 @@ public class AuthUserMapper {
 
         AuthUserEntity e = new AuthUserEntity();
         e.setId(domain.getId());
-        e.setUserId(domain.getUserId());
         e.setEmail(domain.getEmail());
         e.setPasswordHash(domain.getPasswordHash());
         e.setStatus(domain.getStatus() != null ? domain.getStatus().name() : null);
@@ -44,7 +43,6 @@ public class AuthUserMapper {
 
         AuthUser d = new AuthUser();
         d.setId(e.getId());
-        d.setUserId(e.getUserId());
         d.setEmail(e.getEmail());
         d.setPasswordHash(e.getPasswordHash());
         d.setStatus(e.getStatus() != null ? AuthStatus.valueOf(e.getStatus()) : null);

@@ -4,6 +4,7 @@ package com.timeeconomy.notification.adapter.out.brevo;
 import com.timeeconomy.notification.application.notification.port.out.EmailSenderPort;
 import com.timeeconomy.notification.application.notification.exception.EmailSendFailedException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class BrevoEmailSenderAdapter implements EmailSenderPort {
 
+    @Qualifier("brevoRestClient")
     private final RestClient brevoRestClient;
 
     @Value("${brevo.api-key}")

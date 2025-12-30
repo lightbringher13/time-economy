@@ -1,8 +1,10 @@
 package com.timeeconomy.notification.application.integration.service;
 
-import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
+import com.timeeconomy.contracts.auth.v2.AuthUserRegisteredV2;
 import com.timeeconomy.notification.adapter.in.kafka.dto.ConsumerContext;
 import com.timeeconomy.notification.application.integration.port.in.HandleAuthUserRegisteredUseCase;
+import com.timeeconomy.notification.application.integration.port.out.SignupSessionInternalClientPort;
+import com.timeeconomy.notification.adapter.out.authclient.dto.CompletedSignupSessionResponse;
 import com.timeeconomy.notification.application.notification.port.out.EmailSenderPort;
 import com.timeeconomy.notification.domain.inbox.model.ProcessedEvent;
 import com.timeeconomy.notification.domain.inbox.port.out.ProcessedEventRepositoryPort;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Clock;
 
 @Slf4j
 @Service
@@ -29,19 +32,34 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
     private final ProcessedEventRepositoryPort processedEventRepositoryPort;
     private final NotificationDeliveryRepositoryPort notificationDeliveryRepositoryPort;
     private final EmailSenderPort emailSenderPort;
+    private final SignupSessionInternalClientPort signupSessionInternalClientPort;
+
+    private final Clock clock;
 
     @Override
     @Transactional
-    public void handle(AuthUserRegisteredV1 event, ConsumerContext ctx) {
-        final Instant now = Instant.now();
+    public void handle(AuthUserRegisteredV2 event, ConsumerContext ctx) {
+        final Instant now = Instant.now(clock);
 
         final UUID eventId = event.getEventId();
-        final String eventType = ctx.eventType();     // from headers
+        final String eventType = ctx.eventType(); // from headers
         final long userId = event.getUserId();
 
-        final String recipientEmail = toStr(event.getEmail());
-        final String toName = toStr(event.getName()); // nullable in schema
+        final UUID signupSessionId = event.getSignupSessionId(); 
+
         final Instant occurredAt = event.getOccurredAtEpochMillis();
+
+        CompletedSignupSessionResponse session =
+                signupSessionInternalClientPort.getCompletedSession(signupSessionId);
+
+        // defensive: if internal endpoint accidentally returns non-completed
+        if (!"COMPLETED".equals(session.state())) {
+            throw new IllegalStateException("SignupSession not COMPLETED. sessionId=" + signupSessionId +
+                    " state=" + session.state());
+        }
+
+        final String recipientEmail = session.email();
+        final String toName = session.name(); // nullable ok
 
         // 1) idempotency gate
         ProcessedEvent processed = ProcessedEvent.newProcessed(
@@ -60,7 +78,7 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
             return;
         }
 
-        // 2) send email (Brevo via port)
+        // 2) send email
         try {
             var cmd = new EmailSenderPort.EmailSendCommand(
                     TEMPLATE_KEY,
@@ -70,6 +88,9 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
                             "userId", userId,
                             "email", recipientEmail,
                             "name", toName,
+                            "phoneNumber", session.phoneNumber(),
+                            "gender", session.gender(),
+                            "birthDate", session.birthDate(), // string
                             "occurredAt", String.valueOf(occurredAt)
                     )
             );
@@ -94,7 +115,6 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
                     userId, recipientEmail, res.provider(), res.providerMsgId());
 
         } catch (Exception ex) {
-            // persist delivery as FAILED
             notificationDeliveryRepositoryPort.save(
                     NotificationDelivery.failed(
                             eventId,
@@ -108,13 +128,9 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
                     )
             );
 
-            // throw -> listener does NOT ack -> Kafka retry
+            // throw -> listener does NOT ack -> Kafka retry (if configured)
             throw ex;
         }
-    }
-
-    private static String toStr(Object v) {
-        return v == null ? null : v.toString();
     }
 
     private static String safeMsg(Exception e) {

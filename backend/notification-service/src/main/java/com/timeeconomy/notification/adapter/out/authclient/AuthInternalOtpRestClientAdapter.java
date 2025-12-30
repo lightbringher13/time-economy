@@ -1,9 +1,9 @@
-package com.timeeconomy.notification.adapter.out.authinternal;
+package com.timeeconomy.notification.adapter.out.authclient;
 
-import com.timeeconomy.notification.adapter.out.authinternal.dto.OtpOnceResponse;
+import com.timeeconomy.notification.adapter.out.authclient.dto.OtpOnceResponse;
 import com.timeeconomy.notification.application.integration.port.out.AuthInternalOtpClientPort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -17,22 +17,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthInternalOtpRestClientAdapter implements AuthInternalOtpClientPort {
 
-    private final RestClient restClient;
-
-    @Value("${auth.internal.base-url}")
-    private String baseUrl;
-
-    @Value("${auth.internal.token}")
-    private String internalToken;
+    @Qualifier("authInternalRestClient")
+    private final RestClient authInternalRestClient;
 
     @Override
     public Optional<String> getOtpOnce(UUID verificationChallengeId) {
-        String url = baseUrl + "/internal/verification/challenges/{id}/otp";
-
         try {
-            OtpOnceResponse res = restClient.get()
-                    .uri(url, verificationChallengeId.toString())
-                    .header("X-Internal-Token", internalToken)
+            OtpOnceResponse res = authInternalRestClient.get()
+                    .uri("/internal/verification/challenges/{id}/otp", verificationChallengeId)
                     .retrieve()
                     .body(OtpOnceResponse.class);
 
@@ -42,15 +34,9 @@ public class AuthInternalOtpRestClientAdapter implements AuthInternalOtpClientPo
             return Optional.of(res.otp());
 
         } catch (HttpClientErrorException e) {
-            // 404 = already consumed/expired => non-retryable for your handler
-            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
-                return Optional.empty();
-            }
-            // 401/403 and others -> retryable
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) return Optional.empty();
             throw e;
-
         } catch (ResourceAccessException e) {
-            // timeouts / connection issues -> retryable
             throw e;
         }
     }

@@ -93,19 +93,13 @@ public class RegisterService implements RegisterUseCase {
         // ✅ OUTBOX EVENT APPEND (for CDC / Debezium)
         String payloadJson = outboxPayloadSerializerPort.serialize(new AuthUserRegisteredPayload(
                 saved.getId(),
-                saved.getEmail(),
-                saved.getPhoneNumber(),
-                command.name(),
-                command.gender(),
-                command.birthDate(),
-                command.signupSessionId(),
-                now
+                command.signupSessionId()
         ));
 
         OutboxEvent event = OutboxEvent.newPending(
                 "auth_user",               // aggregateType
                 saved.getId().toString(),   // aggregateId
-                "AuthUserRegistered.v1",    // eventType
+                "AuthUserRegistered.v2",    // eventType
                 payloadJson,
                 now
         );

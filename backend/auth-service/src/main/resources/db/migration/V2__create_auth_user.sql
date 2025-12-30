@@ -1,9 +1,6 @@
 CREATE TABLE auth_user (
     id                      BIGSERIAL PRIMARY KEY,
-
-    -- Link to user-service (can be NULL if auth-user created before user-service sync)
-    user_id                  BIGINT UNIQUE,
-
+    
     -- Login identifier
     email                    VARCHAR(255) NOT NULL UNIQUE,
 

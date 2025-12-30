@@ -1,7 +1,7 @@
 package com.timeeconomy.user.application.userprofile.port.in;
 
-import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
+import com.timeeconomy.contracts.auth.v2.AuthUserRegisteredV2;
 
 public interface HandleAuthUserRegisteredUseCase {
-    void handle(AuthUserRegisteredV1 event);
+    void handle(AuthUserRegisteredV2 event);
 }

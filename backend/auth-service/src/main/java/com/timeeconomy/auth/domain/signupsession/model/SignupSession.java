@@ -41,7 +41,7 @@ public class SignupSession {
             String email,
             Instant now,
             Instant expiresAt
-    ) {
+    ) {         
         Objects.requireNonNull(now, "now must not be null");
         Objects.requireNonNull(expiresAt, "expiresAt must not be null");
 

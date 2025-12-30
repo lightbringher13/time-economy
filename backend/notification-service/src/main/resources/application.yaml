@@ -29,7 +29,7 @@ spring:
 # Topics (so you don't hardcode in Java)
 topics:
   auth:
-    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v1}
+    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v2}
     email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:auth.email.change.committed.v1}
     verification-otp-delivery-requested: ${TOPIC_AUTH_VERIFICATION_OTP_DELIVERY_REQUESTED:auth.verification.otp.delivery.requested.v1}
 

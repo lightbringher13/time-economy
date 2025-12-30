@@ -1,4 +1,4 @@
-package com.timeeconomy.notification.adapter.out.authinternal.dto;
+package com.timeeconomy.notification.adapter.out.authclient.dto;
 
 public record OtpOnceResponse(
         String verificationChallengeId,

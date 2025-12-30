@@ -1,6 +1,6 @@
-package com.timeeconomy.auth.domain.changeemail.service;
+package com.timeeconomy.auth.domain.changeemail.service.internal;
 
-import com.timeeconomy.auth.domain.changeemail.port.in.GetEmailChangeRequestInternalUseCase;
+import com.timeeconomy.auth.domain.changeemail.port.in.internal.GetEmailChangeRequestInternalUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
 import com.timeeconomy.auth.domain.exception.EmailChangeRequestNotFoundException;
 import lombok.RequiredArgsConstructor;

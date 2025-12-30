@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.domain.changeemail.port.in;
+package com.timeeconomy.auth.domain.changeemail.port.in.internal;
 
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 

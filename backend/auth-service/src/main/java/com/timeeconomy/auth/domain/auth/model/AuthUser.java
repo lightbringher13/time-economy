@@ -14,9 +14,6 @@ public class AuthUser {
     // auth_user.id (auth 서비스 내부 PK)
     private Long id;
 
-    // auth_user.user_id (외부 도메인 유저 ID, 아직 안 써도 됨)
-    private Long userId;
-
     // 로그인 계정 정보
     private String email;
     private String passwordHash;
@@ -151,9 +148,6 @@ public class AuthUser {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
-
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }

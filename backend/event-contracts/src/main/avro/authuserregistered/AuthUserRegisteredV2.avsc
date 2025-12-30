@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "AuthUserRegisteredV2",
+  "namespace": "com.timeeconomy.contracts.auth.v2",
+  "fields": [
+    { "name": "eventId", "type": { "type": "string", "logicalType": "uuid" } },
+    { "name": "occurredAtEpochMillis", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+
+    { "name": "userId", "type": "long" },
+    { "name": "signupSessionId", "type": { "type": "string", "logicalType": "uuid" } }
+  ]
+}

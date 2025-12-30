@@ -41,10 +41,15 @@ spring:
     listener:
       ack-mode: manual
 
+auth:
+  internal:
+    base-url: http://auth-service:8080   # docker compose service name + internal port
+    token: ${APP_INTERNAL_TOKEN}         # or separate NOTI_INTERNAL_TOKEN
+
 # Topics (so you don't hardcode in Java)
 topics:
   auth:
-    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v1}
+    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v2}
     email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:auth.email.change.committed.v1}
 
 jwt:
