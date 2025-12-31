@@ -12,7 +12,9 @@ import com.timeeconomy.auth.adapter.in.web.verification.dto.request.VerifyOtpReq
 import com.timeeconomy.auth.adapter.in.web.verification.dto.response.CreateOtpResponse;
 import com.timeeconomy.auth.adapter.in.web.verification.dto.response.VerifyOtpResponse;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.ConsumeVerificationUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
 
 import java.time.Duration;
 
@@ -21,7 +23,9 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class ProtectedVerificationController {
 
-    private final VerificationChallengeUseCase verificationChallengeUseCase;
+    private final CreateOtpUseCase createOtpUseCase;
+    private final VerifyOtpUseCase verifyOtpUseCase;
+    private final ConsumeVerificationUseCase consumeVerificationUseCase;
 
     private static final Duration DEFAULT_TTL = Duration.ofMinutes(10);
     private static final int DEFAULT_MAX_ATTEMPTS = 5;
@@ -36,7 +40,7 @@ public class ProtectedVerificationController {
             @Valid @RequestBody CreateOtpRequest request,
             HttpServletRequest http
     ) {
-        var cmd = new VerificationChallengeUseCase.CreateOtpCommand(
+        var cmd = new CreateOtpUseCase.CreateOtpCommand(
                 VerificationSubjectType.USER,
                 userId.toString(),
                 request.purpose(),
@@ -48,7 +52,7 @@ public class ProtectedVerificationController {
                 userAgent(http)
         );
 
-        var result = verificationChallengeUseCase.createOtp(cmd);
+        var result = createOtpUseCase.createOtp(cmd);
 
         return ResponseEntity.ok(new CreateOtpResponse(
                 result.challengeId(),
@@ -63,7 +67,7 @@ public class ProtectedVerificationController {
             @RequestHeader("X-User-Id") Long userId,
             @Valid @RequestBody VerifyOtpRequest request
     ) {
-        var cmd = new VerificationChallengeUseCase.VerifyOtpCommand(
+        var cmd = new VerifyOtpUseCase.VerifyOtpCommand(
                 VerificationSubjectType.USER,
                 userId.toString(),
                 request.purpose(),
@@ -72,13 +76,13 @@ public class ProtectedVerificationController {
                 request.code()
         );
 
-        var result = verificationChallengeUseCase.verifyOtp(cmd);
+        var result = verifyOtpUseCase.verifyOtp(cmd);
         return ResponseEntity.ok(new VerifyOtpResponse(result.success()));
     }
 
     @PostMapping("/consume")
     public ResponseEntity<Void> consume(@RequestBody ConsumeRequest req) {
-        verificationChallengeUseCase.consume(new VerificationChallengeUseCase.ConsumeCommand(req.challengeId()));
+        consumeVerificationUseCase.consume(new ConsumeVerificationUseCase.ConsumeCommand(req.challengeId()));
         return ResponseEntity.ok().build();
     }
 

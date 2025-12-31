@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.passwordreset.port.in.RequestPasswordResetUseCase;
 import com.timeeconomy.auth.domain.verification.model.*;
-import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.CreateLinkUseCase;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -21,7 +21,7 @@ public class RequestPasswordResetService implements RequestPasswordResetUseCase 
     private static final Duration RESET_TTL = Duration.ofHours(1);
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
-    private final VerificationChallengeUseCase verificationChallengeUseCase;
+    private final CreateLinkUseCase createLinkUseCase;
 
     @Value("${app.frontend.base-url:http://localhost:5173/reset-password}")
     private String linkBaseUrl; // e.g. https://fe.timeeconomy.com/reset-password
@@ -39,8 +39,8 @@ public class RequestPasswordResetService implements RequestPasswordResetUseCase 
 
         // subjectType/subjectId: for password reset, make it simple + stable
         // subjectType = EMAIL, subjectId = normalized email
-        VerificationChallengeUseCase.CreateLinkCommand cmd =
-                new VerificationChallengeUseCase.CreateLinkCommand(
+        CreateLinkUseCase.CreateLinkCommand cmd =
+                new CreateLinkUseCase.CreateLinkCommand(
                         VerificationSubjectType.EMAIL,
                         email,
                         VerificationPurpose.PASSWORD_RESET,
@@ -53,7 +53,7 @@ public class RequestPasswordResetService implements RequestPasswordResetUseCase 
                         null
                 );
 
-        verificationChallengeUseCase.createLink(cmd);
+        createLinkUseCase.createLink(cmd);
         return new Result(true);
     }
 }

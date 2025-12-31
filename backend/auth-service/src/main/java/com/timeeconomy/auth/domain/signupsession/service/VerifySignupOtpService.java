@@ -12,7 +12,7 @@ import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -24,7 +24,7 @@ import java.util.UUID;
 public class VerifySignupOtpService implements VerifySignupOtpUseCase {
 
     private final SignupSessionStorePort signupSessionStorePort;
-    private final VerificationChallengeUseCase verificationChallengeUseCase;
+    private final VerifyOtpUseCase verifyOtpUseCase;
     private final Clock clock;
 
     @Override
@@ -63,8 +63,8 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
             }
         }
 
-        var verify = verificationChallengeUseCase.verifyOtp(
-                new VerificationChallengeUseCase.VerifyOtpCommand(
+        var verify = verifyOtpUseCase.verifyOtp(
+                new VerifyOtpUseCase.VerifyOtpCommand(
                         VerificationSubjectType.SIGNUP_SESSION,
                         session.getId().toString(),
                         purpose,

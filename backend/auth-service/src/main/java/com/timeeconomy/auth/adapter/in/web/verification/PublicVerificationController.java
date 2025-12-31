@@ -15,7 +15,11 @@ import com.timeeconomy.auth.adapter.in.web.verification.dto.response.CreateOtpRe
 import com.timeeconomy.auth.adapter.in.web.verification.dto.response.VerifyLinkResponse;
 import com.timeeconomy.auth.adapter.in.web.verification.dto.response.VerifyOtpResponse;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.CreateLinkUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.VerifyLinkUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
+
 
 import java.time.Duration;
 
@@ -24,7 +28,10 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class PublicVerificationController {
 
-    private final VerificationChallengeUseCase verificationChallengeUseCase;
+    private final CreateLinkUseCase createLinkUseCase;
+    private final VerifyLinkUseCase verifyLinkUseCase;
+    private final CreateOtpUseCase createOtpUseCase;
+    private final VerifyOtpUseCase verifyOtpUseCase;
 
     // Policy defaults (server decides)
     private static final Duration DEFAULT_OTP_TTL = Duration.ofMinutes(10);
@@ -42,7 +49,7 @@ public class PublicVerificationController {
             @Valid @RequestBody CreateOtpRequest request,
             HttpServletRequest http
     ) {
-        var cmd = new VerificationChallengeUseCase.CreateOtpCommand(
+        var cmd = new CreateOtpUseCase.CreateOtpCommand(
                 VerificationSubjectType.EMAIL,
                 request.destination(), // subjectId = email itself
                 request.purpose(),
@@ -54,7 +61,7 @@ public class PublicVerificationController {
                 userAgent(http)
         );
 
-        var result = verificationChallengeUseCase.createOtp(cmd);
+        var result = createOtpUseCase.createOtp(cmd);
 
         return ResponseEntity.ok(new CreateOtpResponse(
                 result.challengeId(),
@@ -68,7 +75,7 @@ public class PublicVerificationController {
     public ResponseEntity<VerifyOtpResponse> verifyOtp(
             @Valid @RequestBody VerifyOtpRequest request
     ) {
-        var cmd = new VerificationChallengeUseCase.VerifyOtpCommand(
+        var cmd = new VerifyOtpUseCase.VerifyOtpCommand(
                 VerificationSubjectType.EMAIL,
                 request.destination(),
                 request.purpose(),
@@ -77,7 +84,7 @@ public class PublicVerificationController {
                 request.code()
         );
 
-        var result = verificationChallengeUseCase.verifyOtp(cmd);
+        var result = verifyOtpUseCase.verifyOtp(cmd);
 
         return ResponseEntity.ok(new VerifyOtpResponse(result.success()));
     }
@@ -95,7 +102,7 @@ public class PublicVerificationController {
             @Valid @RequestBody CreateLinkRequest request,
             HttpServletRequest http
     ) {
-        var cmd = new VerificationChallengeUseCase.CreateLinkCommand(
+        var cmd = new CreateLinkUseCase.CreateLinkCommand(
                 VerificationSubjectType.EMAIL,
                 request.destination(), // subjectId = email itself
                 request.purpose(),
@@ -108,7 +115,7 @@ public class PublicVerificationController {
                 userAgent(http)
         );
 
-        var result = verificationChallengeUseCase.createLink(cmd);
+        var result = createLinkUseCase.createLink(cmd);
 
         return ResponseEntity.ok(new CreateLinkResponse(
                 result.challengeId(),
@@ -126,13 +133,13 @@ public class PublicVerificationController {
     public ResponseEntity<VerifyLinkResponse> verifyLink(
             @Valid @RequestBody VerifyLinkRequest request
     ) {
-        var cmd = new VerificationChallengeUseCase.VerifyLinkCommand(
+        var cmd = new VerifyLinkUseCase.VerifyLinkCommand(
                 request.purpose(),
                 request.channel(),
                 request.token()
         );
 
-        var result = verificationChallengeUseCase.verifyLink(cmd);
+        var result = verifyLinkUseCase.verifyLink(cmd);
 
         return ResponseEntity.ok(new VerifyLinkResponse(
                 result.success(),

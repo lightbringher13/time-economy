@@ -13,7 +13,7 @@ import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.VerificationChallengeUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -28,7 +28,7 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
     private static final int OTP_MAX_ATTEMPTS = 5;
 
     private final SignupSessionStorePort signupSessionStorePort;
-    private final VerificationChallengeUseCase verificationChallengeUseCase;
+    private final CreateOtpUseCase createOtpUseCase;
     private final Clock clock;
 
     @Override
@@ -65,7 +65,7 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
         log.info("[SignupSendOtp] sessionId={} target={} purpose={} channel={} destMasked={}",
                 session.getId(), command.target(), purpose, channel, mask(channel, destination));
 
-        var created = verificationChallengeUseCase.createOtp(new VerificationChallengeUseCase.CreateOtpCommand(
+        var created = createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
                 VerificationSubjectType.SIGNUP_SESSION,
                 session.getId().toString(),   // ✅ subjectId = sessionId (string)
                 purpose,
