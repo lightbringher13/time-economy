@@ -38,7 +38,7 @@ public class HandleEmailChangeCommittedService implements HandleEmailChangeCommi
     public void handle(EmailChangeCommittedV1 event, ConsumerContext ctx) {
         final Instant now = Instant.now();
 
-        final UUID eventId = event.getEventId();
+        final UUID eventId = UUID.fromString(event.getEventId());
         final String eventType = ctx.eventType(); // from header
 
         // 1) idempotency gate
@@ -62,7 +62,7 @@ public class HandleEmailChangeCommittedService implements HandleEmailChangeCommi
         // policy: notify BOTH old + new (recommended for security). If you want only new, delete the old block.
         final String oldEmail = toStr(event.getOldEmail());
         final String newEmail = toStr(event.getNewEmail());
-        final Long userId = event.getUserId(); // long in schema? adjust if needed
+        final Long userId = Long.parseLong(event.getUserId()); // long in schema? adjust if needed
 
         // optional occurredAt (depends on your schema getter type)
         final Object occurredAt = event.getOccurredAtEpochMillis();

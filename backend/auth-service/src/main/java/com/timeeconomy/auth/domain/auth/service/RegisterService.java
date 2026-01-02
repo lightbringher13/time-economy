@@ -99,7 +99,7 @@ public class RegisterService implements RegisterUseCase {
         OutboxEvent event = OutboxEvent.newPending(
                 "auth_user",               // aggregateType
                 saved.getId().toString(),   // aggregateId
-                "AuthUserRegistered.v2",    // eventType
+                "AuthUserRegistered.v1",    // eventType
                 payloadJson,
                 now
         );

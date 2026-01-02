@@ -9,10 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.avro.specific.SpecificRecord;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.UUID;
-
 @Component
 @RequiredArgsConstructor
 public class VerificationOtpDeliveryRequestedV1Mapper implements EventTypeAvroMapper {
@@ -29,12 +25,10 @@ public class VerificationOtpDeliveryRequestedV1Mapper implements EventTypeAvroMa
         VerificationOtpDeliveryRequestedPayload p =
                 reader.read(event.getPayload(), VerificationOtpDeliveryRequestedPayload.class);
 
-        Instant occurred = event.getOccurredAt().atZone(ZoneOffset.UTC).toInstant();
-
         return VerificationOtpDeliveryRequestedV1.newBuilder()
-                .setEventId(UUID.fromString(event.getId().toString()))
-                .setOccurredAtEpochMillis(occurred)                 // ✅ Instant in your codegen
-                .setVerificationChallengeId(p.verificationChallengeId()) // ✅ UUID
+                .setEventId(event.getId().toString())
+                .setOccurredAtEpochMillis(event.getOccurredAt().toEpochMilli())                // ✅ Instant in your codegen
+                .setVerificationChallengeId(p.verificationChallengeId().toString()) // ✅ UUID
                 .setPurpose(p.purpose())
                 .setChannel(p.channel())
                 .setSubjectType(p.subjectType())

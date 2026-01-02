@@ -20,7 +20,7 @@ public class HandleEmailChangeCommittedService implements HandleEmailChangeCommi
     @Transactional
     public void handle(EmailChangeCommittedV1 event) {
 
-        Long userId = event.getUserId();
+        Long userId = Long.parseLong(event.getUserId());
 
         UserProfile profile = userProfileRepositoryPort.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("UserProfile not found for userId=" + userId));
@@ -29,7 +29,7 @@ public class HandleEmailChangeCommittedService implements HandleEmailChangeCommi
         String newEmail = toStr(event.getNewEmail());
 
         // logicalType timestamp-millis -> Instant
-        Instant occurredAt = event.getOccurredAtEpochMillis();
+        Instant occurredAt = Instant.ofEpochMilli(event.getOccurredAtEpochMillis());
 
         profile.applyEmailChangeCommitted(oldEmail, newEmail, occurredAt);
 

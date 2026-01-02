@@ -1,6 +1,6 @@
 package com.timeeconomy.notification.application.integration.service;
 
-import com.timeeconomy.contracts.auth.v2.AuthUserRegisteredV2;
+import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
 import com.timeeconomy.notification.adapter.in.kafka.dto.ConsumerContext;
 import com.timeeconomy.notification.application.integration.port.in.HandleAuthUserRegisteredUseCase;
 import com.timeeconomy.notification.application.integration.port.out.SignupSessionInternalClientPort;
@@ -38,16 +38,16 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
 
     @Override
     @Transactional
-    public void handle(AuthUserRegisteredV2 event, ConsumerContext ctx) {
+    public void handle(AuthUserRegisteredV1 event, ConsumerContext ctx) {
         final Instant now = Instant.now(clock);
 
-        final UUID eventId = event.getEventId();
+        final UUID eventId = UUID.fromString(event.getEventId());
         final String eventType = ctx.eventType(); // from headers
-        final long userId = event.getUserId();
+        final long userId = Long.parseLong(event.getUserId());
 
-        final UUID signupSessionId = event.getSignupSessionId(); 
+        final UUID signupSessionId = UUID.fromString(event.getSignupSessionId()); 
 
-        final Instant occurredAt = event.getOccurredAtEpochMillis();
+        final Instant occurredAt = Instant.ofEpochMilli(event.getOccurredAtEpochMillis());
 
         CompletedSignupSessionResponse session =
                 signupSessionInternalClientPort.getCompletedSession(signupSessionId);

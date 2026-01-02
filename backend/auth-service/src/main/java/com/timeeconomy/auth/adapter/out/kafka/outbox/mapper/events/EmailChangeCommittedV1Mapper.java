@@ -9,8 +9,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.avro.specific.SpecificRecord;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 @Component
 @RequiredArgsConstructor
 public class EmailChangeCommittedV1Mapper implements EventTypeAvroMapper {
@@ -27,9 +25,9 @@ public class EmailChangeCommittedV1Mapper implements EventTypeAvroMapper {
         EmailChangeCommittedPayload p = reader.read(event.getPayload(), EmailChangeCommittedPayload.class);
 
         return EmailChangeCommittedV1.newBuilder()
-                .setEventId(UUID.fromString(event.getId().toString()))
-                .setOccurredAtEpochMillis(event.getOccurredAt())
-                .setUserId(p.userId())
+                .setEventId(event.getId().toString())
+                .setOccurredAtEpochMillis(event.getOccurredAt().toEpochMilli())
+                .setUserId(p.userId().toString())
                 .setOldEmail(p.oldEmail())
                 .setNewEmail(p.newEmail())
                 .build();

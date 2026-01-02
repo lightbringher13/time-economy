@@ -42,7 +42,7 @@ public class HandleVerificationOtpDeliveryRequestedService
     public void handle(VerificationOtpDeliveryRequestedV1 event, ConsumerContext ctx) {
         final Instant now = Instant.now();
 
-        final UUID eventId = event.getEventId();
+        final UUID eventId = UUID.fromString(event.getEventId());
         final String eventType = ctx.eventType(); // from header
 
         // 1) idempotency gate
@@ -63,7 +63,7 @@ public class HandleVerificationOtpDeliveryRequestedService
         }
 
         // 2) fetch OTP once (internal HTTP)
-        final UUID challengeId = event.getVerificationChallengeId();
+        final UUID challengeId = UUID.fromString(event.getVerificationChallengeId());
         Optional<String> otpOpt = authInternalOtpClientPort.getOtpOnce(challengeId);
 
         if (otpOpt.isEmpty()) {

@@ -49,7 +49,7 @@ auth:
 # Topics (so you don't hardcode in Java)
 topics:
   auth:
-    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v2}
+    user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v1}
     email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:auth.email.change.committed.v1}
 
 jwt:

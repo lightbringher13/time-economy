@@ -1,6 +1,6 @@
 package com.timeeconomy.user.adapter.in.kafka;
 
-import com.timeeconomy.contracts.auth.v2.AuthUserRegisteredV2;
+import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
 import com.timeeconomy.user.application.userprofile.port.in.HandleAuthUserRegisteredUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,9 +20,9 @@ public class AuthUserRegisteredListener {
             topics = "${topics.auth.user-registered}",
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void onMessage(ConsumerRecord<String, AuthUserRegisteredV2> record, Acknowledgment ack) {
+    public void onMessage(ConsumerRecord<String, AuthUserRegisteredV1> record, Acknowledgment ack) {
 
-        AuthUserRegisteredV2 event = record.value();
+        AuthUserRegisteredV1 event = record.value();
 
         useCase.handle(event);
         

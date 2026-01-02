@@ -56,7 +56,7 @@ timeeconomy:
     topics:
       EmailChangeCommitted.v1: auth.email.change.committed.v1
       VerificationOtpDeliveryRequested.v1: auth.verification.otp.delivery.requested.v1
-      AuthUserRegistered.v2: auth.user.registered.v2
+      AuthUserRegistered.v1: auth.user.registered.v1
 
 app:
   mail:

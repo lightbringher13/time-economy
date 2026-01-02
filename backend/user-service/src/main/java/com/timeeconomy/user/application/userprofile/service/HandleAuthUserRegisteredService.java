@@ -1,6 +1,6 @@
 package com.timeeconomy.user.application.userprofile.service;
 
-import com.timeeconomy.contracts.auth.v2.AuthUserRegisteredV2;
+import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
 import com.timeeconomy.user.application.userprofile.port.in.HandleAuthUserRegisteredUseCase;
 import com.timeeconomy.user.application.userprofile.port.out.SignupSessionInternalClientPort;
 import com.timeeconomy.user.adapter.out.authclient.dto.CompletedSignupSessionResponse;
@@ -22,11 +22,11 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
 
     @Override
     @Transactional
-    public void handle(AuthUserRegisteredV2 event) {
+    public void handle(AuthUserRegisteredV1 event) {
 
-        Long userId = event.getUserId();
+        Long userId = Long.parseLong(event.getUserId());
 
-        UUID signupSessionId = event.getSignupSessionId(); // nullable (union)
+        UUID signupSessionId = UUID.fromString(event.getSignupSessionId()); // nullable (union)
 
         CompletedSignupSessionResponse s = signupSessionClient.getCompletedSession(signupSessionId);
 
@@ -35,7 +35,7 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
             throw new IllegalStateException("Signup session is not COMPLETED. sessionId=" + signupSessionId + " state=" + s.state());
         }
 
-        Instant occurredAt = event.getOccurredAtEpochMillis(); // Avro logical type -> Instant in generated code
+        Instant occurredAt = Instant.ofEpochMilli(event.getOccurredAtEpochMillis()); // Avro logical type -> Instant in generated code
 
         UserProfile profile = userProfileRepositoryPort.findById(userId)
                 .orElseGet(() -> UserProfile.createFromAuthUserRegistered(

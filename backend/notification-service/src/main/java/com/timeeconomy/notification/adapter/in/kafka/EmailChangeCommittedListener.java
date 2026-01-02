@@ -6,6 +6,9 @@ import com.timeeconomy.notification.application.integration.port.in.HandleEmailC
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.UUID;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -30,7 +33,7 @@ public class EmailChangeCommittedListener {
 
         EmailChangeCommittedV1 event = record.value();
 
-        var eventId = event.getEventId();
+        var eventId = UUID.fromString(event.getEventId());
         var eventType = KafkaHeaderUtil.str(record.headers(), "event_type");
 
         ConsumerContext ctx = new ConsumerContext(
