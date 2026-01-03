@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.common.notification.port.VerificationNotificationPort;
 import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
@@ -27,7 +26,6 @@ public class CreateOtpService implements CreateOtpUseCase {
 
     private final VerificationChallengeRepositoryPort repo;
     private final VerificationTokenHasherPort hasher;
-    private final VerificationNotificationPort notifier;
     private final OutboxEventRepositoryPort outboxEventRepositoryPort;
     private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
     private final java.time.Clock clock;
@@ -99,9 +97,6 @@ public class CreateOtpService implements CreateOtpUseCase {
         );
 
         outboxEventRepositoryPort.save(event);
-
-        // 3) notify
-        notifier.sendOtp(command.channel(), command.destination(), command.purpose(), rawCode, ttlMinutes);
 
         return new CreateOtpResult(
                 saved.getId(),

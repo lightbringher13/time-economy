@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.common.notification.port.VerificationNotificationPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChallenge;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.port.in.CreateLinkUseCase;
@@ -22,7 +21,6 @@ public class CreateLinkService implements CreateLinkUseCase {
 
     private final VerificationChallengeRepositoryPort repo;
     private final VerificationTokenHasherPort hasher;
-    private final VerificationNotificationPort notifier;
 
     private final java.time.Clock clock;
 
@@ -73,14 +71,6 @@ public class CreateLinkService implements CreateLinkUseCase {
 
         // 3) build URL + notify
         String linkUrl = buildLinkUrl(command.linkBaseUrl(), rawToken);
-
-        notifier.sendLink(
-                command.channel(),
-                command.destination(),
-                command.purpose(),
-                linkUrl,
-                ttlMinutes
-        );
 
         return new CreateLinkResult(
                 saved.getId(),
