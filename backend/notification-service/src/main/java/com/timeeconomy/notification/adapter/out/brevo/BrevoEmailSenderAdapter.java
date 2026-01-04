@@ -36,6 +36,9 @@ public class BrevoEmailSenderAdapter implements EmailSenderPort {
     @Value("${brevo.templates.otp-mail}")
     private int createVerificationOtpTemplateId;
 
+    @Value("${brevo.templates.link-mail}")
+    private int createVerificationLinkTemplateId;
+
     @Override
     public EmailSendResult sendTemplate(EmailSendCommand cmd) {
         int templateId = resolveTemplateId(cmd.templateKey());
@@ -82,6 +85,7 @@ public class BrevoEmailSenderAdapter implements EmailSenderPort {
             case "EMAIL_CHANGE_NEW" -> emailChangeNewTemplateId;
             case "EMAIL_CHANGE_OLD" -> emailChangeOldTemplateId;
             case "OTP_EMAIL" -> createVerificationOtpTemplateId;
+            case "LINK_EMAIL" -> createVerificationLinkTemplateId;
             default -> throw new IllegalArgumentException("Unknown templateKey: " + templateKey);
         };
     }

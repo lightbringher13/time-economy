@@ -18,7 +18,6 @@ public interface CreateLinkUseCase {
             String destination,              // email raw
             Duration ttl,                    // challenge TTL
             Duration tokenTtl,               // token TTL (often same as ttl)
-            String linkBaseUrl,              // e.g. https://app.../reset-password
             String requestIp,
             String userAgent
     ) {}

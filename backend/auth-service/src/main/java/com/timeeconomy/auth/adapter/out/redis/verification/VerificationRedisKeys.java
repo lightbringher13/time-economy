@@ -33,7 +33,11 @@ public final class VerificationRedisKeys {
         return "vc:latest:" + destinationNorm + ":" + p.name() + ":" + c.name();
     }
 
-    public static String raw(String id) {
-    return "vc:raw:" + id;
-}
+    public static String rawOtp(String id) {
+        return "vc:raw:otp:" + id;
+    }
+
+    public static String rawLink(String id) {
+        return "vc:raw:link:" + id;
+    }
 }

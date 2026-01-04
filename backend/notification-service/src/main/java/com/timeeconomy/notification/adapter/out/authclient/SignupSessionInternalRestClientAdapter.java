@@ -1,6 +1,6 @@
 package com.timeeconomy.notification.adapter.out.authclient;
 
-import com.timeeconomy.notification.adapter.out.authclient.dto.CompletedSignupSessionResponse;
+import com.timeeconomy.notification.adapter.out.authclient.dto.response.CompletedSignupSessionResponse;
 import com.timeeconomy.notification.application.integration.port.out.SignupSessionInternalClientPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;

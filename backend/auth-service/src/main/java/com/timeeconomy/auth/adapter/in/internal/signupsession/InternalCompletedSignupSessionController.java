@@ -1,7 +1,7 @@
 // backend/auth-service/src/main/java/com/timeeconomy/auth/adapter/in/web/signupsession/internal/InternalCompletedSignupSessionController.java
-package com.timeeconomy.auth.adapter.in.web.signupsession.internal;
+package com.timeeconomy.auth.adapter.in.internal.signupsession;
 
-import com.timeeconomy.auth.adapter.in.web.signupsession.internal.dto.response.CompletedSignupSessionResponse;
+import com.timeeconomy.auth.adapter.in.internal.signupsession.dto.response.CompletedSignupSessionResponse;
 import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotCompletedException;
 import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth.domain.signupsession.port.in.GetCompletedSignupSessionInfoUseCase;

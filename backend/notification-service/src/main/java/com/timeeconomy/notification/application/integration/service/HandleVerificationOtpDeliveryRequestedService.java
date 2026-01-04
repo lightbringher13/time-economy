@@ -5,6 +5,7 @@ import com.timeeconomy.notification.adapter.in.kafka.dto.ConsumerContext;
 import com.timeeconomy.notification.application.integration.port.in.HandleVerificationOtpDeliveryRequestedUseCase;
 import com.timeeconomy.notification.application.integration.port.out.AuthInternalOtpClientPort;
 import com.timeeconomy.notification.application.notification.port.out.EmailSenderPort;
+import com.timeeconomy.notification.application.notification.port.out.SmsSenderPort;
 import com.timeeconomy.notification.domain.inbox.model.ProcessedEvent;
 import com.timeeconomy.notification.domain.inbox.port.out.ProcessedEventRepositoryPort;
 import com.timeeconomy.notification.domain.notification.model.NotificationChannel;
@@ -26,16 +27,13 @@ import java.util.UUID;
 public class HandleVerificationOtpDeliveryRequestedService
         implements HandleVerificationOtpDeliveryRequestedUseCase {
 
-    private static final NotificationChannel CHANNEL = NotificationChannel.EMAIL;
-
-    // You can refine this mapping later (per purpose/channel)
-    private static final String TEMPLATE_KEY = "OTP_EMAIL";
-
     private final ProcessedEventRepositoryPort processedEventRepositoryPort;
     private final NotificationDeliveryRepositoryPort notificationDeliveryRepositoryPort;
 
     private final AuthInternalOtpClientPort authInternalOtpClientPort;
+
     private final EmailSenderPort emailSenderPort;
+    private final SmsSenderPort smsSenderPort;
 
     @Override
     @Transactional
@@ -43,7 +41,7 @@ public class HandleVerificationOtpDeliveryRequestedService
         final Instant now = Instant.now();
 
         final UUID eventId = UUID.fromString(event.getEventId());
-        final String eventType = ctx.eventType(); // from header
+        final String eventType = ctx.eventType();
 
         // 1) idempotency gate
         ProcessedEvent processed = ProcessedEvent.newProcessed(
@@ -67,78 +65,115 @@ public class HandleVerificationOtpDeliveryRequestedService
         Optional<String> otpOpt = authInternalOtpClientPort.getOtpOnce(challengeId);
 
         if (otpOpt.isEmpty()) {
-            // ✅ treat as NON-retryable: OTP is already consumed/expired; resend will create new OTP
             notificationDeliveryRepositoryPort.save(
                     NotificationDelivery.failed(
                             eventId,
                             eventType,
-                            CHANNEL,
-                            TEMPLATE_KEY,
+                            mapChannel(event.getChannel()),
+                            templateKeyFor(mapChannel(event.getChannel())),
                             toStr(event.getDestinationNorm()),
                             "AUTH_INTERNAL",
                             "OTP_NOT_FOUND_OR_ALREADY_CONSUMED",
                             now
                     )
             );
-
-            log.warn("[SKIP] otp missing (non-retryable). eventId={} challengeId={}",
-                    eventId, challengeId);
+            log.warn("[SKIP] otp missing (non-retryable). eventId={} challengeId={}", eventId, challengeId);
             return;
         }
 
         final String otp = otpOpt.get();
 
-        // 3) send email
-        final String recipientEmail = toStr(event.getDestinationNorm());
+        // 3) send via channel
+        final NotificationChannel channel = mapChannel(event.getChannel());
+        final String templateKey = templateKeyFor(channel);
+
+        final String destination = toStr(event.getDestinationNorm());
         final String purpose = toStr(event.getPurpose());
         final int ttlSeconds = event.getTtlSeconds();
 
         try {
-            var cmd = new EmailSenderPort.EmailSendCommand(
-                    TEMPLATE_KEY,
-                    recipientEmail,
-                    /*toName*/ null,
-                    Map.of(
-                            "otp", otp,
-                            "ttlSeconds", ttlSeconds,
-                            "purpose", purpose,
-                            "challengeId", challengeId.toString()
-                    )
-            );
+            if (channel == NotificationChannel.EMAIL) {
+                var cmd = new EmailSenderPort.EmailSendCommand(
+                        templateKey,
+                        destination, // email
+                        null,
+                        Map.of(
+                                "otp", otp,
+                                "ttlSeconds", ttlSeconds,
+                                "purpose", purpose,
+                                "challengeId", challengeId.toString()
+                        )
+                );
 
-            EmailSenderPort.EmailSendResult res = emailSenderPort.sendTemplate(cmd);
+                EmailSenderPort.EmailSendResult res = emailSenderPort.sendTemplate(cmd);
 
-            notificationDeliveryRepositoryPort.save(
-                    NotificationDelivery.sent(
-                            eventId,
-                            eventType,
-                            CHANNEL,
-                            TEMPLATE_KEY,
-                            recipientEmail,
-                            res.provider(),
-                            res.providerMsgId(),
-                            now
-                    )
-            );
+                notificationDeliveryRepositoryPort.save(
+                        NotificationDelivery.sent(
+                                eventId, eventType, channel, templateKey, destination,
+                                res.provider(), res.providerMsgId(), now
+                        )
+                );
 
-            log.info("[OK] otp email sent+persisted template={} to={} provider={} msgId={}",
-                    TEMPLATE_KEY, recipientEmail, res.provider(), res.providerMsgId());
+                log.info("[OK] otp email sent template={} to={} provider={} msgId={}",
+                        templateKey, destination, res.provider(), res.providerMsgId());
+
+            } else if (channel == NotificationChannel.SMS) {
+                var cmd = new SmsSenderPort.SmsSendCommand(
+                        templateKey,
+                        destination, // phone
+                        Map.of(
+                                "otp", otp,
+                                "ttlSeconds", ttlSeconds,
+                                "purpose", purpose,
+                                "challengeId", challengeId.toString()
+                        )
+                );
+
+                SmsSenderPort.SmsSendResult res = smsSenderPort.sendTemplate(cmd);
+
+                notificationDeliveryRepositoryPort.save(
+                        NotificationDelivery.sent(
+                                eventId, eventType, channel, templateKey, destination,
+                                res.provider(), res.providerMsgId(), now
+                        )
+                );
+
+                log.info("[OK] otp sms sent template={} to={} provider={} msgId={}",
+                        templateKey, destination, res.provider(), res.providerMsgId());
+            } else {
+                // future: PUSH, WHATSAPP, etc.
+                throw new IllegalStateException("Unsupported channel: " + channel);
+            }
 
         } catch (Exception ex) {
             notificationDeliveryRepositoryPort.save(
                     NotificationDelivery.failed(
                             eventId,
                             eventType,
-                            CHANNEL,
-                            TEMPLATE_KEY,
-                            recipientEmail,
-                            "BREVO",
+                            channel,
+                            templateKey,
+                            destination,
+                            channel == NotificationChannel.SMS ? "LOG" : "BREVO",
                             safeMsg(ex),
                             now
                     )
             );
-            throw ex; // retryable
+            throw ex; // retryable (unless you choose to treat some failures as non-retryable)
         }
+    }
+
+    private static NotificationChannel mapChannel(Object raw) {
+        // event.getChannel() is usually a CharSequence/Utf8/String depending on Avro config
+        String s = raw == null ? "" : raw.toString().trim().toUpperCase();
+        return NotificationChannel.valueOf(s); // expects EMAIL/SMS
+    }
+
+    private static String templateKeyFor(NotificationChannel channel) {
+        return switch (channel) {
+            case EMAIL -> "OTP_EMAIL";
+            case SMS -> "OTP_SMS";
+            default -> "OTP_UNKNOWN";
+        };
     }
 
     private static String toStr(Object v) {

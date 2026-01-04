@@ -46,7 +46,7 @@ public class VerifyLinkService implements VerifyLinkUseCase {
             return new VerifyLinkResult(false, null, null);
         }
 
-        if (pending.getTokenExpiresAt() != null && now.isAfter(pending.getTokenExpiresAt())) {
+        if (pending.getExpiresAt() != null && now.isAfter(pending.getExpiresAt())) {
             pending.cancel(now);
             repo.save(pending);
             return new VerifyLinkResult(false, null, null);

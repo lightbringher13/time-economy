@@ -1,0 +1,21 @@
+{
+  "type": "record",
+  "name": "VerificationLinkDeliveryRequestedV1",
+  "namespace": "com.timeeconomy.contracts.auth.v1",
+  "fields": [
+    { "name": "eventId", "type": "string" },
+    { "name": "occurredAtEpochMillis", "type": "long" },
+
+    { "name": "verificationChallengeId", "type": "string" },
+
+    { "name": "purpose", "type": "string" },
+    { "name": "channel", "type": "string" },
+
+    { "name": "subjectType", "type": "string" },
+    { "name": "subjectId", "type": "string" },
+
+    { "name": "destinationNorm", "type": "string" },
+
+    { "name": "ttlSeconds", "type": "int" }
+  ]
+}

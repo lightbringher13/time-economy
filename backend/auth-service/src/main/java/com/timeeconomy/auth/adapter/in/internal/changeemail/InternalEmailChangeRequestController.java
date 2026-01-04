@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.adapter.in.web.changeemail.internal;
+package com.timeeconomy.auth.adapter.in.internal.changeemail;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

@@ -15,6 +15,9 @@ import java.time.Instant;
 import java.util.*;
 import java.time.Clock;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Primary
 @Component
 @RequiredArgsConstructor
@@ -150,13 +153,29 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
 
     @Override
     public void put(String challengeId, String rawCode, Duration ttl) {
-        redis.opsForValue().set(raw(challengeId), rawCode, ttl);
+        redis.opsForValue().set(rawOtp(challengeId), rawCode, ttl);
     }
 
     @Override
     public Optional<String> getAndDelete(String challengeId) {
-        String v = redis.opsForValue().getAndDelete(raw(challengeId));
+        String v = redis.opsForValue().getAndDelete(rawOtp(challengeId));
         return Optional.ofNullable(v);
+    }
+
+    @Override
+    public Optional<String> getAndDeleteLinkToken(String challengeId) {
+        String key = rawLink(challengeId);
+        String v = redis.opsForValue().getAndDelete(key);
+        log.warn("[REDIS] getAndDeleteLinkToken key={} hit={}", key, (v != null));
+        return Optional.ofNullable(v);
+    }
+
+    @Override
+    public void putLinkToken(String challengeId, String rawToken, Duration ttl) {
+        String key = rawLink(challengeId);
+        redis.opsForValue().set(key, rawToken, ttl);
+        log.warn("[REDIS] putLinkToken key={} ttlSeconds={} tokenLen={}",
+                key, ttl.toSeconds(), rawToken.length());
     }
 
     // -------------------------
@@ -236,7 +255,7 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         Instant exp = c.getExpiresAt();
 
         // keep record until later of (expiresAt, tokenExpiresAt)
-        Instant tokenExp = c.getTokenExpiresAt();
+        Instant tokenExp = c.getExpiresAt();
         if (tokenExp != null && (exp == null || tokenExp.isAfter(exp))) {
             exp = tokenExp;
         }

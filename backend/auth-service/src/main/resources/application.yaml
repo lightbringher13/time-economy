@@ -57,6 +57,7 @@ timeeconomy:
       EmailChangeCommitted.v1: auth.email.change.committed.v1
       VerificationOtpDeliveryRequested.v1: auth.verification.otp.delivery.requested.v1
       AuthUserRegistered.v1: auth.user.registered.v1
+      VerificationLinkDeliveryRequested.v1: auth.verification.link.delivery.requested.v1
 
 app:
   mail:
@@ -65,6 +66,11 @@ app:
     hmac-secret: ${VERIFICATION_HMAC_SECRET}
   internal:
     token: ${APP_INTERNAL_TOKEN}
+  links:
+    password-reset-base-url: "http://localhost:5173/reset-password"
+    email-verify-base-url: "http://localhost:5173/verify-email"
+
+
 
 brevo:
   sms:

@@ -20,7 +20,6 @@ public class VerificationChallenge {
     // hashes only (never store raw code/token)
     private String codeHash;    // OTP
     private String tokenHash;   // link token
-    private Instant tokenExpiresAt;
 
     private VerificationStatus status;
 
@@ -49,7 +48,6 @@ public class VerificationChallenge {
             String destinationNorm,
             String codeHash,
             String tokenHash,
-            Instant tokenExpiresAt,
             VerificationStatus status,
             Instant expiresAt,
             Instant verifiedAt,
@@ -73,7 +71,6 @@ public class VerificationChallenge {
 
         this.codeHash = codeHash;
         this.tokenHash = tokenHash;
-        this.tokenExpiresAt = tokenExpiresAt;
 
         this.status = Objects.requireNonNull(status, "status");
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
@@ -126,7 +123,6 @@ public class VerificationChallenge {
                 destinationNorm,
                 codeHash,
                 null,
-                null,
                 VerificationStatus.PENDING,
                 expiresAt,
                 null,
@@ -150,7 +146,6 @@ public class VerificationChallenge {
             String destination,
             String destinationNorm,
             String tokenHash,
-            Instant tokenExpiresAt,
             Instant expiresAt,
             int maxAttempts,
             Instant now,
@@ -173,7 +168,6 @@ public class VerificationChallenge {
                 destinationNorm,
                 null,
                 tokenHash,
-                tokenExpiresAt,
                 VerificationStatus.PENDING,
                 expiresAt,
                 null,
@@ -277,7 +271,6 @@ public class VerificationChallenge {
 
     public String getCodeHash() { return codeHash; }
     public String getTokenHash() { return tokenHash; }
-    public Instant getTokenExpiresAt() { return tokenExpiresAt; }
 
     public VerificationStatus getStatus() { return status; }
 

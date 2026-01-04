@@ -1,8 +1,8 @@
 package com.timeeconomy.notification.application.integration.port.out;
 
-import com.timeeconomy.notification.adapter.out.authclient.dto.CompletedSignupSessionResponse;
-
 import java.util.UUID;
+
+import com.timeeconomy.notification.adapter.out.authclient.dto.response.CompletedSignupSessionResponse;
 
 public interface SignupSessionInternalClientPort {
     CompletedSignupSessionResponse getCompletedSession(UUID signupSessionId);

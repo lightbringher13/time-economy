@@ -32,6 +32,7 @@ topics:
     user-registered: ${TOPIC_AUTH_USER_REGISTERED:auth.user.registered.v1}
     email-changed: ${TOPIC_AUTH_EMAIL_CHANGED:auth.email.change.committed.v1}
     verification-otp-delivery-requested: ${TOPIC_AUTH_VERIFICATION_OTP_DELIVERY_REQUESTED:auth.verification.otp.delivery.requested.v1}
+    verification-link-delivery-requested: ${TOPIC_AUTH_VERIFICATION_LINK_DELIVERY_REQUESTED:auth.verification.link.delivery.requested.v1}
 
 auth:
   internal:
@@ -48,3 +49,4 @@ brevo:
     email-change-new: 3
     email-change-old: 4
     otp-mail: 5
+    link-mail: 6
