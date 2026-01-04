@@ -12,7 +12,11 @@ public interface VerificationChallengeRepositoryPort {
 
     void put(String challengeId, String rawCode, Duration ttl);
 
+    void putLinkToken(String challengeId, String rawToken, Duration ttl);
+
     Optional<String> getAndDelete(String challengeId);
+
+    Optional<String> getAndDeleteLinkToken(String challengeId);
 
     /**
      * 핵심 조회: subject+purpose+channel 에 대해 현재 활성 PENDING 1개

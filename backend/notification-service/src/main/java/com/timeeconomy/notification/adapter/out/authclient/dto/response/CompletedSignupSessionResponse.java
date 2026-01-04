@@ -1,4 +1,4 @@
-package com.timeeconomy.notification.adapter.out.authclient.dto;
+package com.timeeconomy.notification.adapter.out.authclient.dto.response;
 
 import java.time.LocalDate;
 

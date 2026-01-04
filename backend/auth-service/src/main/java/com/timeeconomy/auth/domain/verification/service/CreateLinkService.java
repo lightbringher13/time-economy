@@ -4,9 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.common.notification.port.VerificationNotificationPort;
+import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChallenge;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
+import com.timeeconomy.auth.domain.verification.model.payload.VerificationLinkDeliveryRequestedPayload;
 import com.timeeconomy.auth.domain.verification.port.in.CreateLinkUseCase;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasherPort;
@@ -14,7 +17,7 @@ import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasher
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-import java.time.Duration;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +25,8 @@ public class CreateLinkService implements CreateLinkUseCase {
 
     private final VerificationChallengeRepositoryPort repo;
     private final VerificationTokenHasherPort hasher;
-    private final VerificationNotificationPort notifier;
+    private final OutboxEventRepositoryPort outboxEventRepositoryPort;
+    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
 
     private final java.time.Clock clock;
 
@@ -48,10 +52,6 @@ public class CreateLinkService implements CreateLinkUseCase {
         int ttlMinutes = (int) Math.max(1, command.ttl().toMinutes());
         Instant expiresAt = now.plus(command.ttl());
 
-        // token can have its own TTL (often same as challenge TTL)
-        Duration tokenTtl = (command.tokenTtl() != null) ? command.tokenTtl() : command.ttl();
-        Instant tokenExpiresAt = now.plus(tokenTtl);
-
         VerificationChallenge challenge = VerificationChallenge.createLinkPending(
                 command.purpose(),
                 command.channel(),
@@ -60,7 +60,6 @@ public class CreateLinkService implements CreateLinkUseCase {
                 command.destination(),
                 normalizeDestination(command.channel(), command.destination()),
                 tokenHash,
-                tokenExpiresAt,
                 expiresAt,
                 // link usually doesn’t need “max attempts”, but keep it consistent
                 5,
@@ -71,16 +70,31 @@ public class CreateLinkService implements CreateLinkUseCase {
 
         VerificationChallenge saved = repo.save(challenge);
 
-        // 3) build URL + notify
-        String linkUrl = buildLinkUrl(command.linkBaseUrl(), rawToken);
+        repo.putLinkToken(saved.getId(), rawToken, command.ttl());
 
-        notifier.sendLink(
-                command.channel(),
-                command.destination(),
-                command.purpose(),
-                linkUrl,
-                ttlMinutes
+        int ttlSeconds = (int) Math.max(1, command.ttl().toSeconds());
+        
+        String payloadJson = outboxPayloadSerializerPort.serialize(
+                new VerificationLinkDeliveryRequestedPayload(
+                        UUID.fromString(saved.getId()), // saved.getId() is String -> UUID
+                        command.purpose().name(),
+                        command.channel().name(),
+                        command.subjectType().name(),
+                        command.subjectId(),
+                        normalizeDestination(command.channel(), command.destination()),
+                        ttlSeconds
+                )
         );
+
+        OutboxEvent event = OutboxEvent.newPending(
+                "verification_challenge",
+                saved.getId(),
+                "VerificationLinkDeliveryRequested.v1",
+                payloadJson,
+                now
+        );
+
+        outboxEventRepositoryPort.save(event);
 
         return new CreateLinkResult(
                 saved.getId(),
@@ -94,14 +108,6 @@ public class CreateLinkService implements CreateLinkUseCase {
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private String buildLinkUrl(String baseUrl, String rawToken) {
-        if (baseUrl == null || baseUrl.isBlank()) {
-            throw new IllegalArgumentException("linkBaseUrl is required");
-        }
-        String sep = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + sep + "token=" + rawToken;
     }
 
     private String normalizeDestination(VerificationChannel channel, String destination) {

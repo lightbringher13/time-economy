@@ -1,6 +1,6 @@
 package com.timeeconomy.notification.adapter.out.authclient;
 
-import com.timeeconomy.notification.adapter.out.authclient.dto.OtpOnceResponse;
+import com.timeeconomy.notification.adapter.out.authclient.dto.response.OtpOnceResponse;
 import com.timeeconomy.notification.application.integration.port.out.AuthInternalOtpClientPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;

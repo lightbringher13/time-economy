@@ -25,8 +25,6 @@ public final class VerificationChallengeSnapshotMapper {
                 .codeHash(textOrNull(c.getCodeHash()))
                 .tokenHash(textOrNull(c.getTokenHash()))
 
-                .tokenExpiresAtEpochMillis(toEpochMillis(c.getTokenExpiresAt()))
-
                 .status(c.getStatus() == null ? null : c.getStatus().name())
 
                 .expiresAtEpochMillis(toEpochMillis(c.getExpiresAt()))
@@ -57,7 +55,6 @@ public final class VerificationChallengeSnapshotMapper {
                 textOrNull(s.destinationNorm()),
                 textOrNull(s.codeHash()),
                 textOrNull(s.tokenHash()),
-                toInstant(s.tokenExpiresAtEpochMillis()),
                 enumOf(s.status(), VerificationStatus.class),
                 toInstant(s.expiresAtEpochMillis()),
                 toInstant(s.verifiedAtEpochMillis()),

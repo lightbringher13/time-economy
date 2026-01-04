@@ -110,7 +110,6 @@ public class PublicVerificationController {
                 request.destination(),
                 DEFAULT_LINK_TTL,
                 DEFAULT_LINK_TOKEN_TTL,
-                request.linkBaseUrl(),
                 clientIp(http),
                 userAgent(http)
         );

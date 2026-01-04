@@ -1,10 +1,9 @@
 package com.timeeconomy.notification.application.integration.service;
 
-import com.timeeconomy.contracts.auth.v1.AuthUserRegisteredV1;
+import com.timeeconomy.contracts.auth.v1.VerificationLinkDeliveryRequestedV1;
 import com.timeeconomy.notification.adapter.in.kafka.dto.ConsumerContext;
-import com.timeeconomy.notification.adapter.out.authclient.dto.response.CompletedSignupSessionResponse;
-import com.timeeconomy.notification.application.integration.port.in.HandleAuthUserRegisteredUseCase;
-import com.timeeconomy.notification.application.integration.port.out.SignupSessionInternalClientPort;
+import com.timeeconomy.notification.application.integration.port.in.HandleVerificationLinkDeliveryRequestedUseCase;
+import com.timeeconomy.notification.application.integration.port.out.AuthInternalLinkClientPort;
 import com.timeeconomy.notification.application.notification.port.out.EmailSenderPort;
 import com.timeeconomy.notification.domain.inbox.model.ProcessedEvent;
 import com.timeeconomy.notification.domain.inbox.port.out.ProcessedEventRepositoryPort;
@@ -18,48 +17,34 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
-import java.time.Clock;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class HandleAuthUserRegisteredService implements HandleAuthUserRegisteredUseCase {
+public class HandleVerificationLinkDeliveryRequestedService
+        implements HandleVerificationLinkDeliveryRequestedUseCase {
 
+    // If you want this dynamic later, map from event.getChannel()
     private static final NotificationChannel CHANNEL = NotificationChannel.EMAIL;
-    private static final String TEMPLATE_KEY = "WELCOME_EMAIL";
+
+    // You can refine this mapping later (per purpose/channel)
+    private static final String TEMPLATE_KEY = "LINK_EMAIL";
 
     private final ProcessedEventRepositoryPort processedEventRepositoryPort;
     private final NotificationDeliveryRepositoryPort notificationDeliveryRepositoryPort;
-    private final EmailSenderPort emailSenderPort;
-    private final SignupSessionInternalClientPort signupSessionInternalClientPort;
 
-    private final Clock clock;
+    private final AuthInternalLinkClientPort authInternalLinkClientPort;
+    private final EmailSenderPort emailSenderPort;
 
     @Override
     @Transactional
-    public void handle(AuthUserRegisteredV1 event, ConsumerContext ctx) {
-        final Instant now = Instant.now(clock);
+    public void handle(VerificationLinkDeliveryRequestedV1 event, ConsumerContext ctx) {
+        final Instant now = Instant.now();
 
         final UUID eventId = UUID.fromString(event.getEventId());
-        final String eventType = ctx.eventType(); // from headers
-        final long userId = Long.parseLong(event.getUserId());
-
-        final UUID signupSessionId = UUID.fromString(event.getSignupSessionId()); 
-
-        final Instant occurredAt = Instant.ofEpochMilli(event.getOccurredAtEpochMillis());
-
-        CompletedSignupSessionResponse session =
-                signupSessionInternalClientPort.getCompletedSession(signupSessionId);
-
-        // defensive: if internal endpoint accidentally returns non-completed
-        if (!"COMPLETED".equals(session.state())) {
-            throw new IllegalStateException("SignupSession not COMPLETED. sessionId=" + signupSessionId +
-                    " state=" + session.state());
-        }
-
-        final String recipientEmail = session.email();
-        final String toName = session.name(); // nullable ok
+        final String eventType = ctx.eventType(); // from header
 
         // 1) idempotency gate
         ProcessedEvent processed = ProcessedEvent.newProcessed(
@@ -78,26 +63,53 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
             return;
         }
 
-        // 2) send email
+        // 2) fetch Link URL once (internal HTTP)
+        final UUID challengeId = UUID.fromString(event.getVerificationChallengeId());
+        final String purpose = toStr(event.getPurpose());
+
+        Optional<String> linkUrlOpt = authInternalLinkClientPort.getLinkUrlOnce(challengeId, purpose, eventId);
+
+        if (linkUrlOpt.isEmpty()) {
+            // NON-retryable: token already consumed/expired; user must request a new link
+            notificationDeliveryRepositoryPort.save(
+                    NotificationDelivery.failed(
+                            eventId,
+                            eventType,
+                            CHANNEL,
+                            TEMPLATE_KEY,
+                            toStr(event.getDestinationNorm()),
+                            "AUTH_INTERNAL",
+                            "LINK_URL_NOT_FOUND_OR_ALREADY_CONSUMED",
+                            now
+                    )
+            );
+
+            log.warn("[SKIP] linkUrl missing (non-retryable). eventId={} challengeId={}",
+                    eventId, challengeId);
+            return;
+        }
+
+        final String linkUrl = linkUrlOpt.get();
+
+        // 3) send email
+        final String recipientEmail = toStr(event.getDestinationNorm());
+        final int ttlSeconds = event.getTtlSeconds();
+
         try {
             var cmd = new EmailSenderPort.EmailSendCommand(
                     TEMPLATE_KEY,
                     recipientEmail,
-                    toName,
+                    /*toName*/ null,
                     Map.of(
-                            "userId", userId,
-                            "email", recipientEmail,
-                            "name", toName,
-                            "phoneNumber", session.phoneNumber(),
-                            "gender", session.gender(),
-                            "birthDate", session.birthDate(), // string
-                            "occurredAt", String.valueOf(occurredAt)
+                            "linkUrl", linkUrl,
+                            "ttlSeconds", ttlSeconds,
+                            "purpose", purpose,
+                            "challengeId", challengeId.toString()
                     )
             );
 
             EmailSenderPort.EmailSendResult res = emailSenderPort.sendTemplate(cmd);
 
-            // 3) persist delivery as SENT
             notificationDeliveryRepositoryPort.save(
                     NotificationDelivery.sent(
                             eventId,
@@ -111,8 +123,8 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
                     )
             );
 
-            log.info("[OK] welcome email sent+persisted userId={} email={} provider={} msgId={}",
-                    userId, recipientEmail, res.provider(), res.providerMsgId());
+            log.info("[OK] link email sent+persisted template={} to={} provider={} msgId={} challengeId={}",
+                    TEMPLATE_KEY, recipientEmail, res.provider(), res.providerMsgId(), challengeId);
 
         } catch (Exception ex) {
             notificationDeliveryRepositoryPort.save(
@@ -127,10 +139,12 @@ public class HandleAuthUserRegisteredService implements HandleAuthUserRegistered
                             now
                     )
             );
-
-            // throw -> listener does NOT ack -> Kafka retry (if configured)
-            throw ex;
+            throw ex; // retryable
         }
+    }
+
+    private static String toStr(Object v) {
+        return v == null ? null : v.toString();
     }
 
     private static String safeMsg(Exception e) {

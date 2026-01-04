@@ -2,7 +2,6 @@ package com.timeeconomy.auth.domain.passwordreset.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
@@ -22,9 +21,6 @@ public class RequestPasswordResetService implements RequestPasswordResetUseCase 
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final CreateLinkUseCase createLinkUseCase;
-
-    @Value("${app.frontend.base-url:http://localhost:5173/reset-password}")
-    private String linkBaseUrl; // e.g. https://fe.timeeconomy.com/reset-password
 
     @Override
     public Result requestReset(Command command) {
@@ -48,7 +44,6 @@ public class RequestPasswordResetService implements RequestPasswordResetUseCase 
                         email,
                         RESET_TTL,
                         RESET_TTL,
-                        linkBaseUrl,
                         null,
                         null
                 );

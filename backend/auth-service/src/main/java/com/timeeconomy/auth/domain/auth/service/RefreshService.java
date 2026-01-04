@@ -9,7 +9,6 @@ import com.timeeconomy.auth.domain.auth.port.in.RefreshUseCase;
 import com.timeeconomy.auth.domain.auth.port.out.AuthSessionRepositoryPort;
 import com.timeeconomy.auth.domain.auth.port.out.JwtTokenPort;
 import com.timeeconomy.auth.domain.auth.port.out.RefreshTokenPort;
-import com.timeeconomy.auth.domain.common.notification.port.EmailNotificationPort;
 import com.timeeconomy.auth.domain.exception.InvalidRefreshTokenException;
 import com.timeeconomy.auth.domain.exception.RefreshTokenReuseException;
 
@@ -28,7 +27,6 @@ public class RefreshService implements RefreshUseCase {
     private final AuthSessionRepositoryPort authSessionRepositoryPort;
     private final RefreshTokenPort refreshTokenPort;
     private final JwtTokenPort jwtTokenPort;
-    private final EmailNotificationPort emailNotificationPort;
 
     private final Clock clock;
 
@@ -125,16 +123,6 @@ public class RefreshService implements RefreshUseCase {
 
             authSessionRepositoryPort.revokeFamily(session.getFamilyId(), now);
 
-            emailNotificationPort.sendSecurityAlert(
-                    session.getUserId(),
-                    "SECURITY_REFRESH_TOKEN_REUSE",
-                    java.util.Map.of(
-                            "familyId", session.getFamilyId(),
-                            "ipAddress", command.ipAddress(),
-                            "userAgent", command.userAgent(),
-                            "deviceInfo", command.deviceInfo()
-                    )
-            );
         }
 
         throw new RefreshTokenReuseException("Refresh token reuse detected");
