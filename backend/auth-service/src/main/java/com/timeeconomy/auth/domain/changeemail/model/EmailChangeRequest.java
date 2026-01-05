@@ -16,7 +16,6 @@ public class EmailChangeRequest {
     private final String newEmail;
 
     private SecondFactorType secondFactorType;
-
     private EmailChangeStatus status;
 
     private final Instant expiresAt;
@@ -58,7 +57,23 @@ public class EmailChangeRequest {
     }
 
     // =========================================
-    // state transitions driven by challenges
+    // Invariants (big-co style)
+    // =========================================
+
+    public boolean requiresSecondFactorType() {
+        return status == EmailChangeStatus.SECOND_FACTOR_PENDING
+                || status == EmailChangeStatus.READY_TO_COMMIT
+                || status == EmailChangeStatus.COMPLETED;
+    }
+
+    public void assertInvariants() {
+        if (requiresSecondFactorType() && secondFactorType == null) {
+            throw new IllegalStateException("Invariant violation: status=" + status + " requires secondFactorType");
+        }
+    }
+
+    // =========================================
+    // state transitions
     // =========================================
 
     public void markNewEmailVerified(Instant now) {
@@ -74,11 +89,40 @@ public class EmailChangeRequest {
         touch(now);
     }
 
+    /**
+     * ✅ Atomic transition into SECOND_FACTOR_PENDING.
+     * Sets type + status together (prevents "pending but type missing").
+     */
+    public void startSecondFactor(SecondFactorType type, Instant now) {
+        if (isExpired(now)) {
+            this.status = EmailChangeStatus.EXPIRED;
+            touch(now);
+            return;
+        }
+        if (status != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
+            return;
+        }
+        if (type == null) {
+            throw new IllegalArgumentException("secondFactorType must not be null");
+        }
+        this.secondFactorType = type;
+        this.status = EmailChangeStatus.SECOND_FACTOR_PENDING;
+        touch(now);
+    }
+
+    /**
+     * Kept for backward compatibility.
+     * Prefer startSecondFactor().
+     */
     public void setSecondFactorType(SecondFactorType type, Instant now) {
         this.secondFactorType = type;
         touch(now);
     }
 
+    /**
+     * Kept for backward compatibility.
+     * Prefer startSecondFactor().
+     */
     public void markSecondFactorPending(Instant now) {
         if (isExpired(now)) {
             this.status = EmailChangeStatus.EXPIRED;
@@ -87,6 +131,10 @@ public class EmailChangeRequest {
         }
         if (status != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
             return;
+        }
+        if (this.secondFactorType == null) {
+            // don’t allow “pending with null type”
+            throw new IllegalStateException("secondFactorType must be set before SECOND_FACTOR_PENDING");
         }
         this.status = EmailChangeStatus.SECOND_FACTOR_PENDING;
         touch(now);
@@ -101,6 +149,10 @@ public class EmailChangeRequest {
         if (status != EmailChangeStatus.SECOND_FACTOR_PENDING) {
             return;
         }
+        if (this.secondFactorType == null) {
+            // invariant
+            throw new IllegalStateException("secondFactorType must not be null when READY_TO_COMMIT");
+        }
         this.status = EmailChangeStatus.READY_TO_COMMIT;
         touch(now);
     }
@@ -108,6 +160,8 @@ public class EmailChangeRequest {
     public void markCompleted(Instant now) {
         this.status = EmailChangeStatus.COMPLETED;
         touch(now);
+        // completed should also satisfy invariants
+        assertInvariants();
     }
 
     public void markCanceled(Instant now) {

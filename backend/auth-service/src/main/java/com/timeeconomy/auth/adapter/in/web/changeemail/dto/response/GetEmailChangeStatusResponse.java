@@ -3,8 +3,12 @@ package com.timeeconomy.auth.adapter.in.web.changeemail.dto.response;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
 
-public record StartSecondFactorResponse(
+import java.time.Instant;
+
+public record GetEmailChangeStatusResponse(
         Long requestId,
+        EmailChangeStatus status,
         SecondFactorType secondFactorType,
-        EmailChangeStatus status
+        String maskedNewEmail,
+        Instant expiresAt
 ) {}

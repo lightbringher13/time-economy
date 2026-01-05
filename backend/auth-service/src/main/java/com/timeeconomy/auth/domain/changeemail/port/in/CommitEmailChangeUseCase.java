@@ -1,5 +1,7 @@
 package com.timeeconomy.auth.domain.changeemail.port.in;
 
+import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
+
 public interface CommitEmailChangeUseCase {
 
     record CommitEmailChangeCommand(
@@ -9,7 +11,8 @@ public interface CommitEmailChangeUseCase {
 
     record CommitEmailChangeResult(
             Long requestId,
-            String newEmail
+            String newEmail,
+            EmailChangeStatus status
     ) {}
 
     CommitEmailChangeResult commit(CommitEmailChangeCommand command);

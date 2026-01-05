@@ -1,3 +1,10 @@
 package com.timeeconomy.auth.adapter.in.web.changeemail.dto.response;
 
-public record CommitEmailChangeResponse(Long requestId, String newEmail) {}
+import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
+
+
+public record CommitEmailChangeResponse(
+        Long requestId,
+        String newEmail,
+        EmailChangeStatus status
+) {}

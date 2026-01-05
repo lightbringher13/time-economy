@@ -15,12 +15,14 @@ import com.timeeconomy.auth.adapter.in.web.changeemail.dto.response.VerifyNewEma
 import com.timeeconomy.auth.adapter.in.web.changeemail.dto.response.VerifySecondFactorResponse;
 import com.timeeconomy.auth.adapter.in.web.changeemail.dto.response.StartSecondFactorResponse;
 import com.timeeconomy.auth.adapter.in.web.changeemail.dto.response.CommitEmailChangeResponse;
+import com.timeeconomy.auth.adapter.in.web.changeemail.dto.response.GetEmailChangeStatusResponse;
 
 import com.timeeconomy.auth.domain.changeemail.port.in.RequestEmailChangeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifyNewEmailCodeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.StartSecondFactorUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.CommitEmailChangeUseCase;
+import com.timeeconomy.auth.domain.changeemail.port.in.GetEmailChangeStatusUseCase;
 
 @RestController
 @RequestMapping("/api/auth/email-change")
@@ -32,6 +34,7 @@ public class ChangeEmailController {
     private final StartSecondFactorUseCase startSecondFactorUseCase;
     private final VerifySecondFactorUseCase verifySecondFactorUseCase;
     private final CommitEmailChangeUseCase commitEmailChangeUseCase;
+    private final GetEmailChangeStatusUseCase getEmailChangeStatusUseCase;
 
     // 1) Start change-email flow (password + new email)
     @PostMapping("/request")
@@ -50,12 +53,34 @@ public class ChangeEmailController {
         return ResponseEntity.ok(
                 new RequestEmailChangeResponse(
                         result.requestId(),
-                        result.maskedNewEmail()
+                        result.maskedNewEmail(),
+                        result.status()
                 )
         );
     }
 
-    // 2) Verify code sent to NEW email (verify-only)
+    // 1.5) Get current status (polling endpoint)
+    @GetMapping("/{requestId}/status")
+    public ResponseEntity<GetEmailChangeStatusResponse> getStatus(
+            @RequestHeader("X-User-Id") Long userId,
+            @PathVariable Long requestId
+    ) {
+        var result = getEmailChangeStatusUseCase.getStatus(
+                new GetEmailChangeStatusUseCase.GetEmailChangeStatusCommand(userId, requestId)
+        );
+
+        return ResponseEntity.ok(
+                new GetEmailChangeStatusResponse(
+                        result.requestId(),
+                        result.status(),
+                        result.secondFactorType(),
+                        result.maskedNewEmail(),
+                        result.expiresAt()
+                )
+        );
+    }
+
+    // 2) Verify code sent to NEW email
     @PostMapping("/verify-new-email")
     public ResponseEntity<VerifyNewEmailCodeResponse> verifyNewEmailCode(
             @RequestHeader("X-User-Id") Long userId,
@@ -69,7 +94,12 @@ public class ChangeEmailController {
                 )
         );
 
-        return ResponseEntity.ok(new VerifyNewEmailCodeResponse(result.requestId()));
+        return ResponseEntity.ok(
+                new VerifyNewEmailCodeResponse(
+                        result.requestId(),
+                        result.status()
+                )
+        );
     }
 
     // 3) Start second factor (send OTP to phone OR old email)
@@ -88,12 +118,13 @@ public class ChangeEmailController {
         return ResponseEntity.ok(
                 new StartSecondFactorResponse(
                         result.requestId(),
-                        result.secondFactorType()
+                        result.secondFactorType(),
+                        result.status()
                 )
         );
     }
 
-    // 4) Verify second factor (verify-only)
+    // 4) Verify second factor
     @PostMapping("/verify-second-factor")
     public ResponseEntity<VerifySecondFactorResponse> verifySecondFactor(
             @RequestHeader("X-User-Id") Long userId,
@@ -107,7 +138,12 @@ public class ChangeEmailController {
                 )
         );
 
-        return ResponseEntity.ok(new VerifySecondFactorResponse(result.requestId()));
+        return ResponseEntity.ok(
+                new VerifySecondFactorResponse(
+                        result.requestId(),
+                        result.status()
+                )
+        );
     }
 
     // 5) Commit the email change + outbox event
@@ -126,7 +162,8 @@ public class ChangeEmailController {
         return ResponseEntity.ok(
                 new CommitEmailChangeResponse(
                         result.requestId(),
-                        result.newEmail()
+                        result.newEmail(),
+                        result.status()
                 )
         );
     }
