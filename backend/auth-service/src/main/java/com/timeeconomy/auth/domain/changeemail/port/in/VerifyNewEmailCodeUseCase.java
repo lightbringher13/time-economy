@@ -1,7 +1,5 @@
 package com.timeeconomy.auth.domain.changeemail.port.in;
 
-import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
-
 public interface VerifyNewEmailCodeUseCase {
 
     record VerifyNewEmailCodeCommand(
@@ -11,8 +9,7 @@ public interface VerifyNewEmailCodeUseCase {
     ) {}
 
     record VerifyNewEmailCodeResult(
-            Long requestId,
-            SecondFactorType secondFactorType   // PHONE or OLD_EMAIL
+            Long requestId
     ) {}
 
     VerifyNewEmailCodeResult verifyNewEmailCode(VerifyNewEmailCodeCommand command);

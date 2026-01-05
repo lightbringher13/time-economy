@@ -1,25 +1,19 @@
 package com.timeeconomy.auth.domain.changeemail.service;
 
-import com.timeeconomy.auth.domain.auth.model.AuthUser;
-import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
-import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifyNewEmailCodeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
-import com.timeeconomy.auth.domain.exception.AuthUserNotFoundException;
 import com.timeeconomy.auth.domain.exception.EmailChangeRequestNotFoundException;
 import com.timeeconomy.auth.domain.exception.InvalidNewEmailCodeException;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
 import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
 
@@ -27,16 +21,9 @@ import java.time.Clock;
 @RequiredArgsConstructor
 public class VerifyNewEmailCodeService implements VerifyNewEmailCodeUseCase {
 
-    private static final Duration OTP_TTL = Duration.ofMinutes(10);
-    private static final int OTP_MAX_ATTEMPTS = 5;
-
-    private final AuthUserRepositoryPort authUserRepositoryPort;
     private final EmailChangeRequestRepositoryPort emailChangeRequestRepositoryPort;
-
-    private final Clock clock;
-
-    private final CreateOtpUseCase createOtpUseCase;
     private final VerifyOtpUseCase verifyOtpUseCase;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -51,6 +38,14 @@ public class VerifyNewEmailCodeService implements VerifyNewEmailCodeUseCase {
             request.markExpired(now);
             emailChangeRequestRepositoryPort.save(request);
             throw new InvalidNewEmailCodeException();
+        }
+
+        // ✅ idempotent: already verified or beyond
+        if (request.getStatus() == EmailChangeStatus.NEW_EMAIL_VERIFIED
+                || request.getStatus() == EmailChangeStatus.SECOND_FACTOR_PENDING
+                || request.getStatus() == EmailChangeStatus.READY_TO_COMMIT
+                || request.getStatus() == EmailChangeStatus.COMPLETED) {
+            return new VerifyNewEmailCodeResult(request.getId());
         }
 
         if (request.getStatus() != EmailChangeStatus.PENDING) {
@@ -71,44 +66,8 @@ public class VerifyNewEmailCodeService implements VerifyNewEmailCodeUseCase {
         }
 
         request.markNewEmailVerified(now);
-
-        AuthUser user = authUserRepositoryPort.findById(command.userId())
-                .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
-
-        SecondFactorType type;
-        if (user.isPhoneVerified() && user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) {
-            type = SecondFactorType.PHONE;
-
-            createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
-                    VerificationSubjectType.USER,
-                    command.userId().toString(),
-                    VerificationPurpose.CHANGE_EMAIL_2FA_PHONE,
-                    VerificationChannel.SMS,
-                    user.getPhoneNumber(),
-                    OTP_TTL,
-                    OTP_MAX_ATTEMPTS,
-                    null,
-                    null
-            ));
-        } else {
-            type = SecondFactorType.OLD_EMAIL;
-
-            createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
-                    VerificationSubjectType.USER,
-                    command.userId().toString(),
-                    VerificationPurpose.CHANGE_EMAIL_2FA_OLD_EMAIL,
-                    VerificationChannel.EMAIL,
-                    request.getOldEmail(),
-                    OTP_TTL,
-                    OTP_MAX_ATTEMPTS,
-                    null,
-                    null
-            ));
-        }
-
-        request.setSecondFactorType(type, now);
         EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-        return new VerifyNewEmailCodeResult(saved.getId(), type);
+        return new VerifyNewEmailCodeResult(saved.getId());
     }
 }

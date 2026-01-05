@@ -3,6 +3,7 @@ package com.timeeconomy.auth.domain.changeemail.model;
 public enum EmailChangeStatus {
     PENDING,             // after user submits new email
     NEW_EMAIL_VERIFIED,  // after code to new email is verified
+    SECOND_FACTOR_PENDING,
     READY_TO_COMMIT,     // after second factor (phone/old email) is verified
     COMPLETED,           // email successfully changed
     CANCELED,            // user canceled or admin aborted

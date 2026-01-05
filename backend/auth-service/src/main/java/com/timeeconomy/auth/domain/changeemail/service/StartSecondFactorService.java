@@ -5,34 +5,38 @@ import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
-import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase;
+import com.timeeconomy.auth.domain.changeemail.port.in.StartSecondFactorUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
 import com.timeeconomy.auth.domain.exception.AuthUserNotFoundException;
 import com.timeeconomy.auth.domain.exception.EmailChangeRequestNotFoundException;
-import com.timeeconomy.auth.domain.exception.InvalidSecondFactorCodeException;
+import com.timeeconomy.auth.domain.changeemail.exception.InvalidSecondFactorCodeException;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
+import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
 
 @Service
 @RequiredArgsConstructor
-public class VerifySecondFactorService implements VerifySecondFactorUseCase {
+public class StartSecondFactorService implements StartSecondFactorUseCase {
+
+    private static final Duration OTP_TTL = Duration.ofMinutes(10);
+    private static final int OTP_MAX_ATTEMPTS = 5;
 
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final EmailChangeRequestRepositoryPort emailChangeRequestRepositoryPort;
-    private final VerifyOtpUseCase verifyOtpUseCase;
+    private final CreateOtpUseCase createOtpUseCase;
     private final Clock clock;
 
     @Override
     @Transactional
-    public VerifySecondFactorResult verifySecondFactor(VerifySecondFactorCommand command) {
+    public StartSecondFactorResult startSecondFactor(StartSecondFactorCommand command) {
         Instant now = Instant.now(clock);
 
         EmailChangeRequest request = emailChangeRequestRepositoryPort
@@ -45,51 +49,55 @@ public class VerifySecondFactorService implements VerifySecondFactorUseCase {
             throw new InvalidSecondFactorCodeException();
         }
 
-        // ✅ idempotent: already verified or finished
-        if (request.getStatus() == EmailChangeStatus.READY_TO_COMMIT
+        // ✅ idempotent: already started or beyond
+        if (request.getStatus() == EmailChangeStatus.SECOND_FACTOR_PENDING
+                || request.getStatus() == EmailChangeStatus.READY_TO_COMMIT
                 || request.getStatus() == EmailChangeStatus.COMPLETED) {
-            return new VerifySecondFactorResult(request.getId());
+            return new StartSecondFactorResult(request.getId(), request.getSecondFactorType());
         }
 
-        if (request.getStatus() != EmailChangeStatus.SECOND_FACTOR_PENDING) {
+        if (request.getStatus() != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
             throw new InvalidSecondFactorCodeException();
         }
 
-        SecondFactorType type = request.getSecondFactorType();
-        if (type == null) throw new InvalidSecondFactorCodeException();
+        AuthUser user = authUserRepositoryPort.findById(command.userId())
+                .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
 
-        boolean ok;
-        if (type == SecondFactorType.PHONE) {
-            AuthUser user = authUserRepositoryPort.findById(command.userId())
-                    .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
+        SecondFactorType type;
+        if (user.isPhoneVerified() && user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) {
+            type = SecondFactorType.PHONE;
 
-            String phone = user.getPhoneNumber();
-            if (phone == null || phone.isBlank()) throw new InvalidSecondFactorCodeException();
-
-            ok = verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
+            createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
                     VerificationSubjectType.USER,
                     command.userId().toString(),
                     VerificationPurpose.CHANGE_EMAIL_2FA_PHONE,
                     VerificationChannel.SMS,
-                    phone,
-                    command.code()
-            )).success();
+                    user.getPhoneNumber(),
+                    OTP_TTL,
+                    OTP_MAX_ATTEMPTS,
+                    null,
+                    null
+            ));
         } else {
-            ok = verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
+            type = SecondFactorType.OLD_EMAIL;
+
+            createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
                     VerificationSubjectType.USER,
                     command.userId().toString(),
                     VerificationPurpose.CHANGE_EMAIL_2FA_OLD_EMAIL,
                     VerificationChannel.EMAIL,
                     request.getOldEmail(),
-                    command.code()
-            )).success();
+                    OTP_TTL,
+                    OTP_MAX_ATTEMPTS,
+                    null,
+                    null
+            ));
         }
 
-        if (!ok) throw new InvalidSecondFactorCodeException();
+        request.setSecondFactorType(type, now);
+        request.markSecondFactorPending(now); // you need this status+method
+        EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-        request.markReadyToCommit(now); // now requires SECOND_FACTOR_PENDING
-        emailChangeRequestRepositoryPort.save(request);
-
-        return new VerifySecondFactorResult(request.getId());
+        return new StartSecondFactorResult(saved.getId(), type);
     }
 }

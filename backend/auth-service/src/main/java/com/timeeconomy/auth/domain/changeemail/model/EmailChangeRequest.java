@@ -53,6 +53,7 @@ public class EmailChangeRequest {
     public boolean isActive() {
         return status == EmailChangeStatus.PENDING
                 || status == EmailChangeStatus.NEW_EMAIL_VERIFIED
+                || status == EmailChangeStatus.SECOND_FACTOR_PENDING
                 || status == EmailChangeStatus.READY_TO_COMMIT;
     }
 
@@ -78,13 +79,26 @@ public class EmailChangeRequest {
         touch(now);
     }
 
-    public void markReadyToCommit(Instant now) {
+    public void markSecondFactorPending(Instant now) {
         if (isExpired(now)) {
             this.status = EmailChangeStatus.EXPIRED;
             touch(now);
             return;
         }
         if (status != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
+            return;
+        }
+        this.status = EmailChangeStatus.SECOND_FACTOR_PENDING;
+        touch(now);
+    }
+
+    public void markReadyToCommit(Instant now) {
+        if (isExpired(now)) {
+            this.status = EmailChangeStatus.EXPIRED;
+            touch(now);
+            return;
+        }
+        if (status != EmailChangeStatus.SECOND_FACTOR_PENDING) {
             return;
         }
         this.status = EmailChangeStatus.READY_TO_COMMIT;

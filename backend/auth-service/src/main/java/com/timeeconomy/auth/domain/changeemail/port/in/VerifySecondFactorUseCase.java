@@ -9,9 +9,8 @@ public interface VerifySecondFactorUseCase {
     ) {}
 
     record VerifySecondFactorResult(
-            Long requestId,
-            String newEmail
+            Long requestId
     ) {}
 
-    VerifySecondFactorResult verifySecondFactorAndCommit(VerifySecondFactorCommand command);
+    VerifySecondFactorResult verifySecondFactor(VerifySecondFactorCommand command);
 }
