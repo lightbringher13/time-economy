@@ -60,12 +60,29 @@ public class EmailChangeRequestRedisStore {
     public Optional<Long> findActiveIdByUserId(Long userId) {
         String ak = EmailChangeRedisKeys.activeByUserKey(userId);
         String v = redis.opsForValue().get(ak);
+
+        if (v == null) return Optional.empty();
+
+        String s = v.trim();
+        if (s.isEmpty()) return Optional.empty();
+
         try {
-            return (v == null || v.isBlank()) ? Optional.empty() : Optional.of(Long.valueOf(v));
-        } catch (Exception e) {
+            return Optional.of(Long.parseLong(s));
+        } catch (NumberFormatException e) {
+            // pointer corrupted -> self heal
             redis.delete(ak);
             return Optional.empty();
         }
+    }
+
+    public void deleteActivePointer(Long userId) {
+        String ak = EmailChangeRedisKeys.activeByUserKey(userId);
+        redis.delete(ak);
+    }
+
+    public void deleteRequest(Long requestId) {
+        String rk = EmailChangeRedisKeys.requestKey(requestId);
+        redis.delete(rk);
     }
 
     public void deleteAllForRequest(Long requestId, Long userId) {

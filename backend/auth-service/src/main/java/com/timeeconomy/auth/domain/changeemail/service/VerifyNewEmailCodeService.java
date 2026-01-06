@@ -1,25 +1,20 @@
 package com.timeeconomy.auth.domain.changeemail.service;
 
-import com.timeeconomy.auth.domain.auth.model.AuthUser;
-import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
-import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifyNewEmailCodeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
-import com.timeeconomy.auth.domain.exception.AuthUserNotFoundException;
 import com.timeeconomy.auth.domain.exception.EmailChangeRequestNotFoundException;
 import com.timeeconomy.auth.domain.exception.InvalidNewEmailCodeException;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
 import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
+import com.timeeconomy.auth.domain.changeemail.exception.EmailChangeStateCorruptedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.Clock;
 
@@ -27,88 +22,91 @@ import java.time.Clock;
 @RequiredArgsConstructor
 public class VerifyNewEmailCodeService implements VerifyNewEmailCodeUseCase {
 
-    private static final Duration OTP_TTL = Duration.ofMinutes(10);
-    private static final int OTP_MAX_ATTEMPTS = 5;
-
-    private final AuthUserRepositoryPort authUserRepositoryPort;
     private final EmailChangeRequestRepositoryPort emailChangeRequestRepositoryPort;
-
-    private final Clock clock;
-
-    private final CreateOtpUseCase createOtpUseCase;
     private final VerifyOtpUseCase verifyOtpUseCase;
+    private final Clock clock;
 
     @Override
     @Transactional
     public VerifyNewEmailCodeResult verifyNewEmailCode(VerifyNewEmailCodeCommand command) {
-        Instant now = Instant.now(clock);
+        final Instant now = Instant.now(clock);
 
         EmailChangeRequest request = emailChangeRequestRepositoryPort
                 .findByIdAndUserId(command.requestId(), command.userId())
                 .orElseThrow(() -> new EmailChangeRequestNotFoundException(command.userId(), command.requestId()));
 
+        // 1) expired → persist EXPIRED best-effort then fail
         if (request.isExpired(now)) {
             request.markExpired(now);
             emailChangeRequestRepositoryPort.save(request);
             throw new InvalidNewEmailCodeException();
         }
 
+        // 2) non-active terminal states → fail fast
+        if (request.getStatus() == EmailChangeStatus.CANCELED
+                || request.getStatus() == EmailChangeStatus.EXPIRED) {
+            throw new InvalidNewEmailCodeException();
+        }
+
+        // 3) idempotent: already verified or beyond
+        if (request.getStatus() == EmailChangeStatus.NEW_EMAIL_VERIFIED
+                || request.getStatus() == EmailChangeStatus.SECOND_FACTOR_PENDING
+                || request.getStatus() == EmailChangeStatus.READY_TO_COMMIT
+                || request.getStatus() == EmailChangeStatus.COMPLETED) {
+            return new VerifyNewEmailCodeResult(request.getId(), request.getStatus());
+        }
+
+        // 4) only allowed transition
         if (request.getStatus() != EmailChangeStatus.PENDING) {
             throw new InvalidNewEmailCodeException();
         }
 
-        var verify = verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
+        // 5) invariants for verification
+        String newEmail = request.getNewEmail();
+        if (newEmail == null || newEmail.isBlank()) {
+            throw new EmailChangeStateCorruptedException(
+                    request.getId(),
+                    request.getUserId(),
+                    "PENDING but newEmail is missing"
+            );
+        }
+
+        boolean ok = verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
                 VerificationSubjectType.USER,
                 command.userId().toString(),
                 VerificationPurpose.CHANGE_EMAIL_NEW,
                 VerificationChannel.EMAIL,
-                request.getNewEmail(),
+                newEmail,
                 command.code()
-        ));
+        )).success();
 
-        if (!verify.success()) {
+        if (!ok) {
             throw new InvalidNewEmailCodeException();
         }
 
+        // 6) guard against silent no-op
+        EmailChangeStatus before = request.getStatus();
         request.markNewEmailVerified(now);
 
-        AuthUser user = authUserRepositoryPort.findById(command.userId())
-                .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
-
-        SecondFactorType type;
-        if (user.isPhoneVerified() && user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) {
-            type = SecondFactorType.PHONE;
-
-            createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
-                    VerificationSubjectType.USER,
-                    command.userId().toString(),
-                    VerificationPurpose.CHANGE_EMAIL_2FA_PHONE,
-                    VerificationChannel.SMS,
-                    user.getPhoneNumber(),
-                    OTP_TTL,
-                    OTP_MAX_ATTEMPTS,
-                    null,
-                    null
-            ));
-        } else {
-            type = SecondFactorType.OLD_EMAIL;
-
-            createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
-                    VerificationSubjectType.USER,
-                    command.userId().toString(),
-                    VerificationPurpose.CHANGE_EMAIL_2FA_OLD_EMAIL,
-                    VerificationChannel.EMAIL,
-                    request.getOldEmail(),
-                    OTP_TTL,
-                    OTP_MAX_ATTEMPTS,
-                    null,
-                    null
-            ));
+        if (before == request.getStatus()) {
+            throw new EmailChangeStateCorruptedException(
+                    request.getId(),
+                    request.getUserId(),
+                    "markNewEmailVerified did not transition state"
+            );
         }
 
-        request.setSecondFactorType(type, now);
         EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
 
-        return new VerifyNewEmailCodeResult(saved.getId(), type);
+        // optional strict assert (matches your StartSecondFactor style)
+        if (saved.getStatus() != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
+            throw new EmailChangeStateCorruptedException(
+                    saved.getId(),
+                    saved.getUserId(),
+                    "verifyNewEmailCode saved but status is not NEW_EMAIL_VERIFIED"
+            );
+        }
+
+        return new VerifyNewEmailCodeResult(saved.getId(), saved.getStatus());
     }
 }

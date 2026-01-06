@@ -48,14 +48,26 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
         Instant now = Instant.now(clock);
 
         // 1) Try Redis pointer -> Redis hash
-        Optional<EmailChangeRequest> fromRedis = redisStore.findActiveIdByUserId(userId)
+        Optional<Long> idOpt = redisStore.findActiveIdByUserId(userId);
+
+        Optional<EmailChangeRequest> fromRedis = idOpt
                 .flatMap(id -> redisStore.findById(id, now))
                 .filter(r -> userId.equals(r.getUserId()))
                 .filter(r -> r.isActive() && !r.isExpired(now));
 
-        if (fromRedis.isPresent()) return fromRedis;
+        if (fromRedis.isPresent()) {
+            return fromRedis;
+        }
 
-        // 2) Fallback to DB (Redis key/pointer might be evicted or expired)
+        // ✅ pointer existed, but request missing/invalid/expired -> clean it up
+        if (idOpt.isPresent()) {
+            redisStore.deleteActivePointer(userId);
+
+            // optional: also delete stale hash if you want aggressive cleanup
+            // redisStore.deleteRequest(idOpt.get());
+        }
+
+        // 2) Fallback to DB
         Optional<EmailChangeRequest> fromDb = jpa.findActiveByUserId(userId)
                 .filter(r -> r.isActive() && !r.isExpired(now));
 
@@ -69,11 +81,19 @@ public class EmailChangeRequestHybridAdapter implements EmailChangeRequestReposi
     public Optional<EmailChangeRequest> findByIdAndUserId(Long id, Long userId) {
         Instant now = Instant.now(clock);
 
-        // Prefer Redis for in-flight requests
-        Optional<EmailChangeRequest> fromRedis = redisStore.findById(id, now)
-                .filter(r -> userId.equals(r.getUserId()));
+        Optional<EmailChangeRequest> raw = redisStore.findById(id, now);
 
-        if (fromRedis.isPresent()) return fromRedis;
+        if (raw.isPresent()) {
+            EmailChangeRequest r = raw.get();
+
+            // Redis corruption / wrong mapping: same requestId but different user
+            if (!userId.equals(r.getUserId())) {
+                redisStore.deleteRequest(id); // self-heal
+                return Optional.empty();
+            }
+
+            return Optional.of(r);
+        }
 
         // Fallback to DB (history / durability)
         return jpa.findByIdAndUserId(id, userId);

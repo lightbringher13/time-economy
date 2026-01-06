@@ -2,21 +2,15 @@ package com.timeeconomy.auth.domain.changeemail.service;
 
 import com.timeeconomy.auth.domain.auth.model.AuthUser;
 import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
+import com.timeeconomy.auth.domain.changeemail.exception.EmailChangeStateCorruptedException;
+import com.timeeconomy.auth.domain.changeemail.exception.InvalidSecondFactorCodeException;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeStatus;
 import com.timeeconomy.auth.domain.changeemail.model.SecondFactorType;
-import com.timeeconomy.auth.domain.changeemail.model.payload.EmailChangeCommittedPayload;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.out.EmailChangeRequestRepositoryPort;
-import com.timeeconomy.auth.domain.common.lock.port.DistributedLockPort;
-import com.timeeconomy.auth.domain.common.lock.port.LockHandle;
 import com.timeeconomy.auth.domain.exception.AuthUserNotFoundException;
-import com.timeeconomy.auth.domain.exception.EmailChangeEmailMismatchException;
 import com.timeeconomy.auth.domain.exception.EmailChangeRequestNotFoundException;
-import com.timeeconomy.auth.domain.exception.InvalidSecondFactorCodeException;
-import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
-import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
-import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
@@ -25,128 +19,159 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
 public class VerifySecondFactorService implements VerifySecondFactorUseCase {
 
-    // Outbox event info
-    private static final String OUTBOX_AGGREGATE_TYPE = "EmailChangeRequest";
-    private static final String EVENT_EMAIL_CHANGE_COMMITTED = "EmailChangeCommitted.v1";
-
     private final AuthUserRepositoryPort authUserRepositoryPort;
     private final EmailChangeRequestRepositoryPort emailChangeRequestRepositoryPort;
-    private final DistributedLockPort distributedLockPort;
-    private final OutboxEventRepositoryPort outboxEventRepositoryPort;
-    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
-
-    private final Clock clock;
-
     private final VerifyOtpUseCase verifyOtpUseCase;
+    private final Clock clock;
 
     @Override
     @Transactional
-    public VerifySecondFactorResult verifySecondFactorAndCommit(VerifySecondFactorCommand command) {
-        Instant now = Instant.now(clock);
-        String lockKey = "change-email:user:" + command.userId();
+    public VerifySecondFactorResult verifySecondFactor(VerifySecondFactorCommand command) {
+        final Instant now = Instant.now(clock);
 
-        try (LockHandle lock = distributedLockPort.acquireLock(lockKey)) {
+        EmailChangeRequest request = emailChangeRequestRepositoryPort
+                .findByIdAndUserId(command.requestId(), command.userId())
+                .orElseThrow(() -> new EmailChangeRequestNotFoundException(command.userId(), command.requestId()));
 
-            EmailChangeRequest request = emailChangeRequestRepositoryPort
-                    .findByIdAndUserId(command.requestId(), command.userId())
-                    .orElseThrow(() -> new EmailChangeRequestNotFoundException(command.userId(), command.requestId()));
+        // 1) expired → persist EXPIRED best-effort then fail
+        if (request.isExpired(now)) {
+            request.markExpired(now);
+            emailChangeRequestRepositoryPort.save(request);
+            throw new InvalidSecondFactorCodeException(); // later: InvalidEmailChangeRequestException
+        }
 
-            if (request.isExpired(now)) {
-                request.markExpired(now);
-                emailChangeRequestRepositoryPort.save(request);
-                throw new InvalidSecondFactorCodeException();
+        // 2) terminal states → fail fast
+        if (request.getStatus() == EmailChangeStatus.CANCELED
+                || request.getStatus() == EmailChangeStatus.EXPIRED) {
+            throw new InvalidSecondFactorCodeException();
+        }
+
+        // 3) idempotent (but still enforce invariants)
+        if (request.getStatus() == EmailChangeStatus.READY_TO_COMMIT
+                || request.getStatus() == EmailChangeStatus.COMPLETED) {
+
+            if (request.getSecondFactorType() == null) {
+                throw new EmailChangeStateCorruptedException(
+                        request.getId(),
+                        request.getUserId(),
+                        request.getStatus() + " but secondFactorType is null"
+                );
             }
 
-            if (request.getStatus() != EmailChangeStatus.NEW_EMAIL_VERIFIED) {
-                throw new InvalidSecondFactorCodeException();
-            }
-
-            SecondFactorType type = request.getSecondFactorType();
-            if (type == null) {
-                throw new InvalidSecondFactorCodeException();
-            }
-
-            boolean secondOk;
-            if (type == SecondFactorType.PHONE) {
-                AuthUser user = authUserRepositoryPort.findById(command.userId())
-                        .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
-
-                String phone = user.getPhoneNumber();
-                if (phone == null || phone.isBlank()) {
-                    throw new InvalidSecondFactorCodeException();
+            // optional strict invariants for "done" states
+            if (request.getStatus() == EmailChangeStatus.COMPLETED) {
+                String newEmail = request.getNewEmail();
+                if (newEmail == null || newEmail.isBlank()) {
+                    throw new EmailChangeStateCorruptedException(
+                            request.getId(),
+                            request.getUserId(),
+                            "COMPLETED but newEmail is missing"
+                    );
                 }
-
-                var verify = verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
-                        VerificationSubjectType.USER,
-                        command.userId().toString(),
-                        VerificationPurpose.CHANGE_EMAIL_2FA_PHONE,
-                        VerificationChannel.SMS,
-                        phone,
-                        command.code()
-                ));
-                secondOk = verify.success();
-
-            } else { // OLD_EMAIL
-                var verify = verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
-                        VerificationSubjectType.USER,
-                        command.userId().toString(),
-                        VerificationPurpose.CHANGE_EMAIL_2FA_OLD_EMAIL,
-                        VerificationChannel.EMAIL,
-                        request.getOldEmail(),
-                        command.code()
-                ));
-                secondOk = verify.success();
             }
 
-            if (!secondOk) {
-                throw new InvalidSecondFactorCodeException();
-            }
+            return new VerifySecondFactorResult(request.getId(), request.getStatus());
+        }
 
-            request.markReadyToCommit(now);
+        // 4) only allowed transition
+        if (request.getStatus() != EmailChangeStatus.SECOND_FACTOR_PENDING) {
+            throw new InvalidSecondFactorCodeException();
+        }
 
+        // 5) invariants for SECOND_FACTOR_PENDING
+        final SecondFactorType type = request.getSecondFactorType();
+        if (type == null) {
+            throw new EmailChangeStateCorruptedException(
+                    request.getId(),
+                    request.getUserId(),
+                    "SECOND_FACTOR_PENDING but secondFactorType is null"
+            );
+        }
+
+        // 6) verify OTP depending on type
+        final boolean ok = verifyBySecondFactorType(type, command, request);
+        if (!ok) {
+            throw new InvalidSecondFactorCodeException();
+        }
+
+        // 7) transition guard
+        EmailChangeStatus before = request.getStatus();
+        request.markReadyToCommit(now);
+
+        if (before == request.getStatus()) {
+            throw new EmailChangeStateCorruptedException(
+                    request.getId(),
+                    request.getUserId(),
+                    "markReadyToCommit did not transition state"
+            );
+        }
+
+        EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
+
+        // optional strict assert (matches your StartSecondFactor style)
+        if (saved.getStatus() != EmailChangeStatus.READY_TO_COMMIT) {
+            throw new EmailChangeStateCorruptedException(
+                    saved.getId(),
+                    saved.getUserId(),
+                    "verifySecondFactor saved but status is not READY_TO_COMMIT"
+            );
+        }
+
+        return new VerifySecondFactorResult(saved.getId(), saved.getStatus());
+    }
+
+    private boolean verifyBySecondFactorType(
+            SecondFactorType type,
+            VerifySecondFactorCommand command,
+            EmailChangeRequest request
+    ) {
+        if (type == SecondFactorType.PHONE) {
             AuthUser user = authUserRepositoryPort.findById(command.userId())
                     .orElseThrow(() -> new AuthUserNotFoundException(command.userId()));
 
-            if (!user.getEmail().equals(request.getOldEmail())) {
-                throw new EmailChangeEmailMismatchException();
+            String phone = user.getPhoneNumber();
+            if (phone == null || phone.isBlank()) {
+                throw new EmailChangeStateCorruptedException(
+                        request.getId(),
+                        request.getUserId(),
+                        "secondFactorType=PHONE but user.phoneNumber is missing"
+                );
             }
 
-            // ✅ Commit change
-            user.updateEmail(request.getNewEmail(), now);
-            authUserRepositoryPort.save(user);
-
-            request.markCompleted(now);
-            EmailChangeRequest saved = emailChangeRequestRepositoryPort.save(request);
-
-            String payloadJson = outboxPayloadSerializerPort.serialize(
-                    new EmailChangeCommittedPayload(
-                            saved.getId().toString(),
-                            saved.getUserId(),
-                            saved.getOldEmail(),
-                            saved.getNewEmail(),
-                            now
-                    )
-            );
-
-            outboxEventRepositoryPort.save(
-                    OutboxEvent.newPending(
-                            OUTBOX_AGGREGATE_TYPE,
-                            saved.getId().toString(),
-                            EVENT_EMAIL_CHANGE_COMMITTED,
-                            payloadJson,
-                            now
-                    )
-            );
-
-            return new VerifySecondFactorResult(saved.getId(), request.getNewEmail());
+            return verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
+                    VerificationSubjectType.USER,
+                    command.userId().toString(),
+                    VerificationPurpose.CHANGE_EMAIL_2FA_PHONE,
+                    VerificationChannel.SMS,
+                    phone,
+                    command.code()
+            )).success();
         }
+
+        // OLD_EMAIL
+        String oldEmail = request.getOldEmail();
+        if (oldEmail == null || oldEmail.isBlank()) {
+            throw new EmailChangeStateCorruptedException(
+                    request.getId(),
+                    request.getUserId(),
+                    "secondFactorType=OLD_EMAIL but request.oldEmail is missing"
+            );
+        }
+
+        return verifyOtpUseCase.verifyOtp(new VerifyOtpUseCase.VerifyOtpCommand(
+                VerificationSubjectType.USER,
+                command.userId().toString(),
+                VerificationPurpose.CHANGE_EMAIL_2FA_OLD_EMAIL,
+                VerificationChannel.EMAIL,
+                oldEmail,
+                command.code()
+        )).success();
     }
-    
 }
