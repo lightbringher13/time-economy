@@ -1,6 +1,7 @@
 package com.timeeconomy.auth.domain.changeemail.service;
 
 import com.timeeconomy.auth.domain.auth.model.AuthUser;
+import com.timeeconomy.auth.domain.auth.port.in.LogoutAllUseCase;
 import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.changeemail.exception.EmailChangeStateCorruptedException;
 import com.timeeconomy.auth.domain.changeemail.model.EmailChangeRequest;
@@ -37,6 +38,8 @@ public class CommitEmailChangeService implements CommitEmailChangeUseCase {
     private final OutboxEventRepositoryPort outboxEventRepositoryPort;
     private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
     private final Clock clock;
+
+    private final LogoutAllUseCase logoutAllUseCase;
 
     @Override
     @Transactional
@@ -161,6 +164,8 @@ public class CommitEmailChangeService implements CommitEmailChangeUseCase {
                             now
                     )
             );
+
+            logoutAllUseCase.logoutAll(new LogoutAllUseCase.LogoutAllCommand(user.getId()));
 
             return new CommitEmailChangeResult(saved.getId(), saved.getNewEmail(), saved.getStatus());
         }

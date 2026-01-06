@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   verifySecondFactorSchema,
   type VerifySecondFactorFormValues,
-} from "../schemas/changeEmailSchemas";
+} from "../schemas/verifySecondFactor.schema.ts";
 
 export function useVerifySecondFactorForm() {
   return useForm<VerifySecondFactorFormValues>({

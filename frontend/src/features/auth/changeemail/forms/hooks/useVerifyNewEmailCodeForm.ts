@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   verifyNewEmailCodeSchema,
   type VerifyNewEmailCodeFormValues,
-} from "../schemas/changeEmailSchemas";
+} from "../schemas/verifyNewEmailCode.schema.ts";
 
 export function useVerifyNewEmailCodeForm() {
   return useForm<VerifyNewEmailCodeFormValues>({

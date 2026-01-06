@@ -12,5 +12,5 @@ export async function logoutApi(): Promise<void> {
 }
 
 export async function logoutAllApi(): Promise<void> {
-  await apiClient.post("/auth/logout-all");
+  await apiClient.post("/auth/logout/all");
 }

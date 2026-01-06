@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   requestEmailChangeSchema,
   type RequestEmailChangeFormValues,
-} from "../schemas/changeEmailSchemas";
+} from "../schemas/requestEmailChange.schema.ts";
 
 export function useRequestEmailChangeForm() {
   return useForm<RequestEmailChangeFormValues>({

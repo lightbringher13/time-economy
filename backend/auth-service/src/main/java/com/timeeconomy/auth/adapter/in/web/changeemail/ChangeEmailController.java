@@ -1,8 +1,11 @@
 package com.timeeconomy.auth.adapter.in.web.changeemail;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
 
 import com.timeeconomy.auth.adapter.in.web.changeemail.dto.request.RequestEmailChangeRequest;
 import com.timeeconomy.auth.adapter.in.web.changeemail.dto.request.VerifyNewEmailCodeRequest;
@@ -23,6 +26,7 @@ import com.timeeconomy.auth.domain.changeemail.port.in.StartSecondFactorUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.CommitEmailChangeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.GetEmailChangeStatusUseCase;
+import com.timeeconomy.auth.domain.changeemail.port.in.GetActiveEmailChangeUseCase;
 
 @RestController
 @RequestMapping("/api/auth/email-change")
@@ -35,6 +39,7 @@ public class ChangeEmailController {
     private final VerifySecondFactorUseCase verifySecondFactorUseCase;
     private final CommitEmailChangeUseCase commitEmailChangeUseCase;
     private final GetEmailChangeStatusUseCase getEmailChangeStatusUseCase;
+    private final GetActiveEmailChangeUseCase getActiveEmailChangeUseCase;
 
     // 1) Start change-email flow (password + new email)
     @PostMapping("/request")
@@ -55,6 +60,33 @@ public class ChangeEmailController {
                         result.requestId(),
                         result.maskedNewEmail(),
                         result.status()
+                )
+        );
+    }
+
+    // ✅ 1.25) Get my active request (survive refresh without storage)
+    @GetMapping("/active")
+    public ResponseEntity<GetEmailChangeStatusResponse> getActive(
+            @RequestHeader("X-User-Id") Long userId
+    ) {
+        var opt = getActiveEmailChangeUseCase.getActive(
+                new GetActiveEmailChangeUseCase.GetActiveEmailChangeCommand(userId)
+        );
+
+        // 204 = no active request
+        if (opt.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+
+        var result = opt.get();
+
+        return ResponseEntity.ok(
+                new GetEmailChangeStatusResponse(
+                        result.requestId(),
+                        result.status(),
+                        result.secondFactorType(),
+                        result.maskedNewEmail(),
+                        result.expiresAt()
                 )
         );
     }
@@ -159,12 +191,20 @@ public class ChangeEmailController {
                 )
         );
 
-        return ResponseEntity.ok(
-                new CommitEmailChangeResponse(
+        ResponseCookie deleteCookie = ResponseCookie.from("refreshToken", "")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .build();
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, deleteCookie.toString())
+            .body(new CommitEmailChangeResponse(
                         result.requestId(),
                         result.newEmail(),
                         result.status()
-                )
-        );
+                ));
     }
 }
