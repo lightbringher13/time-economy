@@ -56,6 +56,21 @@ public class EmailChangeRequest {
                 || status == EmailChangeStatus.READY_TO_COMMIT;
     }
 
+    public boolean expireIfNeeded(Instant now) {
+        // already terminal? nothing to do
+        if (status == EmailChangeStatus.COMPLETED
+                || status == EmailChangeStatus.CANCELED
+                || status == EmailChangeStatus.EXPIRED) {
+            return false;
+        }
+
+        if (!isExpired(now)) return false;
+
+        this.status = EmailChangeStatus.EXPIRED;
+        touch(now);
+        return true; // tells caller: "I expired it"
+    }
+
     // =========================================
     // Invariants (big-co style)
     // =========================================

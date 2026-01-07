@@ -7,6 +7,8 @@ import { useStartSecondFactor } from "./useStartSecondFactor";
 import { useVerifySecondFactor } from "./useVerifySecondFactor";
 import { useCommitEmailChange } from "./useCommitEmailChange";
 import { useLogoutAll } from "./useLogoutAll";
+import { useResendNewEmailOtp } from "./useResendNewEmailOtp";
+import { useCancelEmailChange } from "./useCancelEmailChange";
 
 import { useAuthStore } from "@/store/useAuthStore"; // zustand, example
 // import { useNavigate } from "react-router-dom"; // example
@@ -22,6 +24,8 @@ export function useChangeEmailFlow() {
   const verify2fa = useVerifySecondFactor();
   const commit = useCommitEmailChange();
   const logout = useLogoutAll();
+  const resendNewOtp = useResendNewEmailOtp();
+  const cancelChange = useCancelEmailChange();
 
   const authStore = useAuthStore();
   // const navigate = useNavigate();
@@ -87,6 +91,25 @@ export function useChangeEmailFlow() {
     return res;
   };
 
+  const resendNewEmailOtp = async () => {
+    if (!status.requestId) throw new Error("No requestId");
+    setError(null);
+
+    await resendNewOtp.resend(status.requestId);
+    await status.refresh(status.requestId);
+  };
+
+  // ✅ new: cancel and return to REQUEST
+  const cancelEmailChange = async () => {
+    if (!status.requestId) throw new Error("No requestId");
+    setError(null);
+
+    await cancelChange.cancel(status.requestId);
+
+    // best: re-sync from /active (will become 204 -> null status)
+    await status.refresh();
+  };
+
   const finishAfterDone = async () => {
     // 1) revoke all sessions (server deletes refresh cookie)
     await logout.logoutAll();
@@ -105,7 +128,9 @@ export function useChangeEmailFlow() {
     start2fa.loading ||
     verify2fa.loading ||
     commit.loading ||
-    logout.loading;
+    logout.loading ||
+    resendNewOtp.loading ||
+    cancelChange.loading;
 
   return {
     // derived UI
@@ -125,6 +150,8 @@ export function useChangeEmailFlow() {
     submitVerifyNew,
     submitSecondFactor,
     finishAfterDone,
+    resendNewEmailOtp,
+    cancelEmailChange,
 
     // utility
     refresh: status.refresh,

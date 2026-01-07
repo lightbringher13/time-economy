@@ -11,6 +11,12 @@ interface Props {
   loading: boolean;
   error?: string | null;
   secondFactorType?: SecondFactorType | null;
+
+  // ✅ new
+  onCancel?: () => void;
+
+  // ✅ optional (only if you implement a resend-2fa endpoint)
+  onResend?: () => void;
 }
 
 export function ChangeEmailStepSecondFactor({
@@ -19,6 +25,8 @@ export function ChangeEmailStepSecondFactor({
   loading,
   error,
   secondFactorType,
+  onCancel,
+  onResend,
 }: Props) {
   const {
     register,
@@ -28,7 +36,9 @@ export function ChangeEmailStepSecondFactor({
   const helperText =
     secondFactorType === "PHONE"
       ? "Enter the 6-digit code you received via SMS."
-      : "Enter the 6-digit code sent to your old email address.";
+      : secondFactorType === "OLD_EMAIL"
+      ? "Enter the 6-digit code sent to your old email address."
+      : "Enter the 6-digit code.";
 
   const title =
     secondFactorType === "PHONE" ? "Two-factor verification (SMS)" : "Two-factor verification";
@@ -64,9 +74,33 @@ export function ChangeEmailStepSecondFactor({
         )}
       </div>
 
-      <button type="submit" disabled={loading} style={{ padding: "8px 14px" }}>
-        {loading ? "Processing..." : "Confirm"}
-      </button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit" disabled={loading} style={{ padding: "8px 14px" }}>
+          {loading ? "Processing..." : "Confirm"}
+        </button>
+
+        {onResend && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onResend}
+            style={{ padding: "8px 14px" }}
+          >
+            Resend code
+          </button>
+        )}
+
+        {onCancel && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onCancel}
+            style={{ padding: "8px 14px" }}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 }

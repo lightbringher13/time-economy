@@ -131,7 +131,23 @@ export function ChangeEmailPage() {
           loading={loading}
           error={uiError}
           maskedNewEmail={flow.maskedNewEmail}
-          // onResend: usually not recommended here because password is required to resend in your flow
+          onResend={async () => {
+            try {
+              setUiError(null);
+              await flow.resendNewEmailOtp();
+            } catch (err: any) {
+              setUiError(extractMessage(err, "Failed to resend code. Please try again."));
+            }
+          }}
+          onCancel={async () => {
+            try {
+              setUiError(null);
+              await flow.cancelEmailChange();
+              await onReset(); // reset forms + re-sync
+            } catch (err: any) {
+              setUiError(extractMessage(err, "Failed to cancel. Please try again."));
+            }
+          }}
         />
       )}
 
@@ -142,6 +158,23 @@ export function ChangeEmailPage() {
           loading={loading}
           error={uiError}
           secondFactorType={flow.secondFactorType}
+          onResend={async () => {
+            try {
+              setUiError(null);
+              await flow.resendNewEmailOtp();
+            } catch (err: any) {
+              setUiError(extractMessage(err, "Failed to resend code. Please try again."));
+            }
+          }}
+          onCancel={async () => {
+            try {
+              setUiError(null);
+              await flow.cancelEmailChange();
+              await onReset(); // reset forms + re-sync
+            } catch (err: any) {
+              setUiError(extractMessage(err, "Failed to cancel. Please try again."));
+            }
+          }}
         />
       )}
 

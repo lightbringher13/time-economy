@@ -100,3 +100,15 @@ export async function getActiveEmailChangeApi(
   );
   return res.data;
 }
+
+export async function resendNewEmailOtpApi(
+  requestId: number
+): Promise<void> {
+  await apiClient.post(`/auth/email-change/${requestId}/resend-new-email-otp`);
+}
+
+export async function cancelEmailChangeApi(
+  requestId: number
+): Promise<void> {
+  await apiClient.post(`/auth/email-change/${requestId}/cancel`);
+}
