@@ -27,6 +27,8 @@ import com.timeeconomy.auth.domain.changeemail.port.in.VerifySecondFactorUseCase
 import com.timeeconomy.auth.domain.changeemail.port.in.CommitEmailChangeUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.GetEmailChangeStatusUseCase;
 import com.timeeconomy.auth.domain.changeemail.port.in.GetActiveEmailChangeUseCase;
+import com.timeeconomy.auth.domain.changeemail.port.in.ResendNewEmailOtpUseCase;
+import com.timeeconomy.auth.domain.changeemail.port.in.CancelEmailChangeUseCase;
 
 @RestController
 @RequestMapping("/api/auth/email-change")
@@ -40,6 +42,8 @@ public class ChangeEmailController {
     private final CommitEmailChangeUseCase commitEmailChangeUseCase;
     private final GetEmailChangeStatusUseCase getEmailChangeStatusUseCase;
     private final GetActiveEmailChangeUseCase getActiveEmailChangeUseCase;
+    private final ResendNewEmailOtpUseCase resendNewEmailOtpUseCase;
+    private final CancelEmailChangeUseCase cancelEmailChangeUseCase;
 
     // 1) Start change-email flow (password + new email)
     @PostMapping("/request")
@@ -207,4 +211,29 @@ public class ChangeEmailController {
                         result.status()
                 ));
     }
+    
+    // 2.1) Resend NEW email OTP (only when status=PENDING)
+@PostMapping("/{requestId}/resend-new-email-otp")
+public ResponseEntity<Void> resendNewEmailOtp(
+        @RequestHeader("X-User-Id") Long userId,
+        @PathVariable Long requestId
+) {
+    resendNewEmailOtpUseCase.resend(
+            new ResendNewEmailOtpUseCase.ResendCommand(userId, requestId)
+    );
+    return ResponseEntity.noContent().build();
+}
+
+// 0) Cancel current email change request
+@PostMapping("/{requestId}/cancel")
+public ResponseEntity<Void> cancel(
+        @RequestHeader("X-User-Id") Long userId,
+        @PathVariable Long requestId
+) {
+    cancelEmailChangeUseCase.cancel(
+            new CancelEmailChangeUseCase.CancelCommand(userId, requestId)
+    );
+    return ResponseEntity.noContent().build();
+}
+
 }

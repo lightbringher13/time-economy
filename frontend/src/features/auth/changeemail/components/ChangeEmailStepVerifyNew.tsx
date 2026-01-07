@@ -9,7 +9,10 @@ interface Props {
   loading: boolean;
   error?: string | null;
   maskedNewEmail?: string | null;
-  onResend?: () => void; // optional: resend button
+
+  // actions (optional)
+  onResend?: () => void;
+  onCancel?: () => void;
 }
 
 export function ChangeEmailStepVerifyNew({
@@ -19,6 +22,7 @@ export function ChangeEmailStepVerifyNew({
   error,
   maskedNewEmail,
   onResend,
+  onCancel,
 }: Props) {
   const {
     register,
@@ -73,6 +77,17 @@ export function ChangeEmailStepVerifyNew({
             style={{ padding: "8px 14px" }}
           >
             Resend code
+          </button>
+        )}
+
+        {onCancel && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onCancel}
+            style={{ padding: "8px 14px" }}
+          >
+            Cancel
           </button>
         )}
       </div>
