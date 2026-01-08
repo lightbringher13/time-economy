@@ -34,6 +34,7 @@ public final class SignupSessionSnapshotMapper {
         SignupSession s = new SignupSession();
 
         if (hasText(snap.id())) s.setId(UUID.fromString(snap.id()));
+
         s.setEmail(textOrNull(snap.email()));
         s.setEmailVerified(snap.emailVerified());
 
@@ -47,12 +48,19 @@ public final class SignupSessionSnapshotMapper {
             s.setBirthDate(LocalDate.ofEpochDay(snap.birthDateEpochDays()));
         }
 
-        if (hasText(snap.state())) s.setState(SignupSessionState.valueOf(snap.state()));
-        else s.setState(SignupSessionState.EMAIL_PENDING);
+        // ✅ default state = DRAFT (new flow)
+        if (hasText(snap.state())) {
+            s.setState(SignupSessionState.valueOf(snap.state()));
+        } else {
+            s.setState(SignupSessionState.DRAFT);
+        }
 
         s.setCreatedAt(toInstant(snap.createdAtEpochMillis()));
         s.setUpdatedAt(toInstant(snap.updatedAtEpochMillis()));
         s.setExpiresAt(toInstant(snap.expiresAtEpochMillis()));
+
+        // ✅ fail fast if Redis snapshot is inconsistent
+        s.assertInvariants();
 
         return s;
     }

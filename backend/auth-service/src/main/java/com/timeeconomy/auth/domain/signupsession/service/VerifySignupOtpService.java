@@ -5,7 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.timeeconomy.auth.domain.exception.SignupSessionNotFoundException;
+import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionInvalidStateException;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
+import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.model.SignupVerificationTarget;
 import com.timeeconomy.auth.domain.signupsession.port.in.VerifySignupOtpUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
@@ -30,64 +33,99 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
     @Override
     @Transactional
     public Result verify(Command command) {
-        Instant now = Instant.now(clock);
-        UUID sessionId = command.sessionId();
+        final Instant now = Instant.now(clock);
+        final UUID sessionId = command.sessionId();
 
-        var sessionOpt = signupSessionStorePort.findActiveById(sessionId, now);
-        if (sessionOpt.isEmpty()) {
-            return new Result(false, sessionId, false, false, "EXPIRED_OR_NOT_FOUND");
+        SignupSession session = signupSessionStorePort
+                .findActiveById(sessionId, now)
+                .orElseThrow(() -> new SignupSessionNotFoundException(sessionId));
+
+        // materialize expiry (if your store can return non-expired only, this is optional)
+        if (session.expireIfNeeded(now)) {
+            signupSessionStorePort.save(session);
+            throw new SignupSessionNotFoundException(sessionId);
         }
-
-        SignupSession session = sessionOpt.get();
-
-        VerificationPurpose purpose;
-        VerificationChannel channel;
-        String destination;
 
         if (command.target() == SignupVerificationTarget.EMAIL) {
-            destination = session.getEmail();
-            purpose = VerificationPurpose.SIGNUP_EMAIL;
-            channel = VerificationChannel.EMAIL;
-
-            if (destination == null || destination.isBlank()) {
-                return fail(session);
-            }
-
-        } else { // PHONE
-            destination = session.getPhoneNumber();
-            purpose = VerificationPurpose.SIGNUP_PHONE;
-            channel = VerificationChannel.SMS;
-
-            if (destination == null || destination.isBlank()) {
-                return fail(session);
-            }
+            return verifyEmailOtp(command, session, now);
         }
 
-        var verify = verifyOtpUseCase.verifyOtp(
+        return verifyPhoneOtp(command, session, now);
+    }
+
+    private Result verifyEmailOtp(Command command, SignupSession session, Instant now) {
+        // ✅ allow email verify only after EMAIL_OTP_SENT
+        if (session.getState() != SignupSessionState.EMAIL_OTP_SENT) {
+            throw new SignupSessionInvalidStateException("verify EMAIL otp", session.getState());
+        }
+
+        String destination = session.getEmail();
+        if (destination == null || destination.isBlank()) {
+            throw new SignupSessionInvalidStateException("verify EMAIL otp (email missing)", session.getState());
+        }
+
+        boolean ok = verifyOtpUseCase.verifyOtp(
                 new VerifyOtpUseCase.VerifyOtpCommand(
                         VerificationSubjectType.SIGNUP_SESSION,
                         session.getId().toString(),
-                        purpose,
-                        channel,
+                        VerificationPurpose.SIGNUP_EMAIL,
+                        VerificationChannel.EMAIL,
                         destination,
                         command.code()
                 )
-        );
+        ).success();
 
-        if (!verify.success()) {
+        if (!ok) {
+            // wrong code is NOT exceptional
             return fail(session);
         }
 
-        // ✅ update SignupSession
-        if (command.target() == SignupVerificationTarget.EMAIL) {
-            session.markEmailVerified(now);
-        } else {
-            session.markPhoneVerified(now);
-        }
-
+        session.markEmailVerified(now);
         signupSessionStorePort.save(session);
 
-        return new Result(true, session.getId(), session.isEmailVerified(), session.isPhoneVerified(), safe(session.getState()));
+        return success(session);
+    }
+
+    private Result verifyPhoneOtp(Command command, SignupSession session, Instant now) {
+        // ✅ allow phone verify only after PHONE_OTP_SENT
+        if (session.getState() != SignupSessionState.PHONE_OTP_SENT) {
+            throw new SignupSessionInvalidStateException("verify PHONE otp", session.getState());
+        }
+
+        String destination = session.getPhoneNumber();
+        if (destination == null || destination.isBlank()) {
+            throw new SignupSessionInvalidStateException("verify PHONE otp (phone missing)", session.getState());
+        }
+
+        boolean ok = verifyOtpUseCase.verifyOtp(
+                new VerifyOtpUseCase.VerifyOtpCommand(
+                        VerificationSubjectType.SIGNUP_SESSION,
+                        session.getId().toString(),
+                        VerificationPurpose.SIGNUP_PHONE,
+                        VerificationChannel.SMS,
+                        destination,
+                        command.code()
+                )
+        ).success();
+
+        if (!ok) {
+            return fail(session);
+        }
+
+        session.markPhoneVerified(now);
+        signupSessionStorePort.save(session);
+
+        return success(session);
+    }
+
+    private Result success(SignupSession session) {
+        return new Result(
+                true,
+                session.getId(),
+                session.isEmailVerified(),
+                session.isPhoneVerified(),
+                safe(session.getState())
+        );
     }
 
     private Result fail(SignupSession session) {

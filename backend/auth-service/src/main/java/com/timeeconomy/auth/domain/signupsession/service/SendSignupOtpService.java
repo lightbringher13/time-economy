@@ -1,4 +1,4 @@
-// src/main/java/com/timeeconomy/auth_service/domain/signupsession/service/SendSignupOtpService.java
+// src/main/java/com/timeeconomy/auth/domain/signupsession/service/SendSignupOtpService.java
 package com.timeeconomy.auth.domain.signupsession.service;
 
 import lombok.RequiredArgsConstructor;
@@ -6,6 +6,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
+import com.timeeconomy.auth.domain.exception.EmailAlreadyUsedException;
+import com.timeeconomy.auth.domain.exception.PhoneNumberAlreadyUsedException;
+import com.timeeconomy.auth.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupVerificationTarget;
 import com.timeeconomy.auth.domain.signupsession.port.in.SendSignupOtpUseCase;
@@ -28,52 +32,116 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
     private static final int OTP_MAX_ATTEMPTS = 5;
 
     private final SignupSessionStorePort signupSessionStorePort;
+    private final AuthUserRepositoryPort authUserRepositoryPort;
     private final CreateOtpUseCase createOtpUseCase;
     private final Clock clock;
 
     @Override
     @Transactional
     public Result send(Command command) {
-        Instant now = Instant.now(clock);
-
-        var sessionOpt = signupSessionStorePort.findActiveById(command.sessionId(), now);
-        if (sessionOpt.isEmpty()) {
-            return new Result(false, command.sessionId(), null, 0, null, false, false, "EXPIRED_OR_NOT_FOUND");
+        if (command.sessionId() == null) {
+            throw new SignupSessionNotFoundException("Missing signup session");
         }
 
-        SignupSession session = sessionOpt.get();
+        Instant now = Instant.now(clock);
 
+        SignupSession session = signupSessionStorePort
+                .findActiveById(command.sessionId(), now)
+                .orElseThrow(() -> new SignupSessionNotFoundException("Signup session not found or expired"));
+
+        // Decide verification target
+        final SignupVerificationTarget target = command.target();
+        if (target == null) {
+            // keep behavior simple; you can introduce a dedicated exception later
+            throw new IllegalArgumentException("target is required");
+        }
+
+        // -------- Idempotency: if already verified for that target, do nothing --------
+        if (target == SignupVerificationTarget.EMAIL && session.isEmailVerified()) {
+            return new Result(
+                    false,
+                    session.getId(),
+                    null,
+                    0,
+                    null,
+                    session.isEmailVerified(),
+                    session.isPhoneVerified(),
+                    session.getState().name()
+            );
+        }
+
+        if (target == SignupVerificationTarget.PHONE && session.isPhoneVerified()) {
+            return new Result(
+                    false,
+                    session.getId(),
+                    null,
+                    0,
+                    null,
+                    session.isEmailVerified(),
+                    session.isPhoneVerified(),
+                    session.getState().name()
+            );
+        }
+
+        // -------- Destination + fast-fail uniqueness checks --------
         VerificationPurpose purpose;
         VerificationChannel channel;
         String destination;
 
-        if (command.target() == SignupVerificationTarget.EMAIL) {
-            destination = session.getEmail();
+        if (target == SignupVerificationTarget.EMAIL) {
+            destination = normalizeEmail(session.getEmail());
             purpose = VerificationPurpose.SIGNUP_EMAIL;
             channel = VerificationChannel.EMAIL;
-        } else {
-            destination = session.getPhoneNumber();
+
+            if (destination == null || destination.isBlank()) {
+                return new Result(false, session.getId(), null, 0, null,
+                        session.isEmailVerified(), session.isPhoneVerified(), session.getState().name());
+            }
+
+            // ✅ Fast fail: email already used
+            authUserRepositoryPort.findByEmail(destination).ifPresent(existing -> {
+                // Optional: flip the session flag back to false to force correct UI state
+                session.setEmailVerified(false);
+                signupSessionStorePort.save(session);
+                throw new EmailAlreadyUsedException("Email is already in use");
+            });
+
+            session.markEmailOtpSent(now);
+            signupSessionStorePort.save(session);
+
+        } else { // PHONE
+            destination = normalizePhone(session.getPhoneNumber());
             purpose = VerificationPurpose.SIGNUP_PHONE;
             channel = VerificationChannel.SMS;
-        }
 
-        if (destination == null || destination.isBlank()) {
-            return new Result(false, session.getId(), null, 0, null,
-                    session.isEmailVerified(), session.isPhoneVerified(), session.getState().name());
+            if (destination == null || destination.isBlank()) {
+                return new Result(false, session.getId(), null, 0, null,
+                        session.isEmailVerified(), session.isPhoneVerified(), session.getState().name());
+            }
+
+            // ✅ Fast fail: phone already used
+            authUserRepositoryPort.findByPhoneNumber(destination).ifPresent(existing -> {
+                session.setPhoneVerified(false);
+                signupSessionStorePort.save(session);
+                throw new PhoneNumberAlreadyUsedException("Phone number is already in use");
+            });
+
+            session.markPhoneOtpSent(now);
+            signupSessionStorePort.save(session);
         }
 
         log.info("[SignupSendOtp] sessionId={} target={} purpose={} channel={} destMasked={}",
-                session.getId(), command.target(), purpose, channel, mask(channel, destination));
+                session.getId(), target, purpose, channel, mask(channel, destination));
 
         var created = createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
                 VerificationSubjectType.SIGNUP_SESSION,
-                session.getId().toString(),   // ✅ subjectId = sessionId (string)
+                session.getId().toString(),
                 purpose,
                 channel,
                 destination,
                 OTP_TTL,
                 OTP_MAX_ATTEMPTS,
-                null, // requestIp (controller에서 넣어줘도 됨)
+                null, // requestIp
                 null  // userAgent
         ));
 
@@ -90,6 +158,7 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
     }
 
     private String mask(VerificationChannel channel, String destination) {
+        if (destination == null) return "***";
         if (channel == VerificationChannel.EMAIL) {
             int at = destination.indexOf('@');
             if (at <= 1) return "***" + destination.substring(Math.max(0, at));
@@ -97,5 +166,16 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
         }
         if (destination.length() <= 4) return "***";
         return destination.substring(0, 3) + "****" + destination.substring(destination.length() - 2);
+    }
+
+    private String normalizeEmail(String raw) {
+        if (raw == null) return null;
+        return raw.trim().toLowerCase();
+    }
+
+    // keep simple; later: E.164 normalization
+    private String normalizePhone(String raw) {
+        if (raw == null) return null;
+        return raw.trim();
     }
 }

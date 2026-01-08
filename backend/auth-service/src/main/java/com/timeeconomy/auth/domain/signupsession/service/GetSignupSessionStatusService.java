@@ -1,3 +1,4 @@
+// backend/auth-service/src/main/java/com/timeeconomy/auth/domain/signupsession/service/GetSignupSessionStatusService.java
 package com.timeeconomy.auth.domain.signupsession.service;
 
 import lombok.RequiredArgsConstructor;
@@ -5,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
+import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 
@@ -26,7 +28,7 @@ public class GetSignupSessionStatusService implements GetSignupSessionStatusUseC
         Instant now = Instant.now(clock);
 
         return signupSessionRepositoryPort.findActiveById(sessionId, now)
-                .map(session -> mapToResult(session))
+                .map(this::mapToResult)
                 .orElseGet(() -> new Result(
                         false,
                         null,
@@ -36,20 +38,13 @@ public class GetSignupSessionStatusService implements GetSignupSessionStatusUseC
                         null,
                         null,
                         null,
-                        SessionState.EXPIRED_OR_NOT_FOUND
+                        SignupSessionState.EXPIRED // "not found / expired" fallback
                 ));
     }
 
     private Result mapToResult(SignupSession s) {
-        GetSignupSessionStatusUseCase.SessionState state;
-
-        switch (s.getState()) { // assuming you have SignupSessionState enum
-            case EMAIL_PENDING -> state = SessionState.EMAIL_PENDING;
-            case EMAIL_VERIFIED -> state = SessionState.EMAIL_VERIFIED;
-            case PROFILE_FILLED -> state = SessionState.PROFILE_FILLED;
-            case COMPLETED -> state = SessionState.COMPLETED;
-            default -> state = SessionState.EXPIRED_OR_NOT_FOUND;
-        }
+        // Optional: if your store might still return terminal states, normalize here
+        SignupSessionState state = s.getState() == null ? SignupSessionState.EXPIRED : s.getState();
 
         return new Result(
                 true,

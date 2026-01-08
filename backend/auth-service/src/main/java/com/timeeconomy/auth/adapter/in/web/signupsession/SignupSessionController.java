@@ -1,13 +1,12 @@
 package com.timeeconomy.auth.adapter.in.web.signupsession;
 
-
 import org.springframework.http.HttpHeaders;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -19,13 +18,30 @@ import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.VerifySignu
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.SendSignupOtpResponse;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.SignupBootstrapResponse;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.VerifySignupOtpResponse;
+
 import com.timeeconomy.auth.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth.domain.signupsession.port.in.SendSignupOtpUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.SignupBootstrapUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.UpdateSignupProfileUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.VerifySignupOtpUseCase;
 
-import java.util.UUID;
+// ✅ new usecases
+import com.timeeconomy.auth.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.in.ResendSignupOtpUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.in.EditSignupEmailUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.in.EditSignupPhoneUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.in.CancelSignupSessionUseCase;
+
+// ✅ you likely want new response DTOs for these:
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.EditSignupEmailRequest;
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.EditSignupPhoneRequest;
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.ResendSignupOtpRequest;
+
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.SignupStatusResponse;
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.ResendSignupOtpResponse;
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.EditSignupEmailResponse;
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.EditSignupPhoneResponse;
+import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.CancelSignupSessionResponse;
 
 @RestController
 @RequestMapping("/api/auth/signup")
@@ -39,42 +55,52 @@ public class SignupSessionController {
     private final VerifySignupOtpUseCase verifySignupOtpUseCase;
     private final SendSignupOtpUseCase sendSignupOtpUseCase;
 
+    // ✅ new
+    private final GetSignupSessionStatusUseCase getSignupSessionStatusUseCase;
+    private final ResendSignupOtpUseCase resendSignupOtpUseCase;
+    private final EditSignupEmailUseCase editSignupEmailUseCase;
+    private final EditSignupPhoneUseCase editSignupPhoneUseCase;
+    private final CancelSignupSessionUseCase cancelSignupSessionUseCase;
 
-    /**
-     * 🔹 Bootstrap endpoint
-     *
-     * - Reads signup_session_id from HttpOnly cookie
-     * - If session exists & active → returns its data
-     * - If not → hasSession = false
-     */
+    // -------------------------
+    // helpers
+    // -------------------------
+    private UUID requireCookieSessionId(String sessionIdValue) {
+        if (sessionIdValue == null || sessionIdValue.isBlank()) {
+            throw new SignupSessionNotFoundException("Signup session cookie not found");
+        }
+        try {
+            return UUID.fromString(sessionIdValue);
+        } catch (IllegalArgumentException ex) {
+            throw new SignupSessionNotFoundException("Invalid signup session id in cookie");
+        }
+    }
+
+    // -------------------------
+    // Bootstrap (existing)
+    // -------------------------
     @GetMapping("/bootstrap")
     public ResponseEntity<SignupBootstrapResponse> bootstrap(
             @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue
     ) {
         UUID existingSessionId = null;
         if (sessionIdValue != null && !sessionIdValue.isBlank()) {
-            try {
-                existingSessionId = UUID.fromString(sessionIdValue);
-            } catch (IllegalArgumentException ignored) {
-                // 잘못된 UUID → 새 세션 만들게 둠
-            }
+            try { existingSessionId = UUID.fromString(sessionIdValue); }
+            catch (IllegalArgumentException ignored) {}
         }
 
-        var result = signupBootstrapUseCase.bootstrap(
-                new SignupBootstrapUseCase.Command(existingSessionId)
-        );
+        var result = signupBootstrapUseCase.bootstrap(new SignupBootstrapUseCase.Command(existingSessionId));
 
-        // 항상 sessionId를 쿠키로 내려줌 (새로 만들었든 재사용하든)
         ResponseCookie cookie = ResponseCookie.from(SIGNUP_SESSION_COOKIE, result.sessionId().toString())
                 .httpOnly(true)
-                .secure(true)          // 로컬 개발이면 false도 가능
+                .secure(true)
                 .sameSite("Strict")
                 .path("/")
                 .maxAge(Duration.ofHours(24))
                 .build();
 
         SignupBootstrapResponse body = new SignupBootstrapResponse(
-                result.exists(),          // hasSession
+                result.exists(),
                 result.email(),
                 result.emailVerified(),
                 result.phoneNumber(),
@@ -85,35 +111,45 @@ public class SignupSessionController {
                 result.state()
         );
 
-        return ResponseEntity
-                .ok()
+        return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(body);
     }
 
-    /**
-     * 🔹 Autosave profile endpoint
-     *
-     * - Uses signup_session_id cookie to find session
-     * - Updates name / phone / gender / birthDate in signup_sessions
-     * - FE should call this in a debounced way
-     */
+    // -------------------------
+    // ✅ Status (new)
+    // -------------------------
+    @GetMapping("/status")
+    public ResponseEntity<SignupStatusResponse> status(
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue
+    ) {
+        UUID sessionId = requireCookieSessionId(sessionIdValue);
+
+        var result = getSignupSessionStatusUseCase.getStatus(new GetSignupSessionStatusUseCase.Query(sessionId));
+
+        // if you want: if (!result.exists()) return 204
+        return ResponseEntity.ok(new SignupStatusResponse(
+                result.exists(),
+                result.email(),
+                result.emailVerified(),
+                result.phoneNumber(),
+                result.phoneVerified(),
+                result.name(),
+                result.gender(),
+                result.birthDate(),
+                result.state()
+        ));
+    }
+
+    // -------------------------
+    // Update profile (existing)
+    // -------------------------
     @PatchMapping("/profile")
     public ResponseEntity<Void> updateProfile(
             @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue,
             @RequestBody UpdateSignupProfileRequest body
     ) {
-        if (sessionIdValue == null || sessionIdValue.isBlank()) {
-            // 쿠키 자체가 없으면 "세션 없음" 예외
-            throw new SignupSessionNotFoundException("Signup session cookie not found");
-        }
-
-        UUID sessionId;
-        try {
-            sessionId = UUID.fromString(sessionIdValue);
-        } catch (IllegalArgumentException ex) {
-            throw new SignupSessionNotFoundException("Invalid signup session id in cookie");
-        }
+        UUID sessionId = requireCookieSessionId(sessionIdValue);
 
         updateSignupProfileUseCase.updateProfile(
                 new UpdateSignupProfileUseCase.Command(
@@ -129,32 +165,27 @@ public class SignupSessionController {
         return ResponseEntity.noContent().build();
     }
 
+    // -------------------------
+    // Verify OTP (existing)
+    // -------------------------
     @PostMapping("/verify-otp")
     public ResponseEntity<VerifySignupOtpResponse> verifyOtp(
             @Valid @RequestBody VerifySignupOtpRequest req,
-            @CookieValue(name = "signup_session_id", required = false) String cookieSessionId
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String cookieSessionId
     ) {
         UUID sessionId = req.sessionId();
 
         if (sessionId == null && cookieSessionId != null && !cookieSessionId.isBlank()) {
-            try {
-                sessionId = UUID.fromString(cookieSessionId);
-            } catch (Exception ignored) {
-                // keep null -> treat as invalid request
-            }
+            try { sessionId = UUID.fromString(cookieSessionId); }
+            catch (Exception ignored) {}
         }
 
         if (sessionId == null) {
-            // BigCom style: 400 for malformed request (missing session id)
             return ResponseEntity.badRequest().build();
         }
 
         var result = verifySignupOtpUseCase.verify(
-                new VerifySignupOtpUseCase.Command(
-                        sessionId,
-                        req.target(),
-                        req.code()
-                )
+                new VerifySignupOtpUseCase.Command(sessionId, req.target(), req.code())
         );
 
         return ResponseEntity.ok(new VerifySignupOtpResponse(
@@ -166,6 +197,9 @@ public class SignupSessionController {
         ));
     }
 
+    // -------------------------
+    // Send OTP (existing)
+    // -------------------------
     @PostMapping("/send-otp")
     public ResponseEntity<SendSignupOtpResponse> sendOtp(
             @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) UUID sessionId,
@@ -188,5 +222,107 @@ public class SignupSessionController {
                 result.phoneVerified(),
                 result.state()
         ));
+    }
+
+    // -------------------------
+    // ✅ Resend OTP (new)
+    // -------------------------
+    @PostMapping("/resend-otp")
+    public ResponseEntity<ResendSignupOtpResponse> resendOtp(
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue,
+            @Valid @RequestBody ResendSignupOtpRequest body
+    ) {
+        UUID sessionId = requireCookieSessionId(sessionIdValue);
+
+        var result = resendSignupOtpUseCase.resend(
+                new ResendSignupOtpUseCase.Command(sessionId, body.target())
+        );
+
+        return ResponseEntity.ok(new ResendSignupOtpResponse(
+                result.sessionId(),
+                result.sent(),
+                result.maskedDestination(),
+                result.ttlMinutes(),
+                result.state()
+        ));
+    }
+
+    // -------------------------
+    // ✅ Edit email (new)
+    // -------------------------
+    @PostMapping("/edit-email")
+    public ResponseEntity<EditSignupEmailResponse> editEmail(
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue,
+            @Valid @RequestBody EditSignupEmailRequest body
+    ) {
+        UUID sessionId = requireCookieSessionId(sessionIdValue);
+
+        var result = editSignupEmailUseCase.editEmail(
+                new EditSignupEmailUseCase.Command(sessionId, body.newEmail())
+        );
+
+        return ResponseEntity.ok(new EditSignupEmailResponse(
+                result.sessionId(),
+                result.email(),
+                result.emailVerified(),
+                result.phoneNumber(),
+                result.phoneVerified(),
+                result.name(),
+                result.gender(),
+                result.birthDate(),
+                result.state()
+        ));
+    }
+
+    // -------------------------
+    // ✅ Edit phone (new)
+    // -------------------------
+    @PostMapping("/edit-phone")
+    public ResponseEntity<EditSignupPhoneResponse> editPhone(
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue,
+            @Valid @RequestBody EditSignupPhoneRequest body
+    ) {
+        UUID sessionId = requireCookieSessionId(sessionIdValue);
+
+        var result = editSignupPhoneUseCase.editPhone(
+                new EditSignupPhoneUseCase.Command(sessionId, body.newPhoneNumber())
+        );
+
+        return ResponseEntity.ok(new EditSignupPhoneResponse(
+                result.sessionId(),
+                result.email(),
+                result.emailVerified(),
+                result.phoneNumber(),
+                result.phoneVerified(),
+                result.name(),
+                result.gender(),
+                result.birthDate(),
+                result.state()
+        ));
+    }
+
+    // -------------------------
+    // ✅ Cancel session (new)
+    // -------------------------
+    @PostMapping("/cancel")
+    public ResponseEntity<CancelSignupSessionResponse> cancel(
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue
+    ) {
+        UUID sessionId = requireCookieSessionId(sessionIdValue);
+
+        var result = cancelSignupSessionUseCase.cancel(new CancelSignupSessionUseCase.Command(sessionId));
+
+        // optional: delete cookie as well (nice UX)
+        ResponseCookie delete = ResponseCookie.from(SIGNUP_SESSION_COOKIE, "")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, delete.toString())
+                .body(new CancelSignupSessionResponse(result.sessionId(), result.state()));
     }
 }
