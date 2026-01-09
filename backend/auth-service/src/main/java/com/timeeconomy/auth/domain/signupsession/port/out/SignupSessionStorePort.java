@@ -28,7 +28,7 @@ public interface SignupSessionStorePort {
      */
     default Optional<SignupSession> findActiveById(UUID id, Instant now) {
         return findById(id)
-                .filter(session -> !session.isExpired(now))
-                .filter(session -> !session.isCompleted());
+        .filter(s -> !s.isTerminal())
+        .filter(s -> !s.isExpired(now));
     }
 }

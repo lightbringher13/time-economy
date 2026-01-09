@@ -1,17 +1,18 @@
+// src/features/auth/register/hooks/useResendSignupOtp.ts
 import { useCallback, useState } from "react";
+import { resendSignupOtpApi } from "../api/signupApi";
+import type { ResendSignupOtpRequestDto, ResendSignupOtpResponseDto } from "../api/signupApi.types";
 import { extractApiMessage } from "./extractApiMessage";
-import { registerApi } from "../api/registerApi";
-import type { RegisterRequest, RegisterResponse } from "../api/registerApi.types";
 
-export function useRegisterApis() {
+export function useResendSignupOtp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const register = useCallback(async (payload: RegisterRequest): Promise<RegisterResponse> => {
+  const resend = useCallback(async (payload: ResendSignupOtpRequestDto): Promise<ResendSignupOtpResponseDto> => {
     setLoading(true);
     setError(null);
     try {
-      return await registerApi(payload);
+      return await resendSignupOtpApi(payload);
     } catch (e: any) {
       const msg = extractApiMessage(e, "Failed to resend verification code.");
       setError(msg);
@@ -21,5 +22,5 @@ export function useRegisterApis() {
     }
   }, []);
 
-  return { register, loading, error };
+  return { resend, loading, error };
 }
