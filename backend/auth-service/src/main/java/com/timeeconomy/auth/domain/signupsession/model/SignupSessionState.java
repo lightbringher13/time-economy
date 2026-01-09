@@ -9,7 +9,8 @@ public enum SignupSessionState {
     PHONE_OTP_SENT,        // SMS OTP issued
     PHONE_VERIFIED,        // phone verified ✅
 
-    PROFILE_PENDING,       // both verified, profile not submitted yet (name, etc.)
+    PROFILE_PENDING,
+    PROFILE_READY,       // both verified, profile not submitted yet (name, etc.)
     COMPLETED,             // register finished (auth_user created)
 
     CANCELED,              // user canceled flow

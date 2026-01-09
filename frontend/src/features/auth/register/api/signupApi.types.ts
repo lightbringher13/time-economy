@@ -5,6 +5,7 @@ export type SignupSessionState =
   | "PHONE_OTP_SENT"
   | "PHONE_VERIFIED"
   | "PROFILE_PENDING"
+  | "PROFILE_READY"
   | "COMPLETED"
   | "CANCELED"
   | "EXPIRED";

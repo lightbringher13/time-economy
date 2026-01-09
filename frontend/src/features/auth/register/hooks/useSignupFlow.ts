@@ -1,5 +1,10 @@
 // src/features/auth/register/hooks/useSignupFlow.ts
 import { useCallback, useMemo, useState } from "react";
+
+import { registerApi } from "../api/registerApi";
+
+import type { RegisterRequest, RegisterResponse } from "../api/registerApi.types";
+
 import {
   signupBootstrapApi,
   getSignupStatusApi,
@@ -9,12 +14,13 @@ import {
   editSignupEmailApi,
   editSignupPhoneApi,
   cancelSignupSessionApi,
-  updateSignupProfileApi
+  updateSignupProfileApi,
   // TODO: add this if you have it:
   // updateSignupProfileApi,
 } from "../api/signupApi";
 
 import type {
+  SignupSessionState,
   SignupBootstrapResponseDto,
   SignupStatusResponseDto,
   SendSignupOtpResponseDto,
@@ -31,23 +37,13 @@ import type {
 
 import { extractApiMessage } from "./extractApiMessage";
 
-type SignupSessionState =
-  | "DRAFT"
-  | "EMAIL_OTP_SENT"
-  | "EMAIL_VERIFIED"
-  | "PHONE_OTP_SENT"
-  | "PHONE_VERIFIED"
-  | "PROFILE_PENDING"
-  | "COMPLETED"
-  | "CANCELED"
-  | "EXPIRED";
-
 export type SignupUiStep =
   | "EMAIL"          // enter email + send/resend
   | "EMAIL_VERIFY"   // enter email OTP
   | "PHONE"          // enter phone + send/resend
   | "PHONE_VERIFY"   // enter SMS OTP
-  | "PROFILE"        // name/gender/birthDate
+  | "PROFILE"
+  | "REVIEW"        // name/gender/birthDate
   | "DONE"
   | "CANCELED"
   | "EXPIRED";
@@ -65,6 +61,8 @@ function mapStateToUiStep(state?: SignupSessionState | null): SignupUiStep {
     case "PHONE_VERIFIED":
     case "PROFILE_PENDING":
       return "PROFILE";
+    case "PROFILE_READY":
+      return "REVIEW";
     case "COMPLETED":
       return "DONE";
     case "CANCELED":
@@ -166,6 +164,22 @@ export function useSignupFlow() {
     [run, refresh]
   );
 
+  const register = useCallback(
+    async (payload: RegisterRequest): Promise<RegisterResponse> => {
+      const dto = await run(() => registerApi(payload), "Failed to create account.");
+
+      // ✅ since cookie is cleared, don't refresh signup status anymore
+      // Instead, force the local flow state to DONE.
+      setStatus((prev: any) => ({
+        ...(prev ?? {}),
+        state: "COMPLETED",
+      }));
+
+      return dto;
+    },
+    [run]
+  );
+
   // convenience wrappers (cleaner in components)
   const sendEmailOtp = useCallback(
     () => sendOtp({ target: "EMAIL" } as any),
@@ -257,6 +271,7 @@ export function useSignupFlow() {
     resendOtp,
     verifyOtp,
     updateProfile,
+    register,
 
     // actions (convenience)
     sendEmailOtp,

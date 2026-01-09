@@ -131,6 +131,15 @@ public class SignupSession {
                 if (!emailVerified) throw new IllegalStateException("PROFILE_PENDING but email not verified");
                 if (!phoneVerified) throw new IllegalStateException("PROFILE_PENDING but phone not verified");
             }
+            case PROFILE_READY -> {
+                if (!emailVerified) throw new IllegalStateException("PROFILE_READY but email not verified");
+                if (!phoneVerified) throw new IllegalStateException("PROFILE_READY but phone not verified");
+
+                // ✅ recommended: require profile fields to be present
+                if (isBlank(name)) throw new IllegalStateException("PROFILE_READY but name missing");
+                if (isBlank(gender)) throw new IllegalStateException("PROFILE_READY but gender missing");
+                if (birthDate == null) throw new IllegalStateException("PROFILE_READY but birthDate missing");
+            }
             case COMPLETED -> {
                 if (!emailVerified) throw new IllegalStateException("COMPLETED but email not verified");
                 if (!phoneVerified) throw new IllegalStateException("COMPLETED but phone not verified");
@@ -288,6 +297,8 @@ public class SignupSession {
         this.gender = gender;
         this.birthDate = birthDate;
 
+        this.state = SignupSessionState.PROFILE_READY;
+
         touch(now);
         assertInvariants();
     }
@@ -295,7 +306,7 @@ public class SignupSession {
     /** Called by RegisterService after user row created */
     public void markCompleted(Instant now) {
         if (expireIfNeeded(now)) return;
-        if (state != SignupSessionState.PROFILE_PENDING) return;
+        if (state != SignupSessionState.PROFILE_READY) return;
 
         // profile should already be filled, but assertInvariants will enforce it if you want to require it.
         this.state = SignupSessionState.COMPLETED;

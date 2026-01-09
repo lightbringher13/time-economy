@@ -7,31 +7,41 @@ import { SignupEmailStep } from "../components/SignupEmailStep";
 import { SignupPhoneStep } from "../components/SignupPhoneStep";
 import { SignupProfileStep } from "../components/SignupProfileStep";
 import { SignupDoneStep } from "../components/SignupDoneStep";
+import { SignupReviewStep } from "../components/SignupReviewStep";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
 import { useSignupPhoneForm } from "../forms/hooks/useSignupPhoneForm";
 import { useSignupPhoneOtpForm } from "../forms/hooks/useSignupPhoneOtpForm";
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
+import { useSignupPasswordForm } from "../forms/hooks/useSignupPasswordForm";
+
 
 import type { SignupSessionState } from "@/features/auth/register/api/signupApi.types";
 import type { SignupProfileFormValues } from "../forms/schemas/signupProfile.schema";
 
-type LocalStep = "EMAIL" | "PHONE" | "PROFILE" | "DONE";
+type LocalStep = "EMAIL" | "PHONE" | "PROFILE" | "REVIEW" | "DONE";
 
 /**
  * Local step is ONLY for "Back" navigation UX.
  * Server state still drives correctness.
  */
+
 function localStepFromServer(state: SignupSessionState | null): LocalStep {
   switch (state) {
     case "PROFILE_PENDING":
       return "PROFILE";
+
+    case "PROFILE_READY":
+      return "REVIEW";
+
     case "COMPLETED":
       return "DONE";
+
     case "EMAIL_VERIFIED":
     case "PHONE_OTP_SENT":
       return "PHONE";
+
     case "DRAFT":
     case "EMAIL_OTP_SENT":
     default:
@@ -48,6 +58,7 @@ export function RegisterPage() {
   const phoneForm = useSignupPhoneForm();
   const phoneOtpForm = useSignupPhoneOtpForm();
   const profileForm = useSignupProfileForm();
+  const passwordForm = useSignupPasswordForm();
 
   // ----- local-only back navigation -----
   const [localStep, setLocalStep] = useState<LocalStep | null>(null);
@@ -115,6 +126,10 @@ export function RegisterPage() {
   // ----- helpers -----
   const backToEmail = () => setLocalStep("EMAIL");
   const backToPhone = () => setLocalStep("PHONE");
+  const backToProfile = () => {
+    passwordForm.reset({ password: "", passwordConfirm: "" });
+    setLocalStep("PROFILE");
+  };
 
   const cancel = async () => {
     try {
@@ -125,6 +140,7 @@ export function RegisterPage() {
       emailOtpForm.reset({ code: "" });
       phoneOtpForm.reset({ code: "" });
       profileForm.reset({ name: "", gender: "MALE", birthDate: "" });
+      passwordForm.reset({ password: "", passwordConfirm: "" });
 
       flow.setError(null);
     } catch {
@@ -206,6 +222,33 @@ export function RegisterPage() {
     setLocalStep(null);
   };
 
+  const createAccount = async (password: string) => {
+    const email = flow.view.email;
+    const phoneNumber = flow.view.phoneNumber;
+    const name = flow.view.name;
+    const gender = flow.view.gender;
+    const birthDate = flow.view.birthDate;
+
+    if (!email || !phoneNumber || !name || !gender || !birthDate) {
+      flow.setError("Missing required signup info. Please go back and complete the form.");
+      setLocalStep("PROFILE");
+      return;
+    }
+
+    await flow.register({
+      email,
+      password,
+      phoneNumber,
+      name,
+      gender,
+      birthDate,
+    });
+
+    setLocalStep(null); // let server state drive to DONE
+  };
+
+
+
   // ----- UI -----
   const blocked = flow.uiStep === "CANCELED" || flow.uiStep === "EXPIRED";
 
@@ -272,6 +315,23 @@ export function RegisterPage() {
           form={profileForm}
           onSubmit={submitProfile}
           onBackToPhone={backToPhone}
+          onCancel={cancel}
+        />
+      )}
+
+      {!blocked && step === "REVIEW" && (
+        <SignupReviewStep
+          state={flow.view.state}
+          loading={loading}
+          error={flow.error}
+          email={flow.view.email}
+          phoneNumber={flow.view.phoneNumber}
+          name={flow.view.name}
+          gender={flow.view.gender}
+          birthDate={flow.view.birthDate}
+          passwordForm={passwordForm}
+          onCreate={createAccount}
+          onBack={backToProfile}
           onCancel={cancel}
         />
       )}

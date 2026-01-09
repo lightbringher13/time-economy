@@ -7,7 +7,7 @@ export function useRegisterApis() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const resend = useCallback(async (payload: RegisterRequest): Promise<RegisterResponse> => {
+  const register = useCallback(async (payload: RegisterRequest): Promise<RegisterResponse> => {
     setLoading(true);
     setError(null);
     try {
@@ -21,5 +21,5 @@ export function useRegisterApis() {
     }
   }, []);
 
-  return { resend, loading, error };
+  return { register, loading, error };
 }
