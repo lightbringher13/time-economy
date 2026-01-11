@@ -101,22 +101,16 @@ public class SignupSession {
         // state-driven checks
         switch (state) {
             case DRAFT -> {
-                // booleans must be false
-                if (emailVerified) throw new IllegalStateException("DRAFT but emailVerified=true");
-                if (phoneVerified) throw new IllegalStateException("DRAFT but phoneVerified=true");
+                // DRAFT just means "not ready to proceed yet"
+                // do NOT require emailVerified/phoneVerified to be false
             }
             case EMAIL_OTP_SENT -> {
                 if (isBlank(email)) throw new IllegalStateException("EMAIL_OTP_SENT but email missing");
                 if (emailVerified) throw new IllegalStateException("EMAIL_OTP_SENT but emailVerified=true");
-                if (phoneVerified) throw new IllegalStateException("EMAIL_OTP_SENT but phoneVerified=true");
             }
             case EMAIL_VERIFIED -> {
                 if (isBlank(email)) throw new IllegalStateException("EMAIL_VERIFIED but email missing");
                 if (!emailVerified) throw new IllegalStateException("EMAIL_VERIFIED but emailVerified=false");
-                // phone may or may not exist yet, but cannot be verified before phone OTP flow
-                if (phoneVerified) {
-                    throw new IllegalStateException("EMAIL_VERIFIED but phoneVerified=true (invalid ordering)");
-                }
             }
             case PHONE_OTP_SENT -> {
                 if (!emailVerified) throw new IllegalStateException("PHONE_OTP_SENT but email not verified");
@@ -124,7 +118,8 @@ public class SignupSession {
                 if (phoneVerified) throw new IllegalStateException("PHONE_OTP_SENT but phoneVerified=true");
             }
             case PHONE_VERIFIED -> {
-                if (!emailVerified) throw new IllegalStateException("PHONE_VERIFIED but email not verified");
+                // honestly you don't need PHONE_VERIFIED at all if you always recompute;
+                // but keep it if enum has it.
                 if (!phoneVerified) throw new IllegalStateException("PHONE_VERIFIED but phoneVerified=false");
             }
             case PROFILE_PENDING -> {
@@ -134,8 +129,6 @@ public class SignupSession {
             case PROFILE_READY -> {
                 if (!emailVerified) throw new IllegalStateException("PROFILE_READY but email not verified");
                 if (!phoneVerified) throw new IllegalStateException("PROFILE_READY but phone not verified");
-
-                // ✅ recommended: require profile fields to be present
                 if (isBlank(name)) throw new IllegalStateException("PROFILE_READY but name missing");
                 if (isBlank(gender)) throw new IllegalStateException("PROFILE_READY but gender missing");
                 if (birthDate == null) throw new IllegalStateException("PROFILE_READY but birthDate missing");
@@ -144,9 +137,7 @@ public class SignupSession {
                 if (!emailVerified) throw new IllegalStateException("COMPLETED but email not verified");
                 if (!phoneVerified) throw new IllegalStateException("COMPLETED but phone not verified");
             }
-            case CANCELED, EXPIRED -> {
-                // nothing extra
-            }
+            case CANCELED, EXPIRED -> { }
         }
     }
 
@@ -183,106 +174,72 @@ public class SignupSession {
     /** UI action: "Send email code" */
     public void markEmailOtpSent(Instant now) {
         if (expireIfNeeded(now)) return;
-
-        // allow sending from DRAFT or re-sending while EMAIL_OTP_SENT
-        if (state != SignupSessionState.DRAFT && state != SignupSessionState.EMAIL_OTP_SENT) return;
-
         if (isBlank(email)) throw new IllegalStateException("Cannot send email OTP: email missing");
 
         this.emailVerified = false;
         this.state = SignupSessionState.EMAIL_OTP_SENT;
-        touch(now);
-        assertInvariants();
+        syncState(now);
     }
 
-    /** UI action: "Verify email code" */
     public void markEmailVerified(Instant now) {
         if (expireIfNeeded(now)) return;
+        // You can keep the guard if you want:
         if (state != SignupSessionState.EMAIL_OTP_SENT) return;
 
         this.emailVerified = true;
-        this.state = SignupSessionState.EMAIL_VERIFIED;
-        touch(now);
-        assertInvariants();
+        syncState(now); // ✅ this may become EMAIL_VERIFIED or PROFILE_PENDING/READY
     }
 
-    /** Back/Edit: user wants to change email after OTP sent or verified */
     public void editEmail(String newEmail, Instant now) {
         if (expireIfNeeded(now)) return;
         if (isTerminal()) return;
 
-        // allow editing anytime before completion
         this.email = normalizeEmail(newEmail);
         this.emailVerified = false;
 
-        // editing email invalidates everything downstream
-        this.phoneVerified = false;
-        this.phoneNumber = null;
+        // ✅ DO NOT delete phone/profile.
+        // Leave phoneVerified/profile as-is so recompute can restore later.
 
-        this.name = null;
-        this.gender = null;
-        this.birthDate = null;
-
+        // If you want to force the user into email step UI:
         this.state = SignupSessionState.DRAFT;
-        touch(now);
-        assertInvariants();
+
+        syncState(now);
     }
 
     // ----------------------------------------------------
     // Phone OTP flow
     // ----------------------------------------------------
 
-    /** UI action: "Send SMS code" */
     public void markPhoneOtpSent(Instant now) {
         if (expireIfNeeded(now)) return;
-
-        // allow sending from EMAIL_VERIFIED, or resending while PHONE_OTP_SENT
-        if (state != SignupSessionState.EMAIL_VERIFIED && state != SignupSessionState.PHONE_OTP_SENT) return;
-
         if (!emailVerified) throw new IllegalStateException("Cannot send phone OTP: email not verified");
         if (isBlank(phoneNumber)) throw new IllegalStateException("Cannot send phone OTP: phoneNumber missing");
 
         this.phoneVerified = false;
         this.state = SignupSessionState.PHONE_OTP_SENT;
-        touch(now);
-        assertInvariants();
+        syncState(now);
     }
 
-    /** UI action: "Verify SMS code" */
     public void markPhoneVerified(Instant now) {
         if (expireIfNeeded(now)) return;
         if (state != SignupSessionState.PHONE_OTP_SENT) return;
 
         this.phoneVerified = true;
-        this.state = SignupSessionState.PHONE_VERIFIED;
-
-        // after phone verified, next UI step is profile
-        this.state = SignupSessionState.PROFILE_PENDING;
-
-        touch(now);
-        assertInvariants();
+        syncState(now); // ✅ becomes PROFILE_PENDING or PROFILE_READY if profile already exists
     }
 
-    /** Back/Edit: user wants to change phone after SMS sent/verified */
     public void editPhone(String newPhone, Instant now) {
         if (expireIfNeeded(now)) return;
         if (isTerminal()) return;
-
-        // only sensible after email verified
         if (!emailVerified) return;
 
         this.phoneNumber = normalizePhone(newPhone);
         this.phoneVerified = false;
 
-        // changing phone invalidates profile (downstream)
-        this.name = null;
-        this.gender = null;
-        this.birthDate = null;
+        // ✅ DO NOT delete profile
+        this.state = SignupSessionState.EMAIL_VERIFIED; // or DRAFT; recompute will fix anyway
 
-        // go back to “need phone OTP”
-        this.state = SignupSessionState.EMAIL_VERIFIED;
-        touch(now);
-        assertInvariants();
+        syncState(now);
     }
 
     // ----------------------------------------------------
@@ -291,16 +248,15 @@ public class SignupSession {
 
     public void submitProfile(String name, String gender, LocalDate birthDate, Instant now) {
         if (expireIfNeeded(now)) return;
-        if (state != SignupSessionState.PROFILE_PENDING) return;
+
+        // you can keep guard if you want:
+        if (state != SignupSessionState.PROFILE_PENDING && state != SignupSessionState.PROFILE_READY) return;
 
         this.name = name;
         this.gender = gender;
         this.birthDate = birthDate;
 
-        this.state = SignupSessionState.PROFILE_READY;
-
-        touch(now);
-        assertInvariants();
+        syncState(now); // ✅ becomes PROFILE_READY only if both verified
     }
 
     /** Called by RegisterService after user row created */
@@ -323,6 +279,57 @@ public class SignupSession {
     // ----------------------------------------------------
     // Helpers
     // ----------------------------------------------------
+
+    private void syncState(Instant now) {
+        this.state = recomputeState();
+        touch(now);
+        assertInvariants();
+    }
+
+    /**
+     * Derive state from facts.
+     *
+     * Since you don't store "otpSentAt", we use the current state as a hint:
+     * - if we're already in EMAIL_OTP_SENT and email still unverified -> stay EMAIL_OTP_SENT
+     * - otherwise, fall back to DRAFT (send code step)
+     * Same for PHONE_OTP_SENT.
+     */
+    private SignupSessionState recomputeState() {
+        // terminal states stay terminal
+        if (state == SignupSessionState.CANCELED
+                || state == SignupSessionState.EXPIRED
+                || state == SignupSessionState.COMPLETED) {
+            return state;
+        }
+
+        // 1) email missing -> DRAFT
+        if (isBlank(email)) return SignupSessionState.DRAFT;
+
+        // 2) email not verified -> EMAIL_OTP_SENT if we were already waiting for OTP, else DRAFT
+        if (!emailVerified) {
+            return (state == SignupSessionState.EMAIL_OTP_SENT)
+                    ? SignupSessionState.EMAIL_OTP_SENT
+                    : SignupSessionState.DRAFT;
+        }
+
+        // 3) email verified but phone missing -> EMAIL_VERIFIED
+        if (isBlank(phoneNumber)) return SignupSessionState.EMAIL_VERIFIED;
+
+        // 4) phone not verified -> PHONE_OTP_SENT if we were already waiting for OTP, else EMAIL_VERIFIED
+        if (!phoneVerified) {
+            return (state == SignupSessionState.PHONE_OTP_SENT)
+                    ? SignupSessionState.PHONE_OTP_SENT
+                    : SignupSessionState.EMAIL_VERIFIED;
+        }
+
+        // 5) both verified but profile incomplete -> PROFILE_PENDING
+        if (isBlank(name) || isBlank(gender) || birthDate == null) {
+            return SignupSessionState.PROFILE_PENDING;
+        }
+
+        // 6) everything present -> PROFILE_READY
+        return SignupSessionState.PROFILE_READY;
+    }
 
     private void touch(Instant now) {
         this.updatedAt = now;

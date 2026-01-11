@@ -19,7 +19,7 @@ function extractMessage(err: any, fallback: string) {
   return err?.response?.data?.message || err?.message || fallback;
 }
 
-export function ChangeEmailPage() {
+export default function ChangeEmailPage() {
   // 1) forms
   const step1Form = useRequestEmailChangeForm();
   const step2Form = useVerifyNewEmailCodeForm();

@@ -90,7 +90,7 @@ const LoginPage = () => {
           Don't have an account?{" "}
           <button
             type="button"
-            onClick={() => navigate(ROUTES.REGISTER)}
+            onClick={() => navigate(ROUTES.SIGNUP)}
             style={{
               border: "none",
               background: "none",

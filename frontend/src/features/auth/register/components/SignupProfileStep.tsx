@@ -1,20 +1,48 @@
 // src/features/auth/register/components/SignupProfileStep.tsx
 import type { UseFormReturn } from "react-hook-form";
 
-import type { SignupProfileFormValues, SignupGender } from "../forms/schemas/signupProfile.schema";
-import type {SignupSessionState} from "@/features/auth/register/api/signupApi.types"
+import type {
+  SignupProfileFormValues,
+  SignupGender,
+} from "../forms/schemas/signupProfile.schema";
+
+type ProfileUi = {
+  title?: string; // default: "Create your account"
+  subtitle?: string; // default: "Step 3 — Profile"
+
+  // what to show
+  showSubmit?: boolean; // default: true
+  showBack?: boolean;
+  showCancel?: boolean;
+  showTip?: boolean; // default: true
+
+  // labels
+  submitLabel?: string; // default: "Continue"
+  backLabel?: string; // default: "Back"
+  cancelLabel?: string; // default: "Cancel"
+
+  tipText?: string; // default: "Tip: You can change phone by going back, or using “Edit phone” in the previous step."
+};
+
+type ProfileLoading = {
+  save?: boolean;
+  cancel?: boolean;
+};
+
+type ProfileActions = {
+  submit?: (values: SignupProfileFormValues) => void | Promise<void>;
+  back?: () => void | Promise<void>;
+  cancel?: () => void | Promise<void>;
+};
 
 interface Props {
-  state: SignupSessionState | null;
-  loading: boolean;
   error?: string | null;
 
   form: UseFormReturn<SignupProfileFormValues>;
 
-  onSubmit: (values: SignupProfileFormValues) => void | Promise<void>;
-
-  onBackToPhone?: () => void | Promise<void>; // usually just FE back, or editPhone usecase
-  onCancel?: () => void | Promise<void>;
+  ui?: ProfileUi;
+  loading?: ProfileLoading;
+  actions: ProfileActions;
 }
 
 const genderOptions: Array<{ value: SignupGender; label: string }> = [
@@ -23,58 +51,44 @@ const genderOptions: Array<{ value: SignupGender; label: string }> = [
   { value: "OTHER", label: "Other" },
 ];
 
-export function SignupProfileStep({
-  state,
-  loading,
-  error,
-  form,
-  onSubmit,
-  onBackToPhone,
-  onCancel,
-}: Props) {
+export function SignupProfileStep({ error, form, ui, loading, actions }: Props) {
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = form;
 
-  const canUseProfile = state === "PROFILE_PENDING";
+  const isSaving = Boolean(loading?.save);
+  const isCancelling = Boolean(loading?.cancel);
+  const busy = isSaving || isCancelling;
 
-  if (!canUseProfile) {
-    return (
-      <div>
-        <h2>Create your account</h2>
-        <p style={{ marginTop: 8, color: "#666" }}>
-          Please verify email and phone first.
-        </p>
+  const title = ui?.title ?? "Create your account";
+  const subtitle = ui?.subtitle ?? "Step 3 — Profile";
 
-        {onBackToPhone && (
-          <button
-            type="button"
-            onClick={onBackToPhone}
-            style={{ marginTop: 12, padding: "8px 14px" }}
-            disabled={loading}
-          >
-            Back
-          </button>
-        )}
-      </div>
-    );
-  }
+  const showSubmit = ui?.showSubmit ?? true;
+  const showBack = Boolean(ui?.showBack);
+  const showCancel = Boolean(ui?.showCancel);
+  const showTip = ui?.showTip ?? true;
 
-  const submitHandler = handleSubmit(async (values) => {
-    await onSubmit(values);
+  const submitLabel = ui?.submitLabel ?? "Continue";
+  const backLabel = ui?.backLabel ?? "Back";
+  const cancelLabel = ui?.cancelLabel ?? "Cancel";
+
+  const tipText =
+    ui?.tipText ??
+    "Tip: You can change phone by going back, or using “Edit phone” in the previous step.";
+
+  const onSubmit = handleSubmit(async (values) => {
+    await actions.submit?.(values);
   });
 
   return (
-    <form onSubmit={submitHandler} noValidate>
-      <h2>Create your account</h2>
-      <h3 style={{ marginTop: 8 }}>Step 3 — Profile</h3>
+    <form onSubmit={onSubmit} noValidate>
+      <h2>{title}</h2>
+      <h3 style={{ marginTop: 8 }}>{subtitle}</h3>
 
       {error && (
-        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>
-          {error}
-        </div>
+        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>{error}</div>
       )}
 
       {/* Name */}
@@ -85,7 +99,7 @@ export function SignupProfileStep({
         <input
           id="name"
           autoComplete="name"
-          disabled={loading}
+          disabled={busy}
           {...register("name")}
           style={{ width: "100%", padding: 8 }}
         />
@@ -103,9 +117,9 @@ export function SignupProfileStep({
         </label>
         <select
           id="gender"
-          disabled={loading}
+          disabled={busy}
           {...register("gender")}
-          style={{ width: "100%", padding: 8 }}
+          style={{ width: "100%", padding: "8px" }}
           defaultValue=""
         >
           <option value="" disabled>
@@ -126,13 +140,16 @@ export function SignupProfileStep({
 
       {/* Birth date */}
       <div style={{ marginTop: 16 }}>
-        <label htmlFor="birthDate" style={{ display: "block", marginBottom: 4 }}>
+        <label
+          htmlFor="birthDate"
+          style={{ display: "block", marginBottom: 4 }}
+        >
           Birth date
         </label>
         <input
           id="birthDate"
           type="date"
-          disabled={loading}
+          disabled={busy}
           {...register("birthDate")}
           style={{ width: "100%", padding: 8 }}
         />
@@ -145,36 +162,44 @@ export function SignupProfileStep({
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-        <button type="submit" disabled={loading} style={{ padding: "8px 14px" }}>
-          {loading ? "Saving..." : "Continue"}
-        </button>
-
-        {onBackToPhone && (
+        {showSubmit && (
           <button
-            type="button"
-            onClick={onBackToPhone}
-            disabled={loading}
+            type="submit"
+            disabled={busy || !actions.submit}
             style={{ padding: "8px 14px" }}
           >
-            Back
+            {isSaving ? "Saving..." : submitLabel}
           </button>
         )}
 
-        {onCancel && (
+        {showBack && (
           <button
             type="button"
-            onClick={onCancel}
-            disabled={loading}
+            onClick={actions.back}
+            disabled={busy || !actions.back}
             style={{ padding: "8px 14px" }}
           >
-            Cancel
+            {backLabel}
+          </button>
+        )}
+
+        {showCancel && (
+          <button
+            type="button"
+            onClick={actions.cancel}
+            disabled={busy || !actions.cancel}
+            style={{ padding: "8px 14px" }}
+          >
+            {isCancelling ? "Cancelling..." : cancelLabel}
           </button>
         )}
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
-        Tip: You can change phone by going back, or using “Edit phone” in the previous step.
-      </div>
+      {showTip && (
+        <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
+          {tipText}
+        </div>
+      )}
     </form>
   );
 }

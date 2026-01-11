@@ -1,289 +1,262 @@
 // src/features/auth/register/hooks/useSignupFlow.ts
-import { useCallback, useMemo, useState } from "react";
-
-import { registerApi } from "../api/registerApi";
-
-import type { RegisterRequest, RegisterResponse } from "../api/registerApi.types";
-
-import {
-  signupBootstrapApi,
-  getSignupStatusApi,
-  sendSignupOtpApi,
-  resendSignupOtpApi,
-  verifySignupOtpApi,
-  editSignupEmailApi,
-  editSignupPhoneApi,
-  cancelSignupSessionApi,
-  updateSignupProfileApi,
-  // TODO: add this if you have it:
-  // updateSignupProfileApi,
-} from "../api/signupApi";
+import { useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type {
   SignupSessionState,
-  SignupBootstrapResponseDto,
-  SignupStatusResponseDto,
-  SendSignupOtpResponseDto,
-  ResendSignupOtpResponseDto,
-  VerifySignupOtpResponseDto,
-  EditSignupEmailRequestDto,
-  EditSignupPhoneRequestDto,
-  SendSignupOtpRequestDto,
-  ResendSignupOtpRequestDto,
-  VerifySignupOtpRequestDto,
-  CancelSignupSessionResponseDto,
-  UpdateSignupProfileRequestDto
+  UpdateSignupProfileRequestDto,
 } from "../api/signupApi.types";
+import type { RegisterRequest } from "../api/registerApi.types";
 
-import { extractApiMessage } from "./extractApiMessage";
+import { signupSessionKeys } from "../queries/signupSession.keys";
+import { extractApiMessage } from "../queries/extractApiMessage";
 
-export type SignupUiStep =
-  | "EMAIL"          // enter email + send/resend
-  | "EMAIL_VERIFY"   // enter email OTP
-  | "PHONE"          // enter phone + send/resend
-  | "PHONE_VERIFY"   // enter SMS OTP
-  | "PROFILE"
-  | "REVIEW"        // name/gender/birthDate
-  | "DONE"
-  | "CANCELED"
-  | "EXPIRED";
+// queries / mutations
+import { useSignupStatusQuery } from "../queries/useSignupStatusQuery";
+import { useSignupBootstrapMutation } from "../queries/useSignupBootstrapMutation";
+import { useSendSignupOtpMutation } from "../queries/useSendSignupOtpMutation";
+import { useResendSignupOtpMutation } from "../queries/useResendSignupOtpMutation";
+import { useVerifySignupOtpMutation } from "../queries/useVerifySignupOtpMutation";
+import { useEditSignupEmailMutation } from "../queries/useEditSignupEmailMutation";
+import { useEditSignupPhoneMutation } from "../queries/useEditSignupPhoneMutation";
+import { useUpdateSignupProfileMutation } from "../queries/useUpdateSignupProfileMutation";
+import { useCancelSignupSessionMutation } from "../queries/useCancelSignupSessionMutation";
+import { useRegisterMutation } from "../queries/useRegisterMutation";
 
-function mapStateToUiStep(state?: SignupSessionState | null): SignupUiStep {
-  switch (state) {
-    case "DRAFT":
-      return "EMAIL";
-    case "EMAIL_OTP_SENT":
-      return "EMAIL_VERIFY";
-    case "EMAIL_VERIFIED":
-      return "PHONE";
-    case "PHONE_OTP_SENT":
-      return "PHONE_VERIFY";
-    case "PHONE_VERIFIED":
-    case "PROFILE_PENDING":
-      return "PROFILE";
-    case "PROFILE_READY":
-      return "REVIEW";
-    case "COMPLETED":
-      return "DONE";
-    case "CANCELED":
-      return "CANCELED";
-    case "EXPIRED":
-    default:
-      return "EXPIRED";
+function firstErrorMessage(errors: Array<unknown>, fallback: string) {
+  for (const e of errors) {
+    if (e) return extractApiMessage(e, fallback);
   }
+  return null;
 }
 
-type FlowStatus = SignupStatusResponseDto | SignupBootstrapResponseDto | null;
-
-/**
- * One hook for the whole signup flow:
- * - server-driven status (state machine)
- * - page actions (send/resend/verify/edit/cancel)
- */
 export function useSignupFlow() {
-  const [status, setStatus] = useState<FlowStatus>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
 
-  const state = (status as any)?.state as SignupSessionState | undefined;
+  // ✅ single source of truth (server)
+  const statusQuery = useSignupStatusQuery(true);
 
-  const uiStep = useMemo(() => mapStateToUiStep(state), [state]);
+  // mutations (ideally each one invalidates signupSessionKeys.status() in onSuccess)
+  const bootstrapMu = useSignupBootstrapMutation();
+  const sendOtpMu = useSendSignupOtpMutation();
+  const resendOtpMu = useResendSignupOtpMutation();
+  const verifyOtpMu = useVerifySignupOtpMutation();
+  const editEmailMu = useEditSignupEmailMutation();
+  const editPhoneMu = useEditSignupPhoneMutation();
+  const updateProfileMu = useUpdateSignupProfileMutation();
+  const cancelMu = useCancelSignupSessionMutation();
+  const registerMu = useRegisterMutation();
 
-  // ----- common helper -----
-  const run = useCallback(async <T,>(fn: () => Promise<T>, fallbackMsg: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      return await fn();
-    } catch (e: any) {
-      setError(extractApiMessage(e, fallbackMsg));
-      throw e;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // expose raw data
+  const status = statusQuery.data ?? null;
+  const state = (status?.state ?? null) as SignupSessionState | null;
 
-  // ----- bootstrap / refresh -----
-  const bootstrap = useCallback(async () => {
-    const dto = await run(() => signupBootstrapApi(), "Failed to bootstrap signup session.");
-    setStatus(dto);
-    return dto;
-  }, [run]);
-
-  const refresh = useCallback(async () => {
-    const dto = await run(() => getSignupStatusApi(), "Failed to load signup status.");
-    setStatus(dto);
-    return dto;
-  }, [run]);
-
-  // ----- OTP actions -----
-  const sendOtp = useCallback(
-    async (payload: SendSignupOtpRequestDto): Promise<SendSignupOtpResponseDto> => {
-      const dto = await run(
-        () => sendSignupOtpApi(payload),
-        "Failed to send verification code."
-      );
-
-      // If your BE also updates session.state (recommended), refresh is optional.
-      // But safe: refresh after mutations to keep FE consistent.
-      await refresh().catch(() => {});
-      return dto;
-    },
-    [run, refresh]
-  );
-
-  const resendOtp = useCallback(
-    async (payload: ResendSignupOtpRequestDto): Promise<ResendSignupOtpResponseDto> => {
-      const dto = await run(
-        () => resendSignupOtpApi(payload),
-        "Failed to resend verification code."
-      );
-      await refresh().catch(() => {});
-      return dto;
-    },
-    [run, refresh]
-  );
-
-  const verifyOtp = useCallback(
-    async (payload: VerifySignupOtpRequestDto): Promise<VerifySignupOtpResponseDto> => {
-      const dto = await run(
-        () => verifySignupOtpApi(payload),
-        "Invalid or expired verification code."
-      );
-      await refresh().catch(() => {});
-      return dto;
-    },
-    [run, refresh]
-  );
-
-  const updateProfile = useCallback(
-    async (payload: UpdateSignupProfileRequestDto): Promise<void> => {
-      await run(() => updateSignupProfileApi(payload), "Failed to update profile.");
-      await refresh().catch(() => {});
-    },
-    [run, refresh]
-  );
-
-  const register = useCallback(
-    async (payload: RegisterRequest): Promise<RegisterResponse> => {
-      const dto = await run(() => registerApi(payload), "Failed to create account.");
-
-      // ✅ since cookie is cleared, don't refresh signup status anymore
-      // Instead, force the local flow state to DONE.
-      setStatus((prev: any) => ({
-        ...(prev ?? {}),
-        state: "COMPLETED",
-      }));
-
-      return dto;
-    },
-    [run]
-  );
-
-  // convenience wrappers (cleaner in components)
-  const sendEmailOtp = useCallback(
-    () => sendOtp({ target: "EMAIL" } as any),
-    [sendOtp]
-  );
-  const resendEmailOtp = useCallback(
-    () => resendOtp({ target: "EMAIL" } as any),
-    [resendOtp]
-  );
-  const verifyEmailOtp = useCallback(
-    (code: string) => verifyOtp({ target: "EMAIL", code } as any),
-    [verifyOtp]
-  );
-
-  const sendPhoneOtp = useCallback(
-    () => sendOtp({ target: "PHONE" } as any),
-    [sendOtp]
-  );
-  const resendPhoneOtp = useCallback(
-    () => resendOtp({ target: "PHONE" } as any),
-    [resendOtp]
-  );
-  const verifyPhoneOtp = useCallback(
-    (code: string) => verifyOtp({ target: "PHONE", code } as any),
-    [verifyOtp]
-  );
-
-  // ----- edit actions -----
-  const editEmail = useCallback(
-    async (payload: EditSignupEmailRequestDto) => {
-      const dto = await run(() => editSignupEmailApi(payload), "Failed to update email.");
-      // edit endpoints usually return updated status; if yours does, you can setStatus(dto)
-      await refresh().catch(() => {});
-      return dto;
-    },
-    [run, refresh]
-  );
-
-  const editPhone = useCallback(
-    async (payload: EditSignupPhoneRequestDto) => {
-      const dto = await run(() => editSignupPhoneApi(payload), "Failed to update phone number.");
-      await refresh().catch(() => {});
-      return dto;
-    },
-    [run, refresh]
-  );
-
-  // ----- cancel -----
-  const cancel = useCallback(async (): Promise<CancelSignupSessionResponseDto> => {
-    const dto = await run(() => cancelSignupSessionApi(), "Failed to cancel signup session.");
-    await refresh().catch(() => {});
-    return dto;
-  }, [run, refresh]);
-
-  // ----- derived data for UI -----
   const view = useMemo(() => {
-    const s: any = status ?? {};
+    const s = status;
     return {
-      exists: Boolean(s.exists ?? s.hasSession ?? true),
-      email: s.email ?? null,
-      emailVerified: Boolean(s.emailVerified),
-      phoneNumber: s.phoneNumber ?? null,
-      phoneVerified: Boolean(s.phoneVerified),
-      name: s.name ?? null,
-      gender: s.gender ?? null,
-      birthDate: s.birthDate ?? null,
-      state: (s.state ?? null) as SignupSessionState | null,
+      email: s?.email ?? null,
+      emailVerified: Boolean(s?.emailVerified),
+      phoneNumber: s?.phoneNumber ?? null,
+      phoneVerified: Boolean(s?.phoneVerified),
+      name: s?.name ?? null,
+      gender: s?.gender ?? null,
+      birthDate: s?.birthDate ?? null,
+      state: (s?.state ?? null) as SignupSessionState | null,
     };
   }, [status]);
 
+  // global loading/error
+  // ✅ in useSignupFlow.ts (or even in each page)
+  const loading = {
+    // Page-blocking (rare): first load / bootstrap
+    page:
+      statusQuery.isLoading || // first time load
+      bootstrapMu.isPending,   // creating session/cookie
+
+    // Background sync (don’t block UI): refetch after invalidation, window refocus, etc.
+    syncing:
+      statusQuery.isFetching && !statusQuery.isLoading,
+
+    // Button-level actions
+    sendOtp: sendOtpMu.isPending,
+    resendOtp: resendOtpMu.isPending,
+    verifyOtp: verifyOtpMu.isPending,
+    editEmail: editEmailMu.isPending,
+    editPhone: editPhoneMu.isPending,
+    updateProfile: updateProfileMu.isPending,
+    cancel: cancelMu.isPending,
+    register: registerMu.isPending,
+
+    // Useful “any action running?”
+    action:
+      sendOtpMu.isPending ||
+      resendOtpMu.isPending ||
+      verifyOtpMu.isPending ||
+      editEmailMu.isPending ||
+      editPhoneMu.isPending ||
+      updateProfileMu.isPending ||
+      cancelMu.isPending ||
+      registerMu.isPending,
+  };
+
+  const error = useMemo(
+    () =>
+      firstErrorMessage(
+        [
+          statusQuery.error,
+          bootstrapMu.error,
+          sendOtpMu.error,
+          resendOtpMu.error,
+          verifyOtpMu.error,
+          editEmailMu.error,
+          editPhoneMu.error,
+          updateProfileMu.error,
+          cancelMu.error,
+          registerMu.error,
+        ],
+        "Request failed."
+      ),
+    [
+      statusQuery.error,
+      bootstrapMu.error,
+      sendOtpMu.error,
+      resendOtpMu.error,
+      verifyOtpMu.error,
+      editEmailMu.error,
+      editPhoneMu.error,
+      updateProfileMu.error,
+      cancelMu.error,
+      registerMu.error,
+    ]
+  );
+
+  // lifecycle
+  const bootstrap = useCallback(async () => {
+    const dto = await bootstrapMu.mutateAsync();
+    // make sure status reflects new cookie/session
+    await qc.invalidateQueries({ queryKey: signupSessionKeys.root });
+    return dto;
+  }, [bootstrapMu, qc]);
+
+  const refresh = useCallback(async () => {
+    return await statusQuery.refetch();
+  }, [statusQuery]);
+
+  // actions
+  const sendEmailOtp = useCallback(async () => {
+    return await sendOtpMu.mutateAsync({ target: "EMAIL" });
+  }, [sendOtpMu]);
+
+  const resendEmailOtp = useCallback(async () => {
+    return await resendOtpMu.mutateAsync({ target: "EMAIL" });
+  }, [resendOtpMu]);
+
+  const verifyEmailOtp = useCallback(
+    async (code: string) => {
+      return await verifyOtpMu.mutateAsync({ target: "EMAIL", code });
+    },
+    [verifyOtpMu]
+  );
+
+  const sendPhoneOtp = useCallback(async () => {
+    return await sendOtpMu.mutateAsync({ target: "PHONE" });
+  }, [sendOtpMu]);
+
+  const resendPhoneOtp = useCallback(async () => {
+    return await resendOtpMu.mutateAsync({ target: "PHONE" });
+  }, [resendOtpMu]);
+
+  const verifyPhoneOtp = useCallback(
+    async (code: string) => {
+      return await verifyOtpMu.mutateAsync({ target: "PHONE", code });
+    },
+    [verifyOtpMu]
+  );
+
+  const editEmail = useCallback(
+    async (newEmail: string) => {
+      return await editEmailMu.mutateAsync({ newEmail });
+    },
+    [editEmailMu]
+  );
+
+  const editPhone = useCallback(
+    async (newPhoneNumber: string) => {
+      return await editPhoneMu.mutateAsync({ newPhoneNumber });
+    },
+    [editPhoneMu]
+  );
+
+  const updateProfile = useCallback(
+    async (payload: UpdateSignupProfileRequestDto) => {
+      return await updateProfileMu.mutateAsync(payload);
+    },
+    [updateProfileMu]
+  );
+
+  const cancel = useCallback(async () => {
+    const dto = await cancelMu.mutateAsync();
+    // session dead -> drop all signup cache
+    qc.removeQueries({ queryKey: signupSessionKeys.root });
+    return dto;
+  }, [cancelMu, qc]);
+
+  /**
+   * ✅ register: NO local “force DONE”.
+   * Your UI should navigate to DONE page on success using the mutation result.
+   * (And since BE clears cookie, status may stop working after this.)
+   */
+  const register = useCallback(
+    async (payload: RegisterRequest) => {
+      const dto = await registerMu.mutateAsync(payload);
+
+      // optional: clear signup cache to avoid refetch noise after cookie deletion
+      qc.removeQueries({ queryKey: signupSessionKeys.root });
+
+      return dto;
+    },
+    [registerMu, qc]
+  );
+
   return {
-    // state
-    status,
-    state: view.state,
-    uiStep,
+    // server state
+    status, // raw dto
+    state,  // convenience
     view,
 
     // flags
     loading,
     error,
-    setError,
 
     // lifecycle
     bootstrap,
-    refresh,
+    refresh, // manual only (debug)
 
-    // actions (generic)
-    sendOtp,
-    resendOtp,
-    verifyOtp,
-    updateProfile,
-    register,
-
-    // actions (convenience)
+    // actions
     sendEmailOtp,
     resendEmailOtp,
     verifyEmailOtp,
     sendPhoneOtp,
     resendPhoneOtp,
     verifyPhoneOtp,
-
-    // edit/cancel
     editEmail,
     editPhone,
+    updateProfile,
     cancel,
+    register,
+
+    // expose queries/mutations if you want fine-grained control at pages
+    statusQuery,
+    mutations: {
+      bootstrapMu,
+      sendOtpMu,
+      resendOtpMu,
+      verifyOtpMu,
+      editEmailMu,
+      editPhoneMu,
+      updateProfileMu,
+      cancelMu,
+      registerMu,
+    },
   };
 }
