@@ -1,83 +1,121 @@
 // src/features/auth/register/components/SignupReviewStep.tsx
 import type { UseFormReturn } from "react-hook-form";
-import type { SignupSessionState } from "@/features/auth/register/api/signupApi.types";
 import type { SignupPasswordFormValues } from "../forms/schemas/signupPassword.schema";
 
-interface Props {
-  state: SignupSessionState | null;
-  loading: boolean;
-  error?: string | null;
-
-  // data to display
+type ReviewData = {
   email: string | null;
   phoneNumber: string | null;
   name: string | null;
   gender: string | null;
   birthDate: string | null;
+};
 
-  // password form
+type ReviewUi = {
+  title?: string; // default: "Create your account"
+  subtitle?: string; // default: "Step 4 — Review"
+
+  showCreate?: boolean; // default: true
+  showBack?: boolean; // default: true
+  showCancel?: boolean; // default: true
+
+  // ✅ NEW
+  showEditEmail?: boolean; // default: true (if action exists)
+  showEditPhone?: boolean; // default: true (if action exists)
+
+  createLabel?: string; // default: "Create account"
+  backLabel?: string; // default: "Back"
+  cancelLabel?: string; // default: "Cancel"
+
+  // ✅ NEW
+  editEmailLabel?: string; // default: "Edit"
+  editPhoneLabel?: string; // default: "Edit"
+};
+
+type ReviewLoading = {
+  create?: boolean;
+  back?: boolean;
+  cancel?: boolean;
+
+  // ✅ NEW
+  editEmail?: boolean;
+  editPhone?: boolean;
+};
+
+type ReviewActions = {
+  create?: (password: string) => void | Promise<void>;
+  back?: () => void | Promise<void>;
+  cancel?: () => void | Promise<void>;
+
+  // ✅ NEW
+  editEmail?: () => void | Promise<void>;
+  editPhone?: () => void | Promise<void>;
+};
+
+interface Props {
+  error?: string | null;
+
+  data: ReviewData;
+
   passwordForm: UseFormReturn<SignupPasswordFormValues>;
 
-  // actions
-  onCreate: (password: string) => void | Promise<void>;
-  onBack: () => void | Promise<void>;
-  onCancel: () => void | Promise<void>;
+  ui?: ReviewUi;
+  loading?: ReviewLoading;
+  actions: ReviewActions;
 }
 
 export function SignupReviewStep({
-  state,
-  loading,
   error,
-  email,
-  phoneNumber,
-  name,
-  gender,
-  birthDate,
+  data,
   passwordForm,
-  onCreate,
-  onBack,
-  onCancel,
+  ui,
+  loading,
+  actions,
 }: Props) {
-  const canUseReview = state === "PROFILE_READY";
-
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = passwordForm;
 
-  if (!canUseReview) {
-    return (
-      <div>
-        <h2>Create your account</h2>
-        <p style={{ marginTop: 8, color: "#666" }}>
-          Please complete your profile first.
-        </p>
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={loading}
-          style={{ marginTop: 12, padding: "8px 14px" }}
-        >
-          Back
-        </button>
-      </div>
-    );
-  }
+  const isCreating = Boolean(loading?.create);
+  const isGoingBack = Boolean(loading?.back);
+  const isCancelling = Boolean(loading?.cancel);
+
+  const isEditingEmail = Boolean(loading?.editEmail);
+  const isEditingPhone = Boolean(loading?.editPhone);
+
+  const busy =
+    isCreating || isGoingBack || isCancelling || isEditingEmail || isEditingPhone;
+
+  const title = ui?.title ?? "Create your account";
+  const subtitle = ui?.subtitle ?? "Step 4 — Review";
+
+  const showCreate = ui?.showCreate ?? true;
+  const showBack = ui?.showBack ?? true;
+  const showCancel = ui?.showCancel ?? true;
+
+  // ✅ default show if handler exists
+  const showEditEmail = ui?.showEditEmail ?? Boolean(actions.editEmail);
+  const showEditPhone = ui?.showEditPhone ?? Boolean(actions.editPhone);
+
+  const createLabel = ui?.createLabel ?? "Create account";
+  const backLabel = ui?.backLabel ?? "Back";
+  const cancelLabel = ui?.cancelLabel ?? "Cancel";
+
+  const editEmailLabel = ui?.editEmailLabel ?? "Edit";
+  const editPhoneLabel = ui?.editPhoneLabel ?? "Edit";
 
   const submit = handleSubmit(async (values) => {
-    await onCreate(values.password);
+    await actions.create?.(values.password);
   });
 
   return (
     <form onSubmit={submit} noValidate>
-      <h2>Create your account</h2>
-      <h3 style={{ marginTop: 8 }}>Step 4 — Review</h3>
+      <h2>{title}</h2>
+      <h3 style={{ marginTop: 8 }}>{subtitle}</h3>
 
       {error && (
-        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>
-          {error}
-        </div>
+        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>{error}</div>
       )}
 
       <div
@@ -89,14 +127,28 @@ export function SignupReviewStep({
           background: "#fafafa",
         }}
       >
-        <Row label="Email" value={email} />
-        <Row label="Phone" value={phoneNumber} />
-        <Row label="Name" value={name} />
-        <Row label="Gender" value={gender} />
-        <Row label="Birth date" value={birthDate} />
+        <Row
+          label="Email"
+          value={data.email}
+          onEdit={showEditEmail ? actions.editEmail : undefined}
+          editLabel={isEditingEmail ? "Opening..." : editEmailLabel}
+          disabled={busy || !actions.editEmail}
+        />
+
+        <Row
+          label="Phone"
+          value={data.phoneNumber}
+          onEdit={showEditPhone ? actions.editPhone : undefined}
+          editLabel={isEditingPhone ? "Opening..." : editPhoneLabel}
+          disabled={busy || !actions.editPhone}
+        />
+
+        <Row label="Name" value={data.name} />
+        <Row label="Gender" value={data.gender} />
+        <Row label="Birth date" value={data.birthDate} />
       </div>
 
-      {/* ✅ Password */}
+      {/* Password */}
       <div style={{ marginTop: 16 }}>
         <label htmlFor="password" style={{ display: "block", marginBottom: 4 }}>
           Password
@@ -105,7 +157,7 @@ export function SignupReviewStep({
           id="password"
           type="password"
           autoComplete="new-password"
-          disabled={loading}
+          disabled={busy}
           {...register("password")}
           style={{ width: "100%", padding: 8 }}
         />
@@ -127,9 +179,9 @@ export function SignupReviewStep({
           id="passwordConfirm"
           type="password"
           autoComplete="new-password"
-          disabled={loading}
+          disabled={busy}
           {...register("passwordConfirm")}
-          style={{ width: "100%", padding: 8 }}
+          style={{ width: "100%", padding: "8px" }}
         />
         {errors.passwordConfirm?.message && (
           <div style={{ marginTop: 4, color: "red", fontSize: 12 }}>
@@ -143,37 +195,78 @@ export function SignupReviewStep({
       </p>
 
       <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-        <button type="submit" disabled={loading} style={{ padding: "8px 14px" }}>
-          {loading ? "Creating..." : "Create account"}
-        </button>
+        {showCreate && (
+          <button
+            type="submit"
+            disabled={busy || !actions.create}
+            style={{ padding: "8px 14px" }}
+          >
+            {isCreating ? "Creating..." : createLabel}
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={onBack}
-          disabled={loading}
-          style={{ padding: "8px 14px" }}
-        >
-          Back
-        </button>
+        {showBack && (
+          <button
+            type="button"
+            onClick={actions.back}
+            disabled={busy || !actions.back}
+            style={{ padding: "8px 14px" }}
+          >
+            {isGoingBack ? "Going back..." : backLabel}
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          style={{ padding: "8px 14px" }}
-        >
-          Cancel
-        </button>
+        {showCancel && (
+          <button
+            type="button"
+            onClick={actions.cancel}
+            disabled={busy || !actions.cancel}
+            style={{ padding: "8px 14px" }}
+          >
+            {isCancelling ? "Cancelling..." : cancelLabel}
+          </button>
+        )}
       </div>
     </form>
   );
 }
 
-function Row({ label, value }: { label: string; value: string | null }) {
+function Row({
+  label,
+  value,
+  onEdit,
+  editLabel = "Edit",
+  disabled = false,
+}: {
+  label: string;
+  value: string | null;
+  onEdit?: () => void | Promise<void>;
+  editLabel?: string;
+  disabled?: boolean;
+}) {
   return (
-    <div style={{ display: "flex", gap: 10, padding: "6px 0" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "6px 0",
+      }}
+    >
       <div style={{ width: 90, color: "#666", fontSize: 13 }}>{label}</div>
-      <div style={{ fontSize: 13, color: "#111" }}>{value ?? "-"}</div>
+
+      <div style={{ flex: 1, fontSize: 13, color: "#111" }}>{value ?? "-"}</div>
+
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          disabled={disabled}
+          style={{ padding: "6px 10px", fontSize: 12 }}
+        >
+          {editLabel}
+        </button>
+      )}
     </div>
   );
 }

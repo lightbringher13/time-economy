@@ -1,43 +1,76 @@
 // src/features/auth/register/components/SignupEmailStep.tsx
 import type { UseFormReturn } from "react-hook-form";
+import type {
+  SignupEmailFormValues,
+  SignupEmailOtpFormValues,
+} from "../forms/schemas/signupEmail.schema";
 
-import type { SignupEmailFormValues } from "../forms/schemas/signupEmail.schema";
-import type { SignupEmailOtpFormValues } from "../forms/schemas/signupEmail.schema";
-import type {SignupSessionState} from "@/features/auth/register/api/signupApi.types"
+type EmailUi = {
+  title?: string; // default: "Create your account"
+  subtitle?: string; // default: "Step 1 — Verify email"
+
+  // what to show
+  showOtpBox?: boolean;
+  showSend?: boolean;
+  showResend?: boolean;
+  showEdit?: boolean;
+  showBack?: boolean;
+  showSkip?: boolean;
+  showCancel?: boolean;
+
+  // optional labels
+  sendLabel?: string; // default: "Send code"
+  resendLabel?: string; // default: "Resend code"
+  editLabel?: string; // default: "Update email"
+  backLabel?: string; // default: "Back"
+  skipLabel?: string; // default: "Continue"
+  cancelLabel?: string; // default: "Cancel"
+};
+
+type EmailLoading = {
+  send?: boolean;
+  resend?: boolean;
+  verify?: boolean;
+  edit?: boolean;
+  cancel?: boolean;
+};
+
+type EmailActions = {
+  // “commands”
+  send?: () => void | Promise<void>;
+  resend?: () => void | Promise<void>;
+  verify?: (code: string) => void | Promise<void>;
+  edit?: (newEmail: string) => void | Promise<void>;
+
+  back?: () => void | Promise<void>;
+  skip?: () => void | Promise<void>;
+  cancel?: () => void | Promise<void>;
+};
 
 interface Props {
-  state: SignupSessionState | null;
   emailVerified: boolean;
-  maskedEmail?: string | null; // optional: if your BE returns masked
-  loading: boolean;
+  maskedEmail?: string | null;
   error?: string | null;
 
   // forms
   emailForm: UseFormReturn<SignupEmailFormValues>;
   otpForm: UseFormReturn<SignupEmailOtpFormValues>;
 
-  // handlers
-  onSendOtp: () => void | Promise<void>;
-  onResendOtp: () => void | Promise<void>;
-  onVerifyOtp: (code: string) => void | Promise<void>;
-
-  onEditEmail?: (newEmail: string) => void | Promise<void>;
-  onCancel?: () => void | Promise<void>;
+  // grouped props
+  ui: EmailUi;
+  loading?: EmailLoading;
+  actions: EmailActions;
 }
 
 export function SignupEmailStep({
-  state,
   emailVerified,
   maskedEmail,
-  loading,
   error,
   emailForm,
   otpForm,
-  onSendOtp,
-  onResendOtp,
-  onVerifyOtp,
-  onEditEmail,
-  onCancel,
+  ui,
+  loading,
+  actions,
 }: Props) {
   const {
     register: registerEmail,
@@ -52,66 +85,56 @@ export function SignupEmailStep({
     reset: resetOtp,
   } = otpForm;
 
-  const showOtpBox =
-    state === "EMAIL_OTP_SENT" && !emailVerified;
+  const isSending = Boolean(loading?.send);
+  const isResending = Boolean(loading?.resend);
+  const isVerifying = Boolean(loading?.verify);
+  const isEditing = Boolean(loading?.edit);
+  const isCancelling = Boolean(loading?.cancel);
 
-  const showSendButton =
-    state === "DRAFT" && !emailVerified;
+  const busy = isSending || isResending || isVerifying || isEditing || isCancelling;
 
-  const showResendButton =
-    state === "EMAIL_OTP_SENT" && !emailVerified;
-
-  const showEditButton =
-    Boolean(onEditEmail) &&
-    (state === "EMAIL_OTP_SENT" || state === "EMAIL_VERIFIED");
+  const title = ui.title ?? "Create your account";
+  const subtitle = ui.subtitle ?? "Step 1 — Verify email";
 
   const onClickSend = async () => {
-    // validate email form first
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
-    // optionally update email on server before sending OTP
-    // (if your BE requires editEmail before send)
-    if (onEditEmail) {
+    // If edit exists, persist email first (your BE behavior)
+    if (actions.edit) {
       const email = getEmailValues("email");
-      await onEditEmail(email);
+      await actions.edit(email);
     }
 
     resetOtp({ code: "" });
-    await onSendOtp();
+    await actions.send?.();
   };
 
   const onClickResend = async () => {
     resetOtp({ code: "" });
-    await onResendOtp();
+    await actions.resend?.();
   };
 
   const onSubmitVerify = handleOtpSubmit(async (values) => {
-    await onVerifyOtp(values.code);
+    await actions.verify?.(values.code);
   });
 
   const onClickEditEmail = async () => {
-    if (!onEditEmail) return;
-
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = getEmailValues("email");
-    await onEditEmail(email);
-
-    // after edit, OTP is invalid; clear OTP input
+    await actions.edit?.(email);
     resetOtp({ code: "" });
   };
 
   return (
     <div>
-      <h2>Create your account</h2>
-      <h3 style={{ marginTop: 8 }}>Step 1 — Verify email</h3>
+      <h2>{title}</h2>
+      <h3 style={{ marginTop: 8 }}>{subtitle}</h3>
 
       {error && (
-        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>
-          {error}
-        </div>
+        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>{error}</div>
       )}
 
       {/* Email input */}
@@ -124,7 +147,7 @@ export function SignupEmailStep({
           id="email"
           type="email"
           autoComplete="email"
-          disabled={loading || emailVerified}
+          disabled={busy || emailVerified}
           {...registerEmail("email")}
           style={{ width: "100%", padding: 8 }}
         />
@@ -144,33 +167,75 @@ export function SignupEmailStep({
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        {showSendButton && (
-          <button type="button" onClick={onClickSend} disabled={loading} style={{ padding: "8px 14px" }}>
-            {loading ? "Sending..." : "Send code"}
+        {ui.showSend && (
+          <button
+            type="button"
+            onClick={onClickSend}
+            disabled={busy || !actions.send}
+            style={{ padding: "8px 14px" }}
+          >
+            {isSending ? "Sending..." : ui.sendLabel ?? "Send code"}
           </button>
         )}
 
-        {showResendButton && (
-          <button type="button" onClick={onClickResend} disabled={loading} style={{ padding: "8px 14px" }}>
-            {loading ? "Resending..." : "Resend code"}
+        {ui.showResend && (
+          <button
+            type="button"
+            onClick={onClickResend}
+            disabled={busy || !actions.resend}
+            style={{ padding: "8px 14px" }}
+          >
+            {isResending ? "Resending..." : ui.resendLabel ?? "Resend code"}
           </button>
         )}
 
-        {showEditButton && (
-          <button type="button" onClick={onClickEditEmail} disabled={loading} style={{ padding: "8px 14px" }}>
-            Update email
+        {ui.showEdit && (
+          <button
+            type="button"
+            onClick={onClickEditEmail}
+            disabled={busy || !actions.edit}
+            style={{ padding: "8px 14px" }}
+          >
+            {isEditing ? "Updating..." : ui.editLabel ?? "Update email"}
           </button>
         )}
 
-        {onCancel && (
-          <button type="button" onClick={onCancel} disabled={loading} style={{ padding: "8px 14px" }}>
-            Cancel
+        {ui.showBack && (
+          <button
+            type="button"
+            onClick={actions.back}
+            disabled={busy || !actions.back}
+            style={{ padding: "8px 14px" }}
+          >
+            {ui.backLabel ?? "Back"}
+          </button>
+        )}
+
+        {ui.showSkip && (
+          <button
+            type="button"
+            onClick={actions.skip}
+            disabled={busy || !actions.skip}
+            style={{ padding: "8px 14px" }}
+          >
+            {ui.skipLabel ?? "Continue"}
+          </button>
+        )}
+
+        {ui.showCancel && (
+          <button
+            type="button"
+            onClick={actions.cancel}
+            disabled={busy || !actions.cancel}
+            style={{ padding: "8px 14px" }}
+          >
+            {isCancelling ? "Cancelling..." : ui.cancelLabel ?? "Cancel"}
           </button>
         )}
       </div>
 
       {/* OTP verify box */}
-      {showOtpBox && (
+      {ui.showOtpBox && (
         <form onSubmit={onSubmitVerify} noValidate style={{ marginTop: 18 }}>
           <div style={{ marginBottom: 8, fontSize: 13, color: "#666" }}>
             Enter the 6-digit code sent to your email.
@@ -184,7 +249,7 @@ export function SignupEmailStep({
             id="emailOtp"
             inputMode="numeric"
             autoComplete="one-time-code"
-            disabled={loading}
+            disabled={busy}
             {...registerOtp("code")}
             style={{ width: "100%", padding: 8 }}
           />
@@ -195,8 +260,12 @@ export function SignupEmailStep({
             </div>
           )}
 
-          <button type="submit" disabled={loading} style={{ marginTop: 12, padding: "8px 14px" }}>
-            {loading ? "Verifying..." : "Verify"}
+          <button
+            type="submit"
+            disabled={busy || !actions.verify}
+            style={{ marginTop: 12, padding: "8px 14px" }}
+          >
+            {isVerifying ? "Verifying..." : "Verify"}
           </button>
         </form>
       )}
