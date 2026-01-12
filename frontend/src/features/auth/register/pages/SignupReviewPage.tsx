@@ -72,7 +72,17 @@ export default function SignupReviewPage() {
     navigate("/signup/email", { replace: true });
   };
 
-  // ✅ per-action flags (no global loading)
+  // ✅ NEW: edit actions (navigation only)
+  const onEditEmail = () => {
+    // optional: add returnTo later if you want
+    navigate("/signup/edit/email");
+  };
+
+  const onEditPhone = () => {
+    navigate("/signup/edit/phone");
+  };
+
+  // ✅ per-action flags
   const isCreating = flow.mutations.registerMu.isPending;
   const isCancelling = flow.mutations.cancelMu.isPending;
 
@@ -94,6 +104,13 @@ export default function SignupReviewPage() {
           showCreate: true,
           showBack: true,
           showCancel: true,
+
+          // ✅ NEW
+          showEditEmail: true,
+          showEditPhone: true,
+          editEmailLabel: "Edit email",
+          editPhoneLabel: "Edit phone",
+
           createLabel: "Create account",
           backLabel: "Back",
           cancelLabel: "Cancel",
@@ -102,11 +119,19 @@ export default function SignupReviewPage() {
           create: isCreating,
           cancel: isCancelling,
           back: false,
+
+          // ✅ NEW (optional; navigation-only so keep false)
+          editEmail: false,
+          editPhone: false,
         }}
         actions={{
           create: onCreate,
           back: onBack,
           cancel: onCancel,
+
+          // ✅ NEW
+          editEmail: onEditEmail,
+          editPhone: onEditPhone,
         }}
       />
     </div>

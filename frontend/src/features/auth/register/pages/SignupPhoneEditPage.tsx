@@ -60,13 +60,6 @@ export default function SignupPhoneEditPage() {
     }
   }, [view.phoneNumber, phoneForm]);
 
-  // ---- helpers: where to go back/skip ----
-  const goBackToOrigin = () => {
-    // if user was reviewing, go back to review; else go back to profile
-    if (view.state === "PROFILE_READY") navigate("/signup/review");
-    else navigate("/signup/profile");
-  };
-
   // ---- handlers ----
   const onEditPhone = async (newPhone: string) => {
     await flow.editPhone(newPhone);
@@ -98,9 +91,10 @@ export default function SignupPhoneEditPage() {
     navigate("/signup/edit/email");
   }
 
-  const onSkipEdit = () => {
-    // “No change” button: just return to where they came from
-    goBackToOrigin();
+  const continueWithoutChange = () => {
+    // if you want “Continue” to go back to current step
+    const target = signupPathFromState(state);
+    navigate(target, { replace: true });
   };
 
   const onCancel = async () => {
@@ -117,6 +111,7 @@ export default function SignupPhoneEditPage() {
   const showEdit = view.state === "PROFILE_PENDING" || view.state === "PROFILE_READY";
   const showSend = view.state === "EMAIL_VERIFIED" && !view.phoneVerified;
   const showResend = view.state === "PHONE_OTP_SENT" && !view.phoneVerified;
+  const showSkip = view.state !== "EMAIL_VERIFIED" && view.state !== "PHONE_OTP_SENT";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
@@ -134,10 +129,10 @@ export default function SignupPhoneEditPage() {
           showResend,
           showOtpBox,
           showBack: true,
-          showSkip: true,
+          showSkip,
           showCancel: true,
           backLabel: "Back",
-          skipLabel: "Keep current phone",
+          skipLabel: "Continue without changes",
         }}
         loading={{
           send: Boolean(flow.loading?.sendOtp),
@@ -152,7 +147,7 @@ export default function SignupPhoneEditPage() {
           resend: onResendOtp,
           verify: onVerifyOtp,
           back: onBack,
-          skip: onSkipEdit,
+          skip: continueWithoutChange,
           cancel: onCancel,
         }}
       />

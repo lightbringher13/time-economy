@@ -101,8 +101,8 @@ export default function SignupEmailEditPage() {
   const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
   const showSend = state !== "EMAIL_OTP_SENT" && !flow.view.emailVerified; // when editing, allow send when not already in otp state
   const showResend = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
-  const showEdit = true; // edit page always shows “Update email”
-  const showSkip = true; // “Continue” / “No changes”
+  const showEdit = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
+  const showSkip = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
