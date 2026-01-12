@@ -12,15 +12,13 @@ type EmailUi = {
   // what to show
   showOtpBox?: boolean;
   showSend?: boolean;
-  showResend?: boolean;
   showEdit?: boolean;
   showBack?: boolean;
   showSkip?: boolean;
   showCancel?: boolean;
 
   // optional labels
-  sendLabel?: string; // default: "Send code"
-  resendLabel?: string; // default: "Resend code"
+  sendLabel?: string; // default: "Send code" (parent can set "Resend code" later)
   editLabel?: string; // default: "Update email"
   backLabel?: string; // default: "Back"
   skipLabel?: string; // default: "Continue"
@@ -29,7 +27,6 @@ type EmailUi = {
 
 type EmailLoading = {
   send?: boolean;
-  resend?: boolean;
   verify?: boolean;
   edit?: boolean;
   cancel?: boolean;
@@ -38,7 +35,6 @@ type EmailLoading = {
 type EmailActions = {
   // “commands”
   send?: () => void | Promise<void>;
-  resend?: () => void | Promise<void>;
   verify?: (code: string) => void | Promise<void>;
   edit?: (newEmail: string) => void | Promise<void>;
 
@@ -86,12 +82,11 @@ export function SignupEmailStep({
   } = otpForm;
 
   const isSending = Boolean(loading?.send);
-  const isResending = Boolean(loading?.resend);
   const isVerifying = Boolean(loading?.verify);
   const isEditing = Boolean(loading?.edit);
   const isCancelling = Boolean(loading?.cancel);
 
-  const busy = isSending || isResending || isVerifying || isEditing || isCancelling;
+  const busy = isSending || isVerifying || isEditing || isCancelling;
 
   const title = ui.title ?? "Create your account";
   const subtitle = ui.subtitle ?? "Step 1 — Verify email";
@@ -107,12 +102,7 @@ export function SignupEmailStep({
     }
 
     resetOtp({ code: "" });
-    await actions.send?.();
-  };
-
-  const onClickResend = async () => {
-    resetOtp({ code: "" });
-    await actions.resend?.();
+    await actions.send?.(); // same endpoint for "send" and "resend"
   };
 
   const onSubmitVerify = handleOtpSubmit(async (values) => {
@@ -175,17 +165,6 @@ export function SignupEmailStep({
             style={{ padding: "8px 14px" }}
           >
             {isSending ? "Sending..." : ui.sendLabel ?? "Send code"}
-          </button>
-        )}
-
-        {ui.showResend && (
-          <button
-            type="button"
-            onClick={onClickResend}
-            disabled={busy || !actions.resend}
-            style={{ padding: "8px 14px" }}
-          >
-            {isResending ? "Resending..." : ui.resendLabel ?? "Resend code"}
           </button>
         )}
 

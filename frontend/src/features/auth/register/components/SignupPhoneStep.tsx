@@ -7,26 +7,27 @@ import type {
 } from "../forms/schemas/signupPhone.schema";
 
 type PhoneUi = {
-  title?: string;         // default: "Create your account"
-  subtitle?: string;      // default: "Step 2 — Verify phone"
+  title?: string; // default: "Create your account"
+  subtitle?: string; // default: "Step 2 — Verify phone"
 
   // what to show
   showOtpBox?: boolean;
   showSend?: boolean;
-  showResend?: boolean;
   showEdit?: boolean;
   showBack?: boolean;
   showSkip?: boolean;
   showCancel?: boolean;
 
   // optional labels
-  backLabel?: string;     // default: "Back"
-  skipLabel?: string;     // default: "Continue"
+  sendLabel?: string; // default: "Send SMS code" (parent can set "Resend code")
+  editLabel?: string; // default: "Update phone"
+  backLabel?: string; // default: "Back"
+  skipLabel?: string; // default: "Continue"
+  cancelLabel?: string; // default: "Cancel"
 };
 
 type PhoneLoading = {
   send?: boolean;
-  resend?: boolean;
   verify?: boolean;
   edit?: boolean;
   cancel?: boolean;
@@ -34,7 +35,6 @@ type PhoneLoading = {
 
 type PhoneActions = {
   send?: () => void | Promise<void>;
-  resend?: () => void | Promise<void>;
   verify?: (code: string) => void | Promise<void>;
   edit?: (newPhone: string) => void | Promise<void>;
   back?: () => void | Promise<void>;
@@ -81,12 +81,11 @@ export function SignupPhoneStep({
   } = otpForm;
 
   const isSending = Boolean(loading?.send);
-  const isResending = Boolean(loading?.resend);
   const isVerifying = Boolean(loading?.verify);
   const isEditing = Boolean(loading?.edit);
   const isCancelling = Boolean(loading?.cancel);
 
-  const busy = isSending || isResending || isVerifying || isEditing || isCancelling;
+  const busy = isSending || isVerifying || isEditing || isCancelling;
 
   const title = ui.title ?? "Create your account";
   const subtitle = ui.subtitle ?? "Step 2 — Verify phone";
@@ -102,12 +101,7 @@ export function SignupPhoneStep({
     }
 
     resetOtp({ code: "" });
-    await actions.send?.();
-  };
-
-  const onClickResend = async () => {
-    resetOtp({ code: "" });
-    await actions.resend?.();
+    await actions.send?.(); // same endpoint for "send" and "resend"
   };
 
   const onSubmitVerify = handleOtpSubmit(async (values) => {
@@ -171,18 +165,7 @@ export function SignupPhoneStep({
             disabled={busy || !actions.send}
             style={{ padding: "8px 14px" }}
           >
-            {isSending ? "Sending..." : "Send SMS code"}
-          </button>
-        )}
-
-        {ui.showResend && (
-          <button
-            type="button"
-            onClick={onClickResend}
-            disabled={busy || !actions.resend}
-            style={{ padding: "8px 14px" }}
-          >
-            {isResending ? "Resending..." : "Resend code"}
+            {isSending ? "Sending..." : ui.sendLabel ?? "Send SMS code"}
           </button>
         )}
 
@@ -193,7 +176,7 @@ export function SignupPhoneStep({
             disabled={busy || !actions.edit}
             style={{ padding: "8px 14px" }}
           >
-            {isEditing ? "Updating..." : "Update phone"}
+            {isEditing ? "Updating..." : ui.editLabel ?? "Update phone"}
           </button>
         )}
 
@@ -226,7 +209,7 @@ export function SignupPhoneStep({
             disabled={busy || !actions.cancel}
             style={{ padding: "8px 14px" }}
           >
-            {isCancelling ? "Cancelling..." : "Cancel"}
+            {isCancelling ? "Cancelling..." : ui.cancelLabel ?? "Cancel"}
           </button>
         )}
       </div>

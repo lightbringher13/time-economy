@@ -56,18 +56,14 @@ export default function SignupPhonePage() {
     otpForm.reset({ code: "" });
   };
 
-  const onSendOtp = async () => {
+  // unified issue otp: send + resend
+  const issuePhoneOtp = async () => {
     const ok = await phoneForm.trigger("phoneNumber");
     if (!ok) return;
 
     const phone = phoneForm.getValues("phoneNumber");
-    await onEditPhone(phone);     // persist first
-    await flow.sendPhoneOtp();    // then send
-  };
-
-  const onResendOtp = async () => {
-    otpForm.reset({ code: "" });
-    await flow.resendPhoneOtp();
+    await onEditPhone(phone);   // persist first
+    await flow.sendPhoneOtp();  // same endpoint used for resend too
   };
 
   const onVerifyOtp = async (code: string) => {
@@ -87,8 +83,13 @@ export default function SignupPhonePage() {
 
   // ---- UI rules decided by PAGE (component is dumb) ----
   const showOtpBox = view.state === "PHONE_OTP_SENT" && !view.phoneVerified;
-  const showSend = view.state === "EMAIL_VERIFIED" && !view.phoneVerified;
-  const showResend = view.state === "PHONE_OTP_SENT" && !view.phoneVerified;
+
+  // show same button in both states (resend is just re-click)
+  const showSend =
+    (view.state === "EMAIL_VERIFIED" || view.state === "PHONE_OTP_SENT") &&
+    !view.phoneVerified;
+
+  const sendLabel = view.state === "PHONE_OTP_SENT" ? "Resend code" : "Send SMS code";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
@@ -103,7 +104,7 @@ export default function SignupPhonePage() {
           subtitle: "Step 2 — Verify phone",
           showOtpBox,
           showSend,
-          showResend,
+          sendLabel,
           showEdit: false,   // phone page = normal flow (not edit)
           showBack: true,
           showSkip: false,
@@ -112,14 +113,12 @@ export default function SignupPhonePage() {
         }}
         loading={{
           send: Boolean(flow.loading?.sendOtp),
-          resend: Boolean(flow.loading?.resendOtp),
           verify: Boolean(flow.loading?.verifyOtp),
           edit: false,
           cancel: Boolean(flow.loading?.cancel),
         }}
         actions={{
-          send: onSendOtp,
-          resend: onResendOtp,
+          send: issuePhoneOtp,
           verify: onVerifyOtp,
           back: onBackToEmail,
           cancel: onCancel,

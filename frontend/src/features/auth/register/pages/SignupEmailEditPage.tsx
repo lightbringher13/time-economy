@@ -70,39 +70,38 @@ export default function SignupEmailEditPage() {
     otpForm.reset({ code: "" });
   };
 
-  const sendEmailOtp = async () => {
+  // unified "issue otp" (send + resend)
+  const issueEmailOtp = async () => {
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = emailForm.getValues("email");
     await editEmail(email);
-    await flow.sendEmailOtp();
-  };
-
-  const resendEmailOtp = async () => {
-    otpForm.reset({ code: "" });
-    await flow.resendEmailOtp();
+    await flow.sendEmailOtp(); // same endpoint used for resend too
   };
 
   const verifyEmailOtp = async (code: string) => {
     await flow.verifyEmailOtp(code);
     const path = signupPathFromState(state);
     navigate(path, { replace: true });
-
   };
 
   const continueWithoutChange = () => {
-    // if you want “Continue” to go back to current step
     const target = signupPathFromState(state);
     navigate(target, { replace: true });
   };
 
   // ---- UI flags computed in the page ----
   const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
-  const showSend = state !== "EMAIL_OTP_SENT" && !flow.view.emailVerified; // when editing, allow send when not already in otp state
-  const showResend = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
+
+  // In edit page, allow issuing OTP anytime user is not verified
+  const showSend = !flow.view.emailVerified;
+
+  // Keep edit button only when you're not in initial draft/otp typing step
   const showEdit = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
   const showSkip = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
+
+  const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
@@ -117,7 +116,7 @@ export default function SignupEmailEditPage() {
           subtitle: "Update your email and re-verify",
           showOtpBox,
           showSend,
-          showResend,
+          sendLabel,
           showEdit,
           showCancel: true,
           showSkip,
@@ -125,14 +124,12 @@ export default function SignupEmailEditPage() {
         }}
         loading={{
           send: Boolean(flow.loading?.sendOtp),
-          resend: Boolean(flow.loading?.resendOtp),
           verify: Boolean(flow.loading?.verifyOtp),
           edit: Boolean(flow.loading?.editEmail),
           cancel: Boolean(flow.loading?.cancel),
         }}
         actions={{
-          send: sendEmailOtp,
-          resend: resendEmailOtp,
+          send: issueEmailOtp,
           verify: verifyEmailOtp,
           edit: editEmail,
           skip: continueWithoutChange,

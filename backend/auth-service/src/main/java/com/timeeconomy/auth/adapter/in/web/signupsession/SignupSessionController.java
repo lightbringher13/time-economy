@@ -27,7 +27,6 @@ import com.timeeconomy.auth.domain.signupsession.port.in.VerifySignupOtpUseCase;
 
 // ✅ new usecases
 import com.timeeconomy.auth.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
-import com.timeeconomy.auth.domain.signupsession.port.in.ResendSignupOtpUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.EditSignupEmailUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.EditSignupPhoneUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.CancelSignupSessionUseCase;
@@ -35,10 +34,8 @@ import com.timeeconomy.auth.domain.signupsession.port.in.CancelSignupSessionUseC
 // ✅ you likely want new response DTOs for these:
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.EditSignupEmailRequest;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.EditSignupPhoneRequest;
-import com.timeeconomy.auth.adapter.in.web.signupsession.dto.request.ResendSignupOtpRequest;
 
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.SignupStatusResponse;
-import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.ResendSignupOtpResponse;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.EditSignupEmailResponse;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.EditSignupPhoneResponse;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.CancelSignupSessionResponse;
@@ -57,7 +54,6 @@ public class SignupSessionController {
 
     // ✅ new
     private final GetSignupSessionStatusUseCase getSignupSessionStatusUseCase;
-    private final ResendSignupOtpUseCase resendSignupOtpUseCase;
     private final EditSignupEmailUseCase editSignupEmailUseCase;
     private final EditSignupPhoneUseCase editSignupPhoneUseCase;
     private final CancelSignupSessionUseCase cancelSignupSessionUseCase;
@@ -220,29 +216,6 @@ public class SignupSessionController {
                 result.maskedDestination(),
                 result.emailVerified(),
                 result.phoneVerified(),
-                result.state()
-        ));
-    }
-
-    // -------------------------
-    // ✅ Resend OTP (new)
-    // -------------------------
-    @PostMapping("/resend-otp")
-    public ResponseEntity<ResendSignupOtpResponse> resendOtp(
-            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue,
-            @Valid @RequestBody ResendSignupOtpRequest body
-    ) {
-        UUID sessionId = requireCookieSessionId(sessionIdValue);
-
-        var result = resendSignupOtpUseCase.resend(
-                new ResendSignupOtpUseCase.Command(sessionId, body.target())
-        );
-
-        return ResponseEntity.ok(new ResendSignupOtpResponse(
-                result.sessionId(),
-                result.sent(),
-                result.maskedDestination(),
-                result.ttlMinutes(),
                 result.state()
         ));
     }

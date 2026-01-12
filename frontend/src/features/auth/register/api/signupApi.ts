@@ -4,8 +4,6 @@ import type {
   SignupStatusResponseDto,
   SendSignupOtpRequestDto,
   SendSignupOtpResponseDto,
-  ResendSignupOtpRequestDto,
-  ResendSignupOtpResponseDto,
   VerifySignupOtpRequestDto,
   VerifySignupOtpResponseDto,
   EditSignupEmailRequestDto,
@@ -28,13 +26,6 @@ export async function sendSignupOtpApi(
   payload: SendSignupOtpRequestDto
 ): Promise<SendSignupOtpResponseDto> {
   const res = await apiClient.post<SendSignupOtpResponseDto>("/auth/signup/send-otp", payload);
-  return res.data;
-}
-
-export async function resendSignupOtpApi(
-  payload: ResendSignupOtpRequestDto
-): Promise<ResendSignupOtpResponseDto> {
-  const res = await apiClient.post<ResendSignupOtpResponseDto>("/auth/signup/resend-otp", payload);
   return res.data;
 }
 

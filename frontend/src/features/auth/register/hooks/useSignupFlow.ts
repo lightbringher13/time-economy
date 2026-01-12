@@ -15,7 +15,6 @@ import { extractApiMessage } from "../queries/extractApiMessage";
 import { useSignupStatusQuery } from "../queries/useSignupStatusQuery";
 import { useSignupBootstrapMutation } from "../queries/useSignupBootstrapMutation";
 import { useSendSignupOtpMutation } from "../queries/useSendSignupOtpMutation";
-import { useResendSignupOtpMutation } from "../queries/useResendSignupOtpMutation";
 import { useVerifySignupOtpMutation } from "../queries/useVerifySignupOtpMutation";
 import { useEditSignupEmailMutation } from "../queries/useEditSignupEmailMutation";
 import { useEditSignupPhoneMutation } from "../queries/useEditSignupPhoneMutation";
@@ -39,7 +38,6 @@ export function useSignupFlow() {
   // mutations (ideally each one invalidates signupSessionKeys.status() in onSuccess)
   const bootstrapMu = useSignupBootstrapMutation();
   const sendOtpMu = useSendSignupOtpMutation();
-  const resendOtpMu = useResendSignupOtpMutation();
   const verifyOtpMu = useVerifySignupOtpMutation();
   const editEmailMu = useEditSignupEmailMutation();
   const editPhoneMu = useEditSignupPhoneMutation();
@@ -79,7 +77,6 @@ export function useSignupFlow() {
 
     // Button-level actions
     sendOtp: sendOtpMu.isPending,
-    resendOtp: resendOtpMu.isPending,
     verifyOtp: verifyOtpMu.isPending,
     editEmail: editEmailMu.isPending,
     editPhone: editPhoneMu.isPending,
@@ -90,7 +87,6 @@ export function useSignupFlow() {
     // Useful “any action running?”
     action:
       sendOtpMu.isPending ||
-      resendOtpMu.isPending ||
       verifyOtpMu.isPending ||
       editEmailMu.isPending ||
       editPhoneMu.isPending ||
@@ -106,7 +102,6 @@ export function useSignupFlow() {
           statusQuery.error,
           bootstrapMu.error,
           sendOtpMu.error,
-          resendOtpMu.error,
           verifyOtpMu.error,
           editEmailMu.error,
           editPhoneMu.error,
@@ -120,7 +115,6 @@ export function useSignupFlow() {
       statusQuery.error,
       bootstrapMu.error,
       sendOtpMu.error,
-      resendOtpMu.error,
       verifyOtpMu.error,
       editEmailMu.error,
       editPhoneMu.error,
@@ -147,10 +141,6 @@ export function useSignupFlow() {
     return await sendOtpMu.mutateAsync({ target: "EMAIL" });
   }, [sendOtpMu]);
 
-  const resendEmailOtp = useCallback(async () => {
-    return await resendOtpMu.mutateAsync({ target: "EMAIL" });
-  }, [resendOtpMu]);
-
   const verifyEmailOtp = useCallback(
     async (code: string) => {
       return await verifyOtpMu.mutateAsync({ target: "EMAIL", code });
@@ -161,10 +151,6 @@ export function useSignupFlow() {
   const sendPhoneOtp = useCallback(async () => {
     return await sendOtpMu.mutateAsync({ target: "PHONE" });
   }, [sendOtpMu]);
-
-  const resendPhoneOtp = useCallback(async () => {
-    return await resendOtpMu.mutateAsync({ target: "PHONE" });
-  }, [resendOtpMu]);
 
   const verifyPhoneOtp = useCallback(
     async (code: string) => {
@@ -234,10 +220,8 @@ export function useSignupFlow() {
 
     // actions
     sendEmailOtp,
-    resendEmailOtp,
     verifyEmailOtp,
     sendPhoneOtp,
-    resendPhoneOtp,
     verifyPhoneOtp,
     editEmail,
     editPhone,
@@ -250,7 +234,6 @@ export function useSignupFlow() {
     mutations: {
       bootstrapMu,
       sendOtpMu,
-      resendOtpMu,
       verifyOtpMu,
       editEmailMu,
       editPhoneMu,

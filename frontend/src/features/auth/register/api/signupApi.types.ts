@@ -38,16 +38,6 @@ export interface SendSignupOtpResponseDto {
   state: SignupSessionState;
 }
 
-export interface ResendSignupOtpRequestDto {
-  target: SignupVerificationTarget;
-}
-export interface ResendSignupOtpResponseDto {
-  sent: boolean;
-  ttlMinutes: number;
-  maskedDestination: string | null;
-  state: SignupSessionState;
-}
-
 export interface VerifySignupOtpRequestDto {
   target: SignupVerificationTarget;
   code: string;
