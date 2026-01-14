@@ -1,14 +1,15 @@
 // src/features/auth/register/pages/SignupEmailPage.tsx
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { SignupEmailStep } from "../components/SignupEmailStep";
-import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
 
 import { signupPathFromState } from "../routes/signupRouteMap";
+import { ROUTES } from "@/routes/paths.ts";
 
 export default function SignupEmailPage() {
   const navigate = useNavigate();
@@ -17,24 +18,7 @@ export default function SignupEmailPage() {
   const emailForm = useSignupEmailForm();
   const otpForm = useSignupEmailOtpForm();
 
-  // ---- bootstrap once (creates/refreshes session cookie) ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
-  // ---- route guard: if server state says "not email step", redirect ----
   const state = flow.view.state;
-  const expectedPath = useMemo(() => signupPathFromState(state), [state]);
-
-  useEffect(() => {
-    if (!state) return;
-    if (expectedPath !== "/signup/email") {
-      navigate(expectedPath, { replace: true });
-    }
-  }, [expectedPath, state, navigate]);
 
   // ---- prefill email from server once ----
   useEffect(() => {
@@ -46,8 +30,9 @@ export default function SignupEmailPage() {
 
   // ---- handlers ----
   const cancel = async () => {
+    navigate(ROUTES.LOGIN,{replace: true});
     await flow.cancel();
-    // after cancel, state becomes CANCELED -> guard redirects
+    
   };
 
   const editEmail = async (newEmail: string) => {
@@ -55,30 +40,27 @@ export default function SignupEmailPage() {
     otpForm.reset({ code: "" });
   };
 
-  // unified "issue otp" (send + resend)
   const issueEmailOtp = async () => {
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = emailForm.getValues("email");
-    await editEmail(email);     // persist first
-    await flow.sendEmailOtp();  // same endpoint used for resend too
+    await editEmail(email);
+    await flow.sendEmailOtp();
   };
 
   const verifyEmailOtp = async (code: string) => {
     await flow.verifyEmailOtp(code);
     const path = signupPathFromState(state);
-    navigate(path, { replace: true });
+    navigate(path);
   };
 
-  // ---- UI flags computed here (page decides) ----
+  // ---- UI flags computed here ----
   const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
 
-  // show the same button in both DRAFT and EMAIL_OTP_SENT (resend is just re-click)
   const showSend =
     (state === "DRAFT" || state === "EMAIL_OTP_SENT") && !flow.view.emailVerified;
 
-  // Optional: show edit in this page or move edit to /signup/edit/email
   const showEdit = state === "EMAIL_OTP_SENT" || state === "EMAIL_VERIFIED";
 
   const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
@@ -95,7 +77,7 @@ export default function SignupEmailPage() {
           showOtpBox,
           showSend,
           sendLabel,
-          showEdit, // set false if you want edit only in /signup/edit/email
+          showEdit,
           showCancel: true,
         }}
         loading={{

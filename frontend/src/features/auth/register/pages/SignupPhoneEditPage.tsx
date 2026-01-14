@@ -1,22 +1,20 @@
 // src/features/auth/register/pages/SignupPhoneEditPage.tsx
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 import { SignupPhoneStep } from "../components/SignupPhoneStep";
-import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
 
 import { useSignupPhoneForm } from "../forms/hooks/useSignupPhoneForm";
 import { useSignupPhoneOtpForm } from "../forms/hooks/useSignupPhoneOtpForm";
 
 import { signupPathFromState } from "../routes/signupRouteMap";
 import type { SignupSessionState } from "../api/signupApi.types";
+import { ROUTES } from "@/routes/paths.ts";
 
 const EDIT_PHONE_ALLOWED: SignupSessionState[] = [
-  // where user came from
   "PROFILE_PENDING",
   "PROFILE_READY",
-
-  // ✅ edit-phone flow will temporarily move backwards:
   "EMAIL_VERIFIED",
   "PHONE_OTP_SENT",
 ];
@@ -32,22 +30,12 @@ export default function SignupPhoneEditPage() {
   const state = flow.state;
   const view = flow.view;
 
-  // ---- bootstrap once ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
-  // ---- route guard ----
+  // ---- route guard (edit-page exception rules) ----
   useEffect(() => {
     if (!state) return;
 
-    // allow staying on edit page during the whole edit flow
     if (EDIT_PHONE_ALLOWED.includes(state)) return;
 
-    // otherwise redirect to the canonical page for that state
     const path = signupPathFromState(state);
     if (path !== location.pathname) navigate(path, { replace: true });
   }, [state, navigate, location.pathname]);
@@ -64,23 +52,21 @@ export default function SignupPhoneEditPage() {
   const onEditPhone = async (newPhone: string) => {
     await flow.editPhone(newPhone);
     otpForm.reset({ code: "" });
-    // After editPhone, state may become EMAIL_VERIFIED (allowed here).
   };
 
-  // unified issue otp: used for first send + resend
   const onIssueOtp = async () => {
     const ok = await phoneForm.trigger("phoneNumber");
     if (!ok) return;
 
     const phone = phoneForm.getValues("phoneNumber");
-    await onEditPhone(phone);  // persist first (moves state back)
-    await flow.sendPhoneOtp(); // same endpoint used for resend too
+    await onEditPhone(phone);
+    await flow.sendPhoneOtp();
   };
 
   const onVerifyOtp = async (code: string) => {
     await flow.verifyPhoneOtp(code);
     const path = signupPathFromState(state);
-    navigate(path, { replace: true });
+    navigate(path);
   };
 
   const onBack = () => {
@@ -89,21 +75,20 @@ export default function SignupPhoneEditPage() {
 
   const continueWithoutChange = () => {
     const target = signupPathFromState(state);
-    navigate(target, { replace: true });
+    navigate(target);
   };
 
   const onCancel = async () => {
+    navigate(ROUTES.LOGIN,{replace: true});
     await flow.cancel();
-    navigate("/signup/email", { replace: true });
+    
   };
 
-  // ---- UI rules (page decides, component is dumb) ----
+  // ---- UI rules ----
   const showOtpBox = view.state === "PHONE_OTP_SENT" && !view.phoneVerified;
 
-  // In edit flow:
-  // - user can click "Update phone" while in PROFILE_* (so state becomes EMAIL_VERIFIED)
-  // - allow issuing OTP in EMAIL_VERIFIED and PHONE_OTP_SENT (resend = same button)
   const showEdit = view.state === "PROFILE_PENDING" || view.state === "PROFILE_READY";
+
   const showSend =
     (view.state === "EMAIL_VERIFIED" || view.state === "PHONE_OTP_SENT") &&
     !view.phoneVerified;

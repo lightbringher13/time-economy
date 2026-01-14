@@ -12,8 +12,8 @@ import { signupSessionKeys } from "../queries/signupSession.keys";
 import { extractApiMessage } from "../queries/extractApiMessage";
 
 // queries / mutations
+import { useSignupBootstrapQuery } from "../queries/useSignupBootstrapQuery";
 import { useSignupStatusQuery } from "../queries/useSignupStatusQuery";
-import { useSignupBootstrapMutation } from "../queries/useSignupBootstrapMutation";
 import { useSendSignupOtpMutation } from "../queries/useSendSignupOtpMutation";
 import { useVerifySignupOtpMutation } from "../queries/useVerifySignupOtpMutation";
 import { useEditSignupEmailMutation } from "../queries/useEditSignupEmailMutation";
@@ -29,14 +29,16 @@ function firstErrorMessage(errors: Array<unknown>, fallback: string) {
   return null;
 }
 
-export function useSignupFlow() {
+export function useSignupFlowImpl() {
   const qc = useQueryClient();
 
-  // ✅ single source of truth (server)
-  const statusQuery = useSignupStatusQuery(true);
+  // ✅ 1) bootstrap runs as a query (cached, StrictMode-safe)
+  const bootstrapQ = useSignupBootstrapQuery(true);
 
-  // mutations (ideally each one invalidates signupSessionKeys.status() in onSuccess)
-  const bootstrapMu = useSignupBootstrapMutation();
+  // ✅ 2) status runs only after bootstrap succeeded (cookie/session ready)
+  const statusQuery = useSignupStatusQuery(bootstrapQ.isSuccess);
+
+  // mutations
   const sendOtpMu = useSendSignupOtpMutation();
   const verifyOtpMu = useVerifySignupOtpMutation();
   const editEmailMu = useEditSignupEmailMutation();
@@ -63,17 +65,13 @@ export function useSignupFlow() {
     };
   }, [status]);
 
-  // global loading/error
-  // ✅ in useSignupFlow.ts (or even in each page)
+  // global loading flags
   const loading = {
-    // Page-blocking (rare): first load / bootstrap
-    page:
-      statusQuery.isLoading || // first time load
-      bootstrapMu.isPending,   // creating session/cookie
+    // Page-blocking (rare): bootstrap + first status load
+    page: bootstrapQ.isLoading || statusQuery.isLoading,
 
-    // Background sync (don’t block UI): refetch after invalidation, window refocus, etc.
-    syncing:
-      statusQuery.isFetching && !statusQuery.isLoading,
+    // Background sync (don’t block UI)
+    syncing: statusQuery.isFetching && !statusQuery.isLoading,
 
     // Button-level actions
     sendOtp: sendOtpMu.isPending,
@@ -95,12 +93,13 @@ export function useSignupFlow() {
       registerMu.isPending,
   };
 
+  // global error message
   const error = useMemo(
     () =>
       firstErrorMessage(
         [
+          bootstrapQ.error,
           statusQuery.error,
-          bootstrapMu.error,
           sendOtpMu.error,
           verifyOtpMu.error,
           editEmailMu.error,
@@ -112,8 +111,8 @@ export function useSignupFlow() {
         "Request failed."
       ),
     [
+      bootstrapQ.error,
       statusQuery.error,
-      bootstrapMu.error,
       sendOtpMu.error,
       verifyOtpMu.error,
       editEmailMu.error,
@@ -124,14 +123,7 @@ export function useSignupFlow() {
     ]
   );
 
-  // lifecycle
-  const bootstrap = useCallback(async () => {
-    const dto = await bootstrapMu.mutateAsync();
-    // make sure status reflects new cookie/session
-    await qc.invalidateQueries({ queryKey: signupSessionKeys.root });
-    return dto;
-  }, [bootstrapMu, qc]);
-
+  // manual refresh (debug)
   const refresh = useCallback(async () => {
     return await statusQuery.refetch();
   }, [statusQuery]);
@@ -182,32 +174,37 @@ export function useSignupFlow() {
 
   const cancel = useCallback(async () => {
     const dto = await cancelMu.mutateAsync();
-    // session dead -> drop all signup cache
+
+    // ✅ clear cached status/bootstrap so old "cookie not found" doesn't stick
+    qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
+    qc.removeQueries({ queryKey: signupSessionKeys.bootstrap(), exact: true });
     qc.removeQueries({ queryKey: signupSessionKeys.root });
+
     return dto;
   }, [cancelMu, qc]);
 
-  /**
-   * ✅ register: NO local “force DONE”.
-   * Your UI should navigate to DONE page on success using the mutation result.
-   * (And since BE clears cookie, status may stop working after this.)
-   */
   const register = useCallback(
     async (payload: RegisterRequest) => {
       const dto = await registerMu.mutateAsync(payload);
-
-      // optional: clear signup cache to avoid refetch noise after cookie deletion
-      qc.removeQueries({ queryKey: signupSessionKeys.root });
-
       return dto;
     },
     [registerMu, qc]
   );
 
+  const clearSignupCache = useCallback(() => {
+    qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
+    qc.removeQueries({ queryKey: signupSessionKeys.bootstrap(), exact: true });
+    qc.removeQueries({ queryKey: signupSessionKeys.root });
+  }, [qc]);
+
   return {
+    // ✅ queries (exposed at top-level)
+    bootstrapQ,
+    statusQuery,
+
     // server state
-    status, // raw dto
-    state,  // convenience
+    status,
+    state,
     view,
 
     // flags
@@ -215,8 +212,7 @@ export function useSignupFlow() {
     error,
 
     // lifecycle
-    bootstrap,
-    refresh, // manual only (debug)
+    refresh,
 
     // actions
     sendEmailOtp,
@@ -228,11 +224,10 @@ export function useSignupFlow() {
     updateProfile,
     cancel,
     register,
+    clearSignupCache,
 
-    // expose queries/mutations if you want fine-grained control at pages
-    statusQuery,
+    // expose mutations if you want fine-grained control in pages
     mutations: {
-      bootstrapMu,
       sendOtpMu,
       verifyOtpMu,
       editEmailMu,

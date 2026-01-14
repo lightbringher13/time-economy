@@ -14,6 +14,7 @@ import ChangePasswordPage from "@/features/auth/changepassword/pages/ChangePassw
 import ChangeEmailPage from "@/features/auth/changeemail/pages/ChangeEmailPage";
 
 // ✅ Signup pages (PUBLIC)
+import SignupLayout from "@/features/auth/register/pages/SignupLayout";
 import SignupEmailPage  from "@/features/auth/register/pages/SignupEmailPage";
 import SignupEmailEditPage from "@/features/auth/register/pages/SignupEmailEditPage";
 import SignupPhonePage from "@/features/auth/register/pages/SignupPhonePage";
@@ -34,16 +35,25 @@ export function AppRoutes() {
       <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
 
       {/* ✅ Signup routes (public) */}
-      <Route path={ROUTES.SIGNUP} element={<Navigate to={ROUTES.SIGNUP_EMAIL} replace />} />
-      <Route path={ROUTES.SIGNUP_EMAIL} element={<SignupEmailPage />} />
-      <Route path={ROUTES.SIGNUP_EMAIL_EDIT} element={<SignupEmailEditPage />} />
-      <Route path={ROUTES.SIGNUP_PHONE} element={<SignupPhonePage />} />
-      <Route path={ROUTES.SIGNUP_PHONE_EDIT} element={<SignupPhoneEditPage />} />
-      <Route path={ROUTES.SIGNUP_PROFILE} element={<SignupProfilePage />} />
-      <Route path={ROUTES.SIGNUP_REVIEW} element={<SignupReviewPage />} />
-      <Route path={ROUTES.SIGNUP_DONE} element={<SignupDonePage />} />
-      {/* <Route path={ROUTES.SIGNUP_CANCELED} element={<SignupCanceledPage />} />
-      <Route path={ROUTES.SIGNUP_EXPIRED} element={<SignupExpiredPage />} /> */}
+      <Route path={ROUTES.SIGNUP} element={<SignupLayout />}>
+        {/* /signup -> /signup/email */}
+        <Route index element={<Navigate to={ROUTES.SIGNUP_EMAIL} replace />} />
+
+        {/* child paths must be RELATIVE */}
+        <Route path="email" element={<SignupEmailPage />} />
+        <Route path="edit/email" element={<SignupEmailEditPage />} />
+        <Route path="phone" element={<SignupPhonePage />} />
+        <Route path="edit/phone" element={<SignupPhoneEditPage />} />
+        <Route path="profile" element={<SignupProfilePage />} />
+        <Route path="review" element={<SignupReviewPage />} />
+        
+
+        {/* optional */}
+        {/* <Route path="canceled" element={<SignupCanceledPage />} /> */}
+        {/* <Route path="expired" element={<SignupExpiredPage />} /> */}
+      </Route>
+
+      <Route path="done" element={<SignupDonePage />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>

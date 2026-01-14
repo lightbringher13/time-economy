@@ -1,15 +1,16 @@
 // src/features/auth/register/pages/SignupEmailEditPage.tsx
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { SignupEmailStep } from "../components/SignupEmailStep";
-import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
 
 import { signupPathFromState } from "../routes/signupRouteMap";
 import type { SignupSessionState } from "../api/signupApi.types";
+import { ROUTES } from "@/routes/paths.ts";
 
 const EMAIL_EDIT_ALLOWED: SignupSessionState[] = [
   "DRAFT",
@@ -28,23 +29,14 @@ export default function SignupEmailEditPage() {
   const emailForm = useSignupEmailForm();
   const otpForm = useSignupEmailOtpForm();
 
-  // ---- bootstrap once ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
   const state = flow.view.state;
 
-  // ---- route guard ----
+  // ---- route guard (edit-page exception rules) ----
   useEffect(() => {
     if (!state) return;
 
     if (EMAIL_EDIT_ALLOWED.includes(state)) return;
 
-    // otherwise user is not allowed to be here -> go to correct page
     const path = signupPathFromState(state);
     if (path !== location.pathname) {
       navigate(path, { replace: true });
@@ -61,8 +53,9 @@ export default function SignupEmailEditPage() {
 
   // ---- handlers ----
   const cancel = async () => {
+    navigate(ROUTES.LOGIN,{replace: true});
     await flow.cancel();
-    navigate("/signup/email", { replace: true });
+    
   };
 
   const editEmail = async (newEmail: string) => {
@@ -70,37 +63,30 @@ export default function SignupEmailEditPage() {
     otpForm.reset({ code: "" });
   };
 
-  // unified "issue otp" (send + resend)
   const issueEmailOtp = async () => {
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = emailForm.getValues("email");
     await editEmail(email);
-    await flow.sendEmailOtp(); // same endpoint used for resend too
+    await flow.sendEmailOtp();
   };
 
   const verifyEmailOtp = async (code: string) => {
     await flow.verifyEmailOtp(code);
     const path = signupPathFromState(state);
-    navigate(path, { replace: true });
+    navigate(path);
   };
 
   const continueWithoutChange = () => {
     const target = signupPathFromState(state);
-    navigate(target, { replace: true });
+    navigate(target);
   };
 
-  // ---- UI flags computed in the page ----
   const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
-
-  // In edit page, allow issuing OTP anytime user is not verified
   const showSend = !flow.view.emailVerified;
-
-  // Keep edit button only when you're not in initial draft/otp typing step
   const showEdit = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
   const showSkip = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
-
   const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
 
   return (

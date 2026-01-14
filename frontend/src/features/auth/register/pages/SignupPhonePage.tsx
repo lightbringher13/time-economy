@@ -1,46 +1,25 @@
 // src/features/auth/register/pages/SignupPhonePage.tsx
-import { useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { SignupPhoneStep } from "../components/SignupPhoneStep";
-import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
 
 import { useSignupPhoneForm } from "../forms/hooks/useSignupPhoneForm";
 import { useSignupPhoneOtpForm } from "../forms/hooks/useSignupPhoneOtpForm";
 
 import { signupPathFromState } from "../routes/signupRouteMap";
-import type { SignupSessionState } from "../api/signupApi.types";
-
-const PHONE_PAGE_ALLOWED: SignupSessionState[] = ["EMAIL_VERIFIED", "PHONE_OTP_SENT"];
+import { ROUTES } from "@/routes/paths.ts";
 
 export default function SignupPhonePage() {
   const flow = useSignupFlow();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const phoneForm = useSignupPhoneForm();
   const otpForm = useSignupPhoneOtpForm();
 
   const state = flow.state; // canonical
   const view = flow.view;   // view-model
-
-  // ---- bootstrap once ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
-  // ---- route guard ----
-  useEffect(() => {
-    if (!state) return;
-
-    if (PHONE_PAGE_ALLOWED.includes(state)) return;
-
-    const path = signupPathFromState(state);
-    if (path !== location.pathname) navigate(path, { replace: true });
-  }, [state, navigate, location.pathname]);
 
   // ---- prefill phone ----
   useEffect(() => {
@@ -56,20 +35,19 @@ export default function SignupPhonePage() {
     otpForm.reset({ code: "" });
   };
 
-  // unified issue otp: send + resend
   const issuePhoneOtp = async () => {
     const ok = await phoneForm.trigger("phoneNumber");
     if (!ok) return;
 
     const phone = phoneForm.getValues("phoneNumber");
-    await onEditPhone(phone);   // persist first
-    await flow.sendPhoneOtp();  // same endpoint used for resend too
+    await onEditPhone(phone);
+    await flow.sendPhoneOtp();
   };
 
   const onVerifyOtp = async (code: string) => {
     await flow.verifyPhoneOtp(code);
     const path = signupPathFromState(state);
-    navigate(path, { replace: true });
+    navigate(path);
   };
 
   const onBackToEmail = () => {
@@ -77,14 +55,14 @@ export default function SignupPhonePage() {
   };
 
   const onCancel = async () => {
+    navigate(ROUTES.LOGIN,{replace: true});
     await flow.cancel();
-    navigate("/signup/email", { replace: true });
+    
   };
 
-  // ---- UI rules decided by PAGE (component is dumb) ----
+  // ---- UI rules ----
   const showOtpBox = view.state === "PHONE_OTP_SENT" && !view.phoneVerified;
 
-  // show same button in both states (resend is just re-click)
   const showSend =
     (view.state === "EMAIL_VERIFIED" || view.state === "PHONE_OTP_SENT") &&
     !view.phoneVerified;
@@ -105,7 +83,7 @@ export default function SignupPhonePage() {
           showOtpBox,
           showSend,
           sendLabel,
-          showEdit: false,   // phone page = normal flow (not edit)
+          showEdit: false,
           showBack: true,
           showSkip: false,
           showCancel: true,

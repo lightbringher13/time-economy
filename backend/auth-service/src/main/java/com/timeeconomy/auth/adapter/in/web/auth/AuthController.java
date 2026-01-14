@@ -257,8 +257,8 @@ public class AuthController {
                 .path("/")
                 .maxAge(0)          // delete
                 .httpOnly(true)
-                .secure(false)      // TODO: true in production with HTTPS
-                .sameSite("Lax")
+                .secure(true)      // TODO: true in production with HTTPS
+                .sameSite("Strict")
                 .build();
 
         return ResponseEntity.status(HttpStatus.CREATED)

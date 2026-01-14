@@ -1,44 +1,19 @@
 // src/features/auth/register/pages/SignupProfilePage.tsx
-import { useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
 import { SignupProfileStep } from "../components/SignupProfileStep";
 
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
 import type { SignupProfileFormValues } from "../forms/schemas/signupProfile.schema";
-
-import { signupPathFromState } from "../routes/signupRouteMap";
-import type { SignupSessionState } from "../api/signupApi.types";
-
-const PROFILE_PAGE_ALLOWED: SignupSessionState[] = ["PROFILE_PENDING","PROFILE_READY"];
+import { ROUTES } from "@/routes/paths.ts";
 
 export default function SignupProfilePage() {
   const flow = useSignupFlow();
   const profileForm = useSignupProfileForm();
 
   const navigate = useNavigate();
-  const location = useLocation();
-
-  // ---- bootstrap once ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
-  // ---- route guard ----
-  useEffect(() => {
-    if (!flow.state) return;
-
-    if (PROFILE_PAGE_ALLOWED.includes(flow.state)) return;
-
-    const path = signupPathFromState(flow.state);
-    if (path !== location.pathname) {
-      navigate(path, { replace: true });
-    }
-  }, [flow.state, navigate, location.pathname]);
 
   // ---- prefill from server once ----
   useEffect(() => {
@@ -66,8 +41,7 @@ export default function SignupProfilePage() {
       birthDate: values.birthDate,
     });
 
-    // optional (recommended): navigate immediately for better UX
-    navigate("/signup/review", { replace: true });
+    navigate("/signup/review");
   };
 
   const onBackToPhone = () => {
@@ -75,9 +49,9 @@ export default function SignupProfilePage() {
   };
 
   const onCancel = async () => {
+    navigate(ROUTES.LOGIN,{replace: true});
     await flow.cancel();
-    // since cancel may remove cache / state becomes null, redirect explicitly
-    navigate("/signup/email", { replace: true });
+    
   };
 
   return (

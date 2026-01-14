@@ -2,4 +2,5 @@
 export const signupSessionKeys = {
   root: ["auth", "signupSession"] as const,
   status: () => [...signupSessionKeys.root, "status"] as const,
+  bootstrap: () => [...signupSessionKeys.root, "bootstrap"] as const,
 };
