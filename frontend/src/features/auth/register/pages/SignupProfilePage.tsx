@@ -2,56 +2,74 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
+import { useSignupFlow } from "../hooks/SignupFlowContext";
 import { SignupProfileStep } from "../components/SignupProfileStep";
 
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
-import type { SignupProfileFormValues } from "../forms/schemas/signupProfile.schema";
-import { ROUTES } from "@/routes/paths.ts";
+import {
+  signupProfileSchema,
+  genderEnum,
+  type SignupProfileFormInput,
+} from "../forms/schemas/signupProfile.schema";
+
+import { ROUTES } from "@/routes/paths";
 
 export default function SignupProfilePage() {
   const flow = useSignupFlow();
   const profileForm = useSignupProfileForm();
-
   const navigate = useNavigate();
 
-  // ---- prefill from server once ----
+  // ✅ Prefill from server, never overwrite user edits
   useEffect(() => {
     const s = flow.status;
     if (!s) return;
 
-    if (s.name && !profileForm.getValues("name")) {
+    const dirty = profileForm.formState.dirtyFields;
+
+    if (s.name && !dirty.name) {
       profileForm.setValue("name", s.name, { shouldValidate: true });
     }
-    if (s.gender && !profileForm.getValues("gender")) {
-      profileForm.setValue("gender", s.gender as any, { shouldValidate: true });
+
+    // ✅ server gender should be strict enum only
+    if (s.gender && !dirty.gender) {
+      const parsed = genderEnum.safeParse(s.gender);
+      if (parsed.success) {
+        profileForm.setValue("gender", parsed.data, { shouldValidate: true });
+      }
     }
-    if (s.birthDate && !profileForm.getValues("birthDate")) {
+
+    if (s.birthDate && !dirty.birthDate) {
       profileForm.setValue("birthDate", s.birthDate, { shouldValidate: true });
     }
-  }, [flow.status?.name, flow.status?.gender, flow.status?.birthDate, profileForm]);
+  }, [
+    flow.status?.name,
+    flow.status?.gender,
+    flow.status?.birthDate,
+    profileForm,
+    profileForm.formState.dirtyFields,
+  ]);
 
-  // ---- handlers ----
-  const onSubmit = async (values: SignupProfileFormValues) => {
+  // ✅ IMPORTANT: Submit receives INPUT type (gender may be "")
+  const onSubmit = async (values: SignupProfileFormInput) => {
+    // ✅ Convert UI input -> validated output (gender becomes "MALE" | "FEMALE")
+    const parsed = signupProfileSchema.parse(values);
+
     await flow.updateProfile({
-      email: flow.status?.email ?? null,
-      phoneNumber: flow.status?.phoneNumber ?? null,
-      name: values.name,
-      gender: values.gender,
-      birthDate: values.birthDate,
+      name: parsed.name,
+      gender: parsed.gender,
+      birthDate: parsed.birthDate,
     });
 
-    navigate("/signup/review");
+    navigate(ROUTES.SIGNUP_REVIEW, { replace: true });
   };
 
-  const onBackToPhone = () => {
-    navigate("/signup/edit/phone");
+  const onBack = () => {
+    navigate(ROUTES.SIGNUP_PHONE_EDIT);
   };
 
   const onCancel = async () => {
-    navigate(ROUTES.LOGIN,{replace: true});
+    navigate(ROUTES.LOGIN, { replace: true });
     await flow.cancel();
-    
   };
 
   return (
@@ -76,7 +94,7 @@ export default function SignupProfilePage() {
         }}
         actions={{
           submit: onSubmit,
-          back: onBackToPhone,
+          back: onBack,
           cancel: onCancel,
         }}
       />

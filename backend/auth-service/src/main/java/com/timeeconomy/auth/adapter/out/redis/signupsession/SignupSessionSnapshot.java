@@ -9,12 +9,15 @@ public record SignupSessionSnapshot(
 
         String email,
         boolean emailVerified,
+        boolean emailOtpPending,     // ✅ NEW (big-co fact)
+
         String phoneNumber,
         boolean phoneVerified,
+        boolean phoneOtpPending,     // ✅ NEW (big-co fact)
 
         String name,
         String gender,
-        Integer birthDateEpochDays, // LocalDate.toEpochDay()
+        Integer birthDateEpochDays,  // LocalDate.toEpochDay()
 
         String state,
 

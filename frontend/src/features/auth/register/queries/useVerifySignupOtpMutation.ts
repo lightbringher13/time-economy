@@ -7,6 +7,8 @@ export function useVerifySignupOtpMutation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: verifySignupOtpApi,
-    onSuccess: () => qc.invalidateQueries({ queryKey: signupSessionKeys.root }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: signupSessionKeys.status(), exact: true });
+    },
   });
 }

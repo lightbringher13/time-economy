@@ -1,16 +1,16 @@
 // src/features/auth/register/pages/SignupEmailEditPage.tsx
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { SignupEmailStep } from "../components/SignupEmailStep";
-import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
+import { useSignupFlow } from "../hooks/SignupFlowContext";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
 
 import { signupPathFromState } from "../routes/signupRouteMap";
 import type { SignupSessionState } from "../api/signupApi.types";
-import { ROUTES } from "@/routes/paths.ts";
+import { ROUTES } from "@/routes/paths";
 
 const EMAIL_EDIT_ALLOWED: SignupSessionState[] = [
   "DRAFT",
@@ -30,63 +30,69 @@ export default function SignupEmailEditPage() {
   const otpForm = useSignupEmailOtpForm();
 
   const state = flow.view.state;
+  const from = (location.state as any)?.from as "review" | "phone" | undefined;
 
-  // ---- route guard (edit-page exception rules) ----
+  const startUnlocked = from === "review";
+  const [unlocked, setUnlocked] = useState<boolean>(startUnlocked);
+
+  const exitTarget = useMemo(() => {
+    if (from === "review") return ROUTES.SIGNUP_REVIEW;
+    return ROUTES.SIGNUP_PHONE;
+  }, [from]);
+
+  const skipLabel = "Continue without changes";
+
+  // ---- route guard ----
   useEffect(() => {
     if (!state) return;
-
     if (EMAIL_EDIT_ALLOWED.includes(state)) return;
 
     const path = signupPathFromState(state);
-    if (path !== location.pathname) {
-      navigate(path, { replace: true });
-    }
+    if (path !== location.pathname) navigate(path, { replace: true });
   }, [state, navigate, location.pathname]);
 
-  // ---- prefill email from server once ----
+  // prefill from server (don’t overwrite user edits)
   useEffect(() => {
     const serverEmail = flow.view.email;
-    if (serverEmail && !emailForm.getValues("email")) {
+    const dirty = emailForm.formState.dirtyFields;
+    if (serverEmail && !dirty.email) {
       emailForm.setValue("email", serverEmail, { shouldValidate: true });
     }
-  }, [flow.view.email, emailForm]);
+  }, [flow.view.email, emailForm, emailForm.formState.dirtyFields]);
 
-  // ---- handlers ----
-  const cancel = async () => {
-    navigate(ROUTES.LOGIN,{replace: true});
+  const onCancel = async () => {
+    navigate(ROUTES.LOGIN, { replace: true });
     await flow.cancel();
-    
   };
 
-  const editEmail = async (newEmail: string) => {
-    await flow.editEmail(newEmail);
+  // exit (single button)
+  const onContinueWithoutChange = () => {
+    navigate(exitTarget, { replace: true });
+  };
+
+  const onUnlock = async () => {
+    setUnlocked(true);
     otpForm.reset({ code: "" });
   };
 
-  const issueEmailOtp = async () => {
+  const onSend = async () => {
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = emailForm.getValues("email");
-    await editEmail(email);
-    await flow.sendEmailOtp();
+    await flow.sendEmailOtp(email);
+
+    setUnlocked(false);
+    otpForm.reset({ code: "" });
   };
 
-  const verifyEmailOtp = async (code: string) => {
+  const onVerify = async (code: string) => {
     await flow.verifyEmailOtp(code);
-    const path = signupPathFromState(state);
-    navigate(path);
-  };
-
-  const continueWithoutChange = () => {
-    const target = signupPathFromState(state);
-    navigate(target);
+    const next = signupPathFromState(flow.view.state);
+    navigate(next, { replace: true });
   };
 
   const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
-  const showSend = !flow.view.emailVerified;
-  const showEdit = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
-  const showSkip = state !== "DRAFT" && state !== "EMAIL_OTP_SENT";
   const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
 
   return (
@@ -100,26 +106,42 @@ export default function SignupEmailEditPage() {
         ui={{
           title: "Edit email",
           subtitle: "Update your email and re-verify",
+
           showOtpBox,
-          showSend,
+
+          // unlock vs send
+          showEdit: !unlocked,
+          editLabel: "Change email",
+
+          showSend: unlocked,
           sendLabel,
-          showEdit,
+
+          // ✅ remove Back entirely
+          showBack: false,
+
+          // ✅ always show one exit button
+          showSkip: true,
+          skipLabel,
+
           showCancel: true,
-          showSkip,
-          skipLabel: "Continue without changes",
+
+          emailDisabled: !unlocked,
         }}
         loading={{
           send: Boolean(flow.loading?.sendOtp),
           verify: Boolean(flow.loading?.verifyOtp),
-          edit: Boolean(flow.loading?.editEmail),
+          edit: false,
           cancel: Boolean(flow.loading?.cancel),
         }}
         actions={{
-          send: issueEmailOtp,
-          verify: verifyEmailOtp,
-          edit: editEmail,
-          skip: continueWithoutChange,
-          cancel,
+          edit: onUnlock,
+          send: onSend,
+          verify: onVerify,
+
+          // ✅ single exit handler
+          skip: onContinueWithoutChange,
+
+          cancel: onCancel,
         }}
       />
     </div>

@@ -6,10 +6,9 @@ import type {
 } from "../forms/schemas/signupEmail.schema";
 
 type EmailUi = {
-  title?: string; // default: "Create your account"
-  subtitle?: string; // default: "Step 1 — Verify email"
+  title?: string;
+  subtitle?: string;
 
-  // what to show
   showOtpBox?: boolean;
   showSend?: boolean;
   showEdit?: boolean;
@@ -17,12 +16,14 @@ type EmailUi = {
   showSkip?: boolean;
   showCancel?: boolean;
 
-  // optional labels
-  sendLabel?: string; // default: "Send code" (parent can set "Resend code" later)
-  editLabel?: string; // default: "Update email"
-  backLabel?: string; // default: "Back"
-  skipLabel?: string; // default: "Continue"
-  cancelLabel?: string; // default: "Cancel"
+  // ✅ page decides input lock
+  emailDisabled?: boolean;
+
+  sendLabel?: string;
+  editLabel?: string;
+  backLabel?: string;
+  skipLabel?: string;
+  cancelLabel?: string;
 };
 
 type EmailLoading = {
@@ -33,10 +34,9 @@ type EmailLoading = {
 };
 
 type EmailActions = {
-  // “commands”
   send?: () => void | Promise<void>;
   verify?: (code: string) => void | Promise<void>;
-  edit?: (newEmail: string) => void | Promise<void>;
+  edit?: () => void | Promise<void>;
 
   back?: () => void | Promise<void>;
   skip?: () => void | Promise<void>;
@@ -48,11 +48,9 @@ interface Props {
   maskedEmail?: string | null;
   error?: string | null;
 
-  // forms
   emailForm: UseFormReturn<SignupEmailFormValues>;
   otpForm: UseFormReturn<SignupEmailOtpFormValues>;
 
-  // grouped props
   ui: EmailUi;
   loading?: EmailLoading;
   actions: EmailActions;
@@ -71,14 +69,12 @@ export function SignupEmailStep({
   const {
     register: registerEmail,
     formState: { errors: emailErrors },
-    getValues: getEmailValues,
   } = emailForm;
 
   const {
     register: registerOtp,
     formState: { errors: otpErrors },
     handleSubmit: handleOtpSubmit,
-    reset: resetOtp,
   } = otpForm;
 
   const isSending = Boolean(loading?.send);
@@ -92,17 +88,7 @@ export function SignupEmailStep({
   const subtitle = ui.subtitle ?? "Step 1 — Verify email";
 
   const onClickSend = async () => {
-    const ok = await emailForm.trigger("email");
-    if (!ok) return;
-
-    // If edit exists, persist email first (your BE behavior)
-    if (actions.edit) {
-      const email = getEmailValues("email");
-      await actions.edit(email);
-    }
-
-    resetOtp({ code: "" });
-    await actions.send?.(); // same endpoint for "send" and "resend"
+    await actions.send?.();
   };
 
   const onSubmitVerify = handleOtpSubmit(async (values) => {
@@ -110,13 +96,10 @@ export function SignupEmailStep({
   });
 
   const onClickEditEmail = async () => {
-    const ok = await emailForm.trigger("email");
-    if (!ok) return;
-
-    const email = getEmailValues("email");
-    await actions.edit?.(email);
-    resetOtp({ code: "" });
+    await actions.edit?.();
   };
+
+  const emailDisabled = busy || Boolean(ui.emailDisabled);
 
   return (
     <div>
@@ -137,7 +120,7 @@ export function SignupEmailStep({
           id="email"
           type="email"
           autoComplete="email"
-          disabled={busy || emailVerified}
+          disabled={emailDisabled}
           {...registerEmail("email")}
           style={{ width: "100%", padding: 8 }}
         />
@@ -175,7 +158,7 @@ export function SignupEmailStep({
             disabled={busy || !actions.edit}
             style={{ padding: "8px 14px" }}
           >
-            {isEditing ? "Updating..." : ui.editLabel ?? "Update email"}
+            {isEditing ? "Updating..." : ui.editLabel ?? "Edit"}
           </button>
         )}
 

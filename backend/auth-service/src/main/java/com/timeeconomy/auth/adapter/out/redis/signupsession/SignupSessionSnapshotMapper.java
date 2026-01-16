@@ -10,7 +10,7 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 public final class SignupSessionSnapshotMapper {
     private SignupSessionSnapshotMapper() {}
 
-    public static final int VERSION = 1;
+    public static final int VERSION = 2; // ✅ bump schema version
 
     public static SignupSessionSnapshot toSnapshot(SignupSession s) {
         return SignupSessionSnapshot.builder()
@@ -18,8 +18,12 @@ public final class SignupSessionSnapshotMapper {
                 .id(s.getId() == null ? null : s.getId().toString())
                 .email(s.getEmail())
                 .emailVerified(s.isEmailVerified())
+                .emailOtpPending(s.isEmailOtpPending())      // ✅ NEW
+
                 .phoneNumber(s.getPhoneNumber())
                 .phoneVerified(s.isPhoneVerified())
+                .phoneOtpPending(s.isPhoneOtpPending())      // ✅ NEW
+
                 .name(s.getName())
                 .gender(s.getGender())
                 .birthDateEpochDays(s.getBirthDate() == null ? null : (int) s.getBirthDate().toEpochDay())
@@ -37,9 +41,11 @@ public final class SignupSessionSnapshotMapper {
 
         s.setEmail(textOrNull(snap.email()));
         s.setEmailVerified(snap.emailVerified());
+        s.setEmailOtpPending(snap.emailOtpPending());       // ✅ NEW (defaults false on old data)
 
         s.setPhoneNumber(textOrNull(snap.phoneNumber()));
         s.setPhoneVerified(snap.phoneVerified());
+        s.setPhoneOtpPending(snap.phoneOtpPending());       // ✅ NEW (defaults false on old data)
 
         s.setName(textOrNull(snap.name()));
         s.setGender(textOrNull(snap.gender()));
@@ -48,7 +54,7 @@ public final class SignupSessionSnapshotMapper {
             s.setBirthDate(LocalDate.ofEpochDay(snap.birthDateEpochDays()));
         }
 
-        // ✅ default state = DRAFT (new flow)
+        // ✅ default state = DRAFT
         if (hasText(snap.state())) {
             s.setState(SignupSessionState.valueOf(snap.state()));
         } else {

@@ -11,9 +11,11 @@ public class SignupSession {
 
     private String email;
     private boolean emailVerified;
+    private boolean emailOtpPending; // ✅ FACT
 
     private String phoneNumber;
     private boolean phoneVerified;
+    private boolean phoneOtpPending; // ✅ FACT
 
     private String name;
     private String gender;
@@ -38,9 +40,11 @@ public class SignupSession {
 
         s.email = null;
         s.emailVerified = false;
+        s.emailOtpPending = false;
 
         s.phoneNumber = null;
         s.phoneVerified = false;
+        s.phoneOtpPending = false;
 
         s.name = null;
         s.gender = null;
@@ -77,50 +81,226 @@ public class SignupSession {
         if (!isExpired(now)) return false;
 
         this.state = SignupSessionState.EXPIRED;
+
+        // terminal => clear pendings defensively
+        this.emailOtpPending = false;
+        this.phoneOtpPending = false;
+
         touch(now);
         return true;
     }
 
     // ----------------------------------------------------
-    // Invariants (keep state + booleans consistent)
+    // BIG-CO COMMAND METHODS (one per user intent)
+    // ----------------------------------------------------
+
+    /**
+     * User intent: "Send / Resend email OTP to this email"
+     *
+     * Big-co behavior:
+     * - Apply destination (if changed)
+     * - Reset verification/pending facts properly
+     * - Set emailOtpPending=true (we are now waiting for OTP)
+     * - State derived from facts
+     */
+    public void requestEmailOtp(String destination, Instant now) {
+        if (expireIfNeeded(now)) return;
+        if (isTerminal()) return;
+
+        String next = normalizeEmail(destination);
+        if (isBlank(next)) throw new IllegalArgumentException("email is required");
+
+        boolean changed = !Objects.equals(this.email, next);
+
+        if (changed) {
+            // destination changed => previous proof no longer valid
+            this.email = next;
+
+            this.emailVerified = false;
+            this.emailOtpPending = false; // will be set true below
+
+            // Policy B: keep phone/profile, but "phone OTP pending" is now stale
+            this.phoneOtpPending = false;
+        }
+
+        // sending/resending always means "waiting for email OTP"
+        this.emailVerified = false;
+        this.emailOtpPending = true;
+
+        syncState(now);
+    }
+
+    /**
+     * User intent: "Send / Resend phone OTP to this phone"
+     *
+     * Requires emailVerified (big-co guard).
+     */
+    public void requestPhoneOtp(String destination, Instant now) {
+        if (expireIfNeeded(now)) return;
+        if (isTerminal()) return;
+
+        if (!emailVerified) {
+            throw new IllegalStateException("Cannot send phone OTP: email not verified");
+        }
+
+        String next = normalizePhone(destination);
+        if (isBlank(next)) throw new IllegalArgumentException("phoneNumber is required");
+
+        boolean changed = !Objects.equals(this.phoneNumber, next);
+
+        if (changed) {
+            this.phoneNumber = next;
+            this.phoneVerified = false;
+            this.phoneOtpPending = false; // will be set true below
+        }
+
+        this.phoneVerified = false;
+        this.phoneOtpPending = true;
+
+        syncState(now);
+    }
+
+    /**
+     * User intent: "Email OTP verification succeeded"
+     */
+    public void confirmEmailVerified(Instant now) {
+        if (expireIfNeeded(now)) return;
+        if (isTerminal()) return;
+
+        if (!emailOtpPending) {
+            throw new IllegalStateException("No email OTP pending");
+        }
+        if (isBlank(email)) {
+            throw new IllegalStateException("Email missing");
+        }
+
+        this.emailVerified = true;
+        this.emailOtpPending = false;
+
+        syncState(now);
+    }
+
+    /**
+     * User intent: "Phone OTP verification succeeded"
+     */
+    public void confirmPhoneVerified(Instant now) {
+        if (expireIfNeeded(now)) return;
+        if (isTerminal()) return;
+
+        if (!phoneOtpPending) {
+            throw new IllegalStateException("No phone OTP pending");
+        }
+        if (isBlank(phoneNumber)) {
+            throw new IllegalStateException("Phone number missing");
+        }
+
+        this.phoneVerified = true;
+        this.phoneOtpPending = false;
+
+        syncState(now);
+    }
+
+    /**
+     * User intent: "Submit profile"
+     */
+    public void submitProfile(String name, String gender, LocalDate birthDate, Instant now) {
+        if (expireIfNeeded(now)) return;
+        if (isTerminal()) return;
+
+        // big-co: allow profile to be submitted once user is at/after profile stage
+        if (state != SignupSessionState.PROFILE_PENDING && state != SignupSessionState.PROFILE_READY) {
+            throw new IllegalStateException("Profile not allowed in state=" + state);
+        }
+
+        this.name = name;
+        this.gender = gender;
+        this.birthDate = birthDate;
+
+        syncState(now);
+    }
+
+    /**
+     * Called by register flow after user created successfully.
+     */
+    public void markCompleted(Instant now) {
+        if (expireIfNeeded(now)) return;
+        if (isTerminal()) return;
+
+        if (state != SignupSessionState.PROFILE_READY) {
+            throw new IllegalStateException("Cannot complete unless PROFILE_READY, state=" + state);
+        }
+
+        this.state = SignupSessionState.COMPLETED;
+        this.emailOtpPending = false;
+        this.phoneOtpPending = false;
+
+        touch(now);
+        assertInvariants();
+    }
+
+    public void cancel(Instant now) {
+        if (isTerminal()) return;
+
+        this.state = SignupSessionState.CANCELED;
+        this.emailOtpPending = false;
+        this.phoneOtpPending = false;
+
+        touch(now);
+    }
+
+    // ----------------------------------------------------
+    // Invariants (facts + state must be consistent)
     // ----------------------------------------------------
 
     public void assertInvariants() {
         if (state == null) throw new IllegalStateException("state is null");
 
-        // email verified implies email exists
+        // verified implies destination exists
         if (emailVerified && isBlank(email)) {
             throw new IllegalStateException("emailVerified=true but email is missing");
         }
-
-        // phone verified implies phone exists
         if (phoneVerified && isBlank(phoneNumber)) {
             throw new IllegalStateException("phoneVerified=true but phoneNumber is missing");
         }
 
-        // state-driven checks
+        // verified implies no pending
+        if (emailVerified && emailOtpPending) {
+            throw new IllegalStateException("emailVerified=true but emailOtpPending=true");
+        }
+        if (phoneVerified && phoneOtpPending) {
+            throw new IllegalStateException("phoneVerified=true but phoneOtpPending=true");
+        }
+
+        // pending implies destination exists and not verified
+        if (emailOtpPending) {
+            if (isBlank(email)) throw new IllegalStateException("emailOtpPending=true but email missing");
+            if (emailVerified) throw new IllegalStateException("emailOtpPending=true but emailVerified=true");
+        }
+        if (phoneOtpPending) {
+            if (isBlank(phoneNumber)) throw new IllegalStateException("phoneOtpPending=true but phoneNumber missing");
+            if (phoneVerified) throw new IllegalStateException("phoneOtpPending=true but phoneVerified=true");
+        }
+
+        // state-driven checks (defensive; state is derived anyway)
         switch (state) {
             case DRAFT -> {
-                // DRAFT just means "not ready to proceed yet"
-                // do NOT require emailVerified/phoneVerified to be false
+                // email exists but not verified; pending may be false (draft typing) or true (but then recompute won't produce DRAFT)
             }
             case EMAIL_OTP_SENT -> {
                 if (isBlank(email)) throw new IllegalStateException("EMAIL_OTP_SENT but email missing");
                 if (emailVerified) throw new IllegalStateException("EMAIL_OTP_SENT but emailVerified=true");
+                if (!emailOtpPending) throw new IllegalStateException("EMAIL_OTP_SENT but emailOtpPending=false");
             }
             case EMAIL_VERIFIED -> {
                 if (isBlank(email)) throw new IllegalStateException("EMAIL_VERIFIED but email missing");
                 if (!emailVerified) throw new IllegalStateException("EMAIL_VERIFIED but emailVerified=false");
+                if (emailOtpPending) throw new IllegalStateException("EMAIL_VERIFIED but emailOtpPending=true");
             }
             case PHONE_OTP_SENT -> {
                 if (!emailVerified) throw new IllegalStateException("PHONE_OTP_SENT but email not verified");
                 if (isBlank(phoneNumber)) throw new IllegalStateException("PHONE_OTP_SENT but phoneNumber missing");
                 if (phoneVerified) throw new IllegalStateException("PHONE_OTP_SENT but phoneVerified=true");
-            }
-            case PHONE_VERIFIED -> {
-                // honestly you don't need PHONE_VERIFIED at all if you always recompute;
-                // but keep it if enum has it.
-                if (!phoneVerified) throw new IllegalStateException("PHONE_VERIFIED but phoneVerified=false");
+                if (!phoneOtpPending) throw new IllegalStateException("PHONE_OTP_SENT but phoneOtpPending=false");
             }
             case PROFILE_PENDING -> {
                 if (!emailVerified) throw new IllegalStateException("PROFILE_PENDING but email not verified");
@@ -142,142 +322,7 @@ public class SignupSession {
     }
 
     // ----------------------------------------------------
-    // DRAFT: user typing
-    // ----------------------------------------------------
-
-    /** Allowed while DRAFT only: set email before sending OTP */
-    public void setDraftEmail(String email, Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (state != SignupSessionState.DRAFT) return;
-
-        this.email = normalizeEmail(email);
-        this.emailVerified = false;
-        touch(now);
-        assertInvariants();
-    }
-
-    /** Allowed while DRAFT only: set phone before sending OTP */
-    public void setDraftPhone(String phoneNumber, Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (state != SignupSessionState.DRAFT) return;
-
-        this.phoneNumber = normalizePhone(phoneNumber);
-        this.phoneVerified = false;
-        touch(now);
-        assertInvariants();
-    }
-
-    // ----------------------------------------------------
-    // Email OTP flow
-    // ----------------------------------------------------
-
-    /** UI action: "Send email code" */
-    public void markEmailOtpSent(Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (isBlank(email)) throw new IllegalStateException("Cannot send email OTP: email missing");
-
-        this.emailVerified = false;
-        this.state = SignupSessionState.EMAIL_OTP_SENT;
-        syncState(now);
-    }
-
-    public void markEmailVerified(Instant now) {
-        if (expireIfNeeded(now)) return;
-        // You can keep the guard if you want:
-        if (state != SignupSessionState.EMAIL_OTP_SENT) return;
-
-        this.emailVerified = true;
-        syncState(now); // ✅ this may become EMAIL_VERIFIED or PROFILE_PENDING/READY
-    }
-
-    public void editEmail(String newEmail, Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (isTerminal()) return;
-
-        this.email = normalizeEmail(newEmail);
-        this.emailVerified = false;
-
-        // ✅ DO NOT delete phone/profile.
-        // Leave phoneVerified/profile as-is so recompute can restore later.
-
-        // If you want to force the user into email step UI:
-        this.state = SignupSessionState.DRAFT;
-
-        syncState(now);
-    }
-
-    // ----------------------------------------------------
-    // Phone OTP flow
-    // ----------------------------------------------------
-
-    public void markPhoneOtpSent(Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (!emailVerified) throw new IllegalStateException("Cannot send phone OTP: email not verified");
-        if (isBlank(phoneNumber)) throw new IllegalStateException("Cannot send phone OTP: phoneNumber missing");
-
-        this.phoneVerified = false;
-        this.state = SignupSessionState.PHONE_OTP_SENT;
-        syncState(now);
-    }
-
-    public void markPhoneVerified(Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (state != SignupSessionState.PHONE_OTP_SENT) return;
-
-        this.phoneVerified = true;
-        syncState(now); // ✅ becomes PROFILE_PENDING or PROFILE_READY if profile already exists
-    }
-
-    public void editPhone(String newPhone, Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (isTerminal()) return;
-        if (!emailVerified) return;
-
-        this.phoneNumber = normalizePhone(newPhone);
-        this.phoneVerified = false;
-
-        // ✅ DO NOT delete profile
-        this.state = SignupSessionState.EMAIL_VERIFIED; // or DRAFT; recompute will fix anyway
-
-        syncState(now);
-    }
-
-    // ----------------------------------------------------
-    // Profile + complete
-    // ----------------------------------------------------
-
-    public void submitProfile(String name, String gender, LocalDate birthDate, Instant now) {
-        if (expireIfNeeded(now)) return;
-
-        // you can keep guard if you want:
-        if (state != SignupSessionState.PROFILE_PENDING && state != SignupSessionState.PROFILE_READY) return;
-
-        this.name = name;
-        this.gender = gender;
-        this.birthDate = birthDate;
-
-        syncState(now); // ✅ becomes PROFILE_READY only if both verified
-    }
-
-    /** Called by RegisterService after user row created */
-    public void markCompleted(Instant now) {
-        if (expireIfNeeded(now)) return;
-        if (state != SignupSessionState.PROFILE_READY) return;
-
-        // profile should already be filled, but assertInvariants will enforce it if you want to require it.
-        this.state = SignupSessionState.COMPLETED;
-        touch(now);
-        assertInvariants();
-    }
-
-    public void cancel(Instant now) {
-        if (isTerminal()) return;
-        this.state = SignupSessionState.CANCELED;
-        touch(now);
-    }
-
-    // ----------------------------------------------------
-    // Helpers
+    // State derivation (facts → state)
     // ----------------------------------------------------
 
     private void syncState(Instant now) {
@@ -286,48 +331,29 @@ public class SignupSession {
         assertInvariants();
     }
 
-    /**
-     * Derive state from facts.
-     *
-     * Since you don't store "otpSentAt", we use the current state as a hint:
-     * - if we're already in EMAIL_OTP_SENT and email still unverified -> stay EMAIL_OTP_SENT
-     * - otherwise, fall back to DRAFT (send code step)
-     * Same for PHONE_OTP_SENT.
-     */
     private SignupSessionState recomputeState() {
-        // terminal states stay terminal
         if (state == SignupSessionState.CANCELED
                 || state == SignupSessionState.EXPIRED
                 || state == SignupSessionState.COMPLETED) {
             return state;
         }
 
-        // 1) email missing -> DRAFT
         if (isBlank(email)) return SignupSessionState.DRAFT;
 
-        // 2) email not verified -> EMAIL_OTP_SENT if we were already waiting for OTP, else DRAFT
         if (!emailVerified) {
-            return (state == SignupSessionState.EMAIL_OTP_SENT)
-                    ? SignupSessionState.EMAIL_OTP_SENT
-                    : SignupSessionState.DRAFT;
+            return emailOtpPending ? SignupSessionState.EMAIL_OTP_SENT : SignupSessionState.DRAFT;
         }
 
-        // 3) email verified but phone missing -> EMAIL_VERIFIED
         if (isBlank(phoneNumber)) return SignupSessionState.EMAIL_VERIFIED;
 
-        // 4) phone not verified -> PHONE_OTP_SENT if we were already waiting for OTP, else EMAIL_VERIFIED
         if (!phoneVerified) {
-            return (state == SignupSessionState.PHONE_OTP_SENT)
-                    ? SignupSessionState.PHONE_OTP_SENT
-                    : SignupSessionState.EMAIL_VERIFIED;
+            return phoneOtpPending ? SignupSessionState.PHONE_OTP_SENT : SignupSessionState.EMAIL_VERIFIED;
         }
 
-        // 5) both verified but profile incomplete -> PROFILE_PENDING
         if (isBlank(name) || isBlank(gender) || birthDate == null) {
             return SignupSessionState.PROFILE_PENDING;
         }
 
-        // 6) everything present -> PROFILE_READY
         return SignupSessionState.PROFILE_READY;
     }
 
@@ -350,7 +376,7 @@ public class SignupSession {
     }
 
     // ----------------------------------------------------
-    // Getters / Setters (keep for mapper/framework, but prefer domain methods)
+    // Getters / Setters
     // ----------------------------------------------------
 
     public UUID getId() { return id; }
@@ -362,11 +388,17 @@ public class SignupSession {
     public boolean isEmailVerified() { return emailVerified; }
     public void setEmailVerified(boolean emailVerified) { this.emailVerified = emailVerified; }
 
+    public boolean isEmailOtpPending() { return emailOtpPending; }
+    public void setEmailOtpPending(boolean emailOtpPending) { this.emailOtpPending = emailOtpPending; }
+
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
 
     public boolean isPhoneVerified() { return phoneVerified; }
     public void setPhoneVerified(boolean phoneVerified) { this.phoneVerified = phoneVerified; }
+
+    public boolean isPhoneOtpPending() { return phoneOtpPending; }
+    public void setPhoneOtpPending(boolean phoneOtpPending) { this.phoneOtpPending = phoneOtpPending; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

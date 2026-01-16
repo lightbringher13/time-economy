@@ -1,16 +1,14 @@
 // src/features/auth/register/components/SignupPhoneStep.tsx
 import type { UseFormReturn } from "react-hook-form";
-
 import type {
   SignupPhoneFormValues,
   SignupPhoneOtpFormValues,
 } from "../forms/schemas/signupPhone.schema";
 
 type PhoneUi = {
-  title?: string; // default: "Create your account"
-  subtitle?: string; // default: "Step 2 — Verify phone"
+  title?: string;
+  subtitle?: string;
 
-  // what to show
   showOtpBox?: boolean;
   showSend?: boolean;
   showEdit?: boolean;
@@ -18,12 +16,14 @@ type PhoneUi = {
   showSkip?: boolean;
   showCancel?: boolean;
 
-  // optional labels
-  sendLabel?: string; // default: "Send SMS code" (parent can set "Resend code")
-  editLabel?: string; // default: "Update phone"
-  backLabel?: string; // default: "Back"
-  skipLabel?: string; // default: "Continue"
-  cancelLabel?: string; // default: "Cancel"
+  // ✅ page decides input lock
+  phoneDisabled?: boolean;
+
+  sendLabel?: string;
+  editLabel?: string;
+  backLabel?: string;
+  skipLabel?: string;
+  cancelLabel?: string;
 };
 
 type PhoneLoading = {
@@ -36,7 +36,8 @@ type PhoneLoading = {
 type PhoneActions = {
   send?: () => void | Promise<void>;
   verify?: (code: string) => void | Promise<void>;
-  edit?: (newPhone: string) => void | Promise<void>;
+  edit?: () => void | Promise<void>; // ✅ no args — page reads phone value
+
   back?: () => void | Promise<void>;
   skip?: () => void | Promise<void>;
   cancel?: () => void | Promise<void>;
@@ -47,11 +48,9 @@ interface Props {
   maskedPhone?: string | null;
   error?: string | null;
 
-  // forms
   phoneForm: UseFormReturn<SignupPhoneFormValues>;
   otpForm: UseFormReturn<SignupPhoneOtpFormValues>;
 
-  // grouped props
   ui: PhoneUi;
   loading?: PhoneLoading;
   actions: PhoneActions;
@@ -70,14 +69,12 @@ export function SignupPhoneStep({
   const {
     register: registerPhone,
     formState: { errors: phoneErrors },
-    getValues: getPhoneValues,
   } = phoneForm;
 
   const {
     register: registerOtp,
     formState: { errors: otpErrors },
     handleSubmit: handleOtpSubmit,
-    reset: resetOtp,
   } = otpForm;
 
   const isSending = Boolean(loading?.send);
@@ -91,31 +88,19 @@ export function SignupPhoneStep({
   const subtitle = ui.subtitle ?? "Step 2 — Verify phone";
 
   const onClickSend = async () => {
-    const ok = await phoneForm.trigger("phoneNumber");
-    if (!ok) return;
+    await actions.send?.();
+  };
 
-    // if edit() exists, persist phone first
-    if (actions.edit) {
-      const phone = getPhoneValues("phoneNumber");
-      await actions.edit(phone);
-    }
-
-    resetOtp({ code: "" });
-    await actions.send?.(); // same endpoint for "send" and "resend"
+  const onClickEditPhone = async () => {
+    await actions.edit?.();
   };
 
   const onSubmitVerify = handleOtpSubmit(async (values) => {
     await actions.verify?.(values.code);
   });
 
-  const onClickEditPhone = async () => {
-    const ok = await phoneForm.trigger("phoneNumber");
-    if (!ok) return;
-
-    const phone = getPhoneValues("phoneNumber");
-    await actions.edit?.(phone);
-    resetOtp({ code: "" });
-  };
+  // ✅ page owns the lock policy
+  const phoneDisabled = busy || Boolean(ui.phoneDisabled);
 
   return (
     <div>
@@ -123,9 +108,7 @@ export function SignupPhoneStep({
       <h3 style={{ marginTop: 8 }}>{subtitle}</h3>
 
       {error && (
-        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>
-          {error}
-        </div>
+        <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>{error}</div>
       )}
 
       {/* Phone input */}
@@ -138,7 +121,7 @@ export function SignupPhoneStep({
           id="phoneNumber"
           type="tel"
           autoComplete="tel"
-          disabled={busy || phoneVerified}
+          disabled={phoneDisabled}
           {...registerPhone("phoneNumber")}
           style={{ width: "100%", padding: 8 }}
         />
@@ -176,7 +159,7 @@ export function SignupPhoneStep({
             disabled={busy || !actions.edit}
             style={{ padding: "8px 14px" }}
           >
-            {isEditing ? "Updating..." : ui.editLabel ?? "Update phone"}
+            {isEditing ? "Updating..." : ui.editLabel ?? "Edit"}
           </button>
         )}
 

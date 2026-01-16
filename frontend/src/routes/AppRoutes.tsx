@@ -53,7 +53,7 @@ export function AppRoutes() {
         {/* <Route path="expired" element={<SignupExpiredPage />} /> */}
       </Route>
 
-      <Route path="done" element={<SignupDonePage />} />
+      <Route path={ROUTES.SIGNUP_DONE} element={<SignupDonePage />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>

@@ -4,7 +4,8 @@ package com.timeeconomy.auth.adapter.in.internal.signupsession;
 import com.timeeconomy.auth.adapter.in.internal.signupsession.dto.response.CompletedSignupSessionResponse;
 import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotCompletedException;
 import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotFoundException;
-import com.timeeconomy.auth.domain.signupsession.port.in.GetCompletedSignupSessionInfoUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.in.internal.GetCompletedSignupSessionInfoUseCase;
+
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

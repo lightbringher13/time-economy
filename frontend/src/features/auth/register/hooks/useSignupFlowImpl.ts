@@ -2,22 +2,16 @@
 import { useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import type {
-  SignupSessionState,
-  UpdateSignupProfileRequestDto,
-} from "../api/signupApi.types";
+import type { SignupSessionState, UpdateSignupProfileRequestDto } from "@/features/auth/register/api/signupApi.types"
 import type { RegisterRequest } from "../api/registerApi.types";
 
 import { signupSessionKeys } from "../queries/signupSession.keys";
 import { extractApiMessage } from "../queries/extractApiMessage";
 
 // queries / mutations
-import { useSignupBootstrapQuery } from "../queries/useSignupBootstrapQuery";
 import { useSignupStatusQuery } from "../queries/useSignupStatusQuery";
 import { useSendSignupOtpMutation } from "../queries/useSendSignupOtpMutation";
 import { useVerifySignupOtpMutation } from "../queries/useVerifySignupOtpMutation";
-import { useEditSignupEmailMutation } from "../queries/useEditSignupEmailMutation";
-import { useEditSignupPhoneMutation } from "../queries/useEditSignupPhoneMutation";
 import { useUpdateSignupProfileMutation } from "../queries/useUpdateSignupProfileMutation";
 import { useCancelSignupSessionMutation } from "../queries/useCancelSignupSessionMutation";
 import { useRegisterMutation } from "../queries/useRegisterMutation";
@@ -32,206 +26,179 @@ function firstErrorMessage(errors: Array<unknown>, fallback: string) {
 export function useSignupFlowImpl() {
   const qc = useQueryClient();
 
-  // ✅ 1) bootstrap runs as a query (cached, StrictMode-safe)
-  const bootstrapQ = useSignupBootstrapQuery(true);
-
-  // ✅ 2) status runs only after bootstrap succeeded (cookie/session ready)
-  const statusQuery = useSignupStatusQuery(bootstrapQ.isSuccess);
+  // ✅ BE is safe without cookie: { exists:false, state:"DRAFT" }
+  const statusQuery = useSignupStatusQuery(true);
 
   // mutations
   const sendOtpMu = useSendSignupOtpMutation();
   const verifyOtpMu = useVerifySignupOtpMutation();
-  const editEmailMu = useEditSignupEmailMutation();
-  const editPhoneMu = useEditSignupPhoneMutation();
   const updateProfileMu = useUpdateSignupProfileMutation();
   const cancelMu = useCancelSignupSessionMutation();
   const registerMu = useRegisterMutation();
 
-  // expose raw data
   const status = statusQuery.data ?? null;
-  const state = (status?.state ?? null) as SignupSessionState | null;
 
   const view = useMemo(() => {
     const s = status;
     return {
+      exists: Boolean(s?.exists),
+
       email: s?.email ?? null,
       emailVerified: Boolean(s?.emailVerified),
+      emailOtpPending: Boolean((s as any)?.emailOtpPending), // if you added it to status dto
+
       phoneNumber: s?.phoneNumber ?? null,
       phoneVerified: Boolean(s?.phoneVerified),
+      phoneOtpPending: Boolean((s as any)?.phoneOtpPending), // if you added it to status dto
+
       name: s?.name ?? null,
       gender: s?.gender ?? null,
       birthDate: s?.birthDate ?? null,
+
       state: (s?.state ?? null) as SignupSessionState | null,
     };
   }, [status]);
 
-  // global loading flags
-  const loading = {
-    // Page-blocking (rare): bootstrap + first status load
-    page: bootstrapQ.isLoading || statusQuery.isLoading,
+  const state = view.state;
 
-    // Background sync (don’t block UI)
+  const loading = {
+    page: statusQuery.isLoading,
     syncing: statusQuery.isFetching && !statusQuery.isLoading,
 
-    // Button-level actions
     sendOtp: sendOtpMu.isPending,
     verifyOtp: verifyOtpMu.isPending,
-    editEmail: editEmailMu.isPending,
-    editPhone: editPhoneMu.isPending,
     updateProfile: updateProfileMu.isPending,
     cancel: cancelMu.isPending,
     register: registerMu.isPending,
 
-    // Useful “any action running?”
     action:
       sendOtpMu.isPending ||
       verifyOtpMu.isPending ||
-      editEmailMu.isPending ||
-      editPhoneMu.isPending ||
       updateProfileMu.isPending ||
       cancelMu.isPending ||
       registerMu.isPending,
   };
 
-  // global error message
   const error = useMemo(
     () =>
       firstErrorMessage(
-        [
-          bootstrapQ.error,
-          statusQuery.error,
-          sendOtpMu.error,
-          verifyOtpMu.error,
-          editEmailMu.error,
-          editPhoneMu.error,
-          updateProfileMu.error,
-          cancelMu.error,
-          registerMu.error,
-        ],
+        [statusQuery.error, sendOtpMu.error, verifyOtpMu.error, updateProfileMu.error, cancelMu.error, registerMu.error],
         "Request failed."
       ),
-    [
-      bootstrapQ.error,
-      statusQuery.error,
-      sendOtpMu.error,
-      verifyOtpMu.error,
-      editEmailMu.error,
-      editPhoneMu.error,
-      updateProfileMu.error,
-      cancelMu.error,
-      registerMu.error,
-    ]
+    [statusQuery.error, sendOtpMu.error, verifyOtpMu.error, updateProfileMu.error, cancelMu.error, registerMu.error]
   );
 
-  // manual refresh (debug)
   const refresh = useCallback(async () => {
     return await statusQuery.refetch();
   }, [statusQuery]);
 
-  // actions
-  const sendEmailOtp = useCallback(async () => {
-    return await sendOtpMu.mutateAsync({ target: "EMAIL" });
-  }, [sendOtpMu]);
+  // optional helper (safe even if your mutation hooks already invalidate)
+  const invalidateStatus = useCallback(() => {
+    qc.invalidateQueries({ queryKey: signupSessionKeys.status(), exact: true });
+  }, [qc]);
 
-  const verifyEmailOtp = useCallback(
-    async (code: string) => {
-      return await verifyOtpMu.mutateAsync({ target: "EMAIL", code });
+  // ✅ send otp now includes destination (this is your “edit + send”)
+  const sendEmailOtp = useCallback(
+    async (email: string) => {
+      const dto = await sendOtpMu.mutateAsync({ target: "EMAIL", destination: email });
+      invalidateStatus();
+      return dto;
     },
-    [verifyOtpMu]
+    [sendOtpMu, invalidateStatus]
   );
 
-  const sendPhoneOtp = useCallback(async () => {
-    return await sendOtpMu.mutateAsync({ target: "PHONE" });
-  }, [sendOtpMu]);
+  const sendPhoneOtp = useCallback(
+    async (phoneNumber: string) => {
+      const dto = await sendOtpMu.mutateAsync({ target: "PHONE", destination: phoneNumber });
+      invalidateStatus();
+      return dto;
+    },
+    [sendOtpMu, invalidateStatus]
+  );
+
+  // ✅ verify uses cookie only (no sessionId in payload)
+  const verifyEmailOtp = useCallback(
+    async (code: string) => {
+      const dto = await verifyOtpMu.mutateAsync({ target: "EMAIL", code });
+      invalidateStatus();
+      return dto;
+    },
+    [verifyOtpMu, invalidateStatus]
+  );
 
   const verifyPhoneOtp = useCallback(
     async (code: string) => {
-      return await verifyOtpMu.mutateAsync({ target: "PHONE", code });
+      const dto = await verifyOtpMu.mutateAsync({ target: "PHONE", code });
+      invalidateStatus();
+      return dto;
     },
-    [verifyOtpMu]
-  );
-
-  const editEmail = useCallback(
-    async (newEmail: string) => {
-      return await editEmailMu.mutateAsync({ newEmail });
-    },
-    [editEmailMu]
-  );
-
-  const editPhone = useCallback(
-    async (newPhoneNumber: string) => {
-      return await editPhoneMu.mutateAsync({ newPhoneNumber });
-    },
-    [editPhoneMu]
+    [verifyOtpMu, invalidateStatus]
   );
 
   const updateProfile = useCallback(
     async (payload: UpdateSignupProfileRequestDto) => {
-      return await updateProfileMu.mutateAsync(payload);
+      const dto = await updateProfileMu.mutateAsync(payload);
+      invalidateStatus();
+      return dto;
     },
-    [updateProfileMu]
+    [updateProfileMu, invalidateStatus]
   );
 
+  /**
+   * ✅ cancel: DO NOT navigate here (hook can’t).
+   * Pages should do: navigate(LOGIN) first, then await flow.cancel()
+   */
   const cancel = useCallback(async () => {
     const dto = await cancelMu.mutateAsync();
 
-    // ✅ clear cached status/bootstrap so old "cookie not found" doesn't stick
+    // drop cached signup data so layout/status don't keep old errors around
     qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
-    qc.removeQueries({ queryKey: signupSessionKeys.bootstrap(), exact: true });
     qc.removeQueries({ queryKey: signupSessionKeys.root });
 
     return dto;
   }, [cancelMu, qc]);
 
-  const register = useCallback(
-    async (payload: RegisterRequest) => {
-      const dto = await registerMu.mutateAsync(payload);
-      return dto;
-    },
-    [registerMu, qc]
-  );
+  /**
+   * ✅ register: DO NOT clear cache here (it can race with navigation/layout).
+   * Pages should:
+   *   await flow.register(...)
+   *   navigate("/signup/done", { replace:true })
+   *   flow.clearSignupCache()  // optionally after navigation
+   */
+  const register = useCallback(async (payload: RegisterRequest) => {
+    return await registerMu.mutateAsync(payload);
+  }, [registerMu]);
 
   const clearSignupCache = useCallback(() => {
     qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
-    qc.removeQueries({ queryKey: signupSessionKeys.bootstrap(), exact: true });
     qc.removeQueries({ queryKey: signupSessionKeys.root });
   }, [qc]);
 
   return {
-    // ✅ queries (exposed at top-level)
-    bootstrapQ,
     statusQuery,
 
-    // server state
     status,
     state,
     view,
 
-    // flags
     loading,
     error,
 
-    // lifecycle
     refresh,
 
     // actions
     sendEmailOtp,
-    verifyEmailOtp,
     sendPhoneOtp,
+    verifyEmailOtp,
     verifyPhoneOtp,
-    editEmail,
-    editPhone,
     updateProfile,
     cancel,
     register,
     clearSignupCache,
 
-    // expose mutations if you want fine-grained control in pages
     mutations: {
       sendOtpMu,
       verifyOtpMu,
-      editEmailMu,
-      editPhoneMu,
       updateProfileMu,
       cancelMu,
       registerMu,

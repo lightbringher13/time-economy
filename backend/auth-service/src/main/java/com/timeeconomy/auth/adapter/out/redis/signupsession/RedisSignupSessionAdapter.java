@@ -19,8 +19,40 @@ import java.util.*;
 @RequiredArgsConstructor
 public class RedisSignupSessionAdapter implements SignupSessionStorePort {
 
+    private static final Duration SESSION_TTL = Duration.ofHours(24);
     private final StringRedisTemplate redis;
     private final Clock clock;
+
+    @Override
+    public SignupSession createNew(Instant now) {
+        // 1) build a new session with correct defaults
+        SignupSession s = new SignupSession();
+
+        UUID id = UUID.randomUUID();
+        s.setId(id);
+
+        s.setState(SignupSessionState.DRAFT);
+
+        s.setCreatedAt(now);
+        s.setUpdatedAt(now);
+        s.setExpiresAt(now.plus(SESSION_TTL));
+
+        s.setEmailVerified(false);
+        s.setEmailOtpPending(false);   // ✅ NEW
+
+        s.setPhoneVerified(false);
+        s.setPhoneOtpPending(false);   // ✅ NEW
+
+        // other fields start null
+        s.setEmail(null);
+        s.setPhoneNumber(null);
+        s.setName(null);
+        s.setGender(null);
+        s.setBirthDate(null);
+
+        // 2) persist + TTL in one place (save() already sets expire())
+        return save(s);
+    }
 
     @Override
     public SignupSession save(SignupSession session) {
@@ -67,11 +99,9 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
         Map<Object, Object> raw = redis.opsForHash().entries(sk);
         if (raw == null || raw.isEmpty()) return Optional.empty();
 
-        // no old data -> no upgrade step
         SignupSessionSnapshot snap = fromHash(id, raw);
         SignupSession session = SignupSessionSnapshotMapper.toDomain(snap);
 
-        // extra guard: if expiresAt passed, delete (TTL should also do it)
         Instant now = Instant.now(clock);
         if (session.getExpiresAt() != null && !session.getExpiresAt().isAfter(now)) {
             redis.delete(sk);
@@ -88,7 +118,6 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
 
         String idxKey = SignupSessionRedisKeys.emailIndexKey(emailNorm);
 
-        // "top by createdAt desc" -> reverseRange
         int N = 25;
         Set<String> candidates = redis.opsForZSet().reverseRange(idxKey, 0, N - 1);
         if (candidates == null || candidates.isEmpty()) return Optional.empty();
@@ -110,7 +139,6 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
 
             SignupSession s = opt.get();
 
-            // expiresAtAfter(now) AND state != COMPLETED
             if (s.getExpiresAt() == null || !s.getExpiresAt().isAfter(now)) {
                 redis.opsForZSet().remove(idxKey, sidStr);
                 continue;
@@ -138,8 +166,11 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
 
         m.put("email", n(s.email()));
         m.put("emailVerified", Boolean.toString(s.emailVerified()));
+        m.put("emailOtpPending", Boolean.toString(s.emailOtpPending()));   // ✅ NEW
+
         m.put("phoneNumber", n(s.phoneNumber()));
         m.put("phoneVerified", Boolean.toString(s.phoneVerified()));
+        m.put("phoneOtpPending", Boolean.toString(s.phoneOtpPending()));   // ✅ NEW
 
         m.put("name", n(s.name()));
         m.put("gender", n(s.gender()));
@@ -161,8 +192,11 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
 
                 .email(blankToNull(get(raw, "email")))
                 .emailVerified(parseBool(get(raw, "emailVerified"), false))
+                .emailOtpPending(parseBool(get(raw, "emailOtpPending"), false))   // ✅ NEW (defaults false)
+
                 .phoneNumber(blankToNull(get(raw, "phoneNumber")))
                 .phoneVerified(parseBool(get(raw, "phoneVerified"), false))
+                .phoneOtpPending(parseBool(get(raw, "phoneOtpPending"), false))   // ✅ NEW (defaults false)
 
                 .name(blankToNull(get(raw, "name")))
                 .gender(blankToNull(get(raw, "gender")))

@@ -1,22 +1,21 @@
 // src/features/auth/register/pages/SignupReviewPage.tsx
 import { useNavigate } from "react-router-dom";
+import { ROUTES } from "@/routes/paths";
 
 import { useSignupFlow } from "../hooks/SignupFlowContext.tsx";
 
 import { SignupReviewStep } from "../components/SignupReviewStep";
 import { useSignupPasswordForm } from "../forms/hooks/useSignupPasswordForm";
-import { ROUTES } from "@/routes/paths.ts";
 
 export default function SignupReviewPage() {
   const flow = useSignupFlow();
   const navigate = useNavigate();
-
   const passwordForm = useSignupPasswordForm();
 
-  // ---- actions ----
   const onCreate = async (password: string) => {
     const s = flow.status;
 
+    // must be complete before register
     const email = s?.email ?? null;
     const phoneNumber = s?.phoneNumber ?? null;
     const name = s?.name ?? null;
@@ -24,10 +23,11 @@ export default function SignupReviewPage() {
     const birthDate = s?.birthDate ?? null;
 
     if (!email || !phoneNumber || !name || !gender || !birthDate) {
-      navigate("/signup/profile", { replace: true });
+      navigate(ROUTES.SIGNUP_PROFILE, { replace: true });
       return;
     }
 
+    // ✅ register (cookie may be cleared by BE)
     await flow.register({
       email,
       password,
@@ -37,31 +37,28 @@ export default function SignupReviewPage() {
       birthDate,
     });
 
-    navigate("/done", { replace: true });
-
-    void flow.clearSignupCache();
+    // ✅ done should be outside the /signup layout tree
+    navigate(ROUTES.SIGNUP_DONE, { replace: true });
   };
 
   const onBack = () => {
-    navigate("/signup/profile");
+    // go to profile page explicitly
+    navigate(ROUTES.SIGNUP_PROFILE);
   };
 
   const onCancel = async () => {
-    navigate(ROUTES.LOGIN, {replace: true});
+    // ✅ important ordering: leave /signup first so layout doesn't rerun things
+    navigate(ROUTES.LOGIN, { replace: true });
     await flow.cancel();
-    
   };
 
-  const onEditEmail = () => {
-    navigate("/signup/edit/email");
-  };
-
-  const onEditPhone = () => {
-    navigate("/signup/edit/phone");
-  };
-
-  const isCreating = flow.mutations.registerMu.isPending;
-  const isCancelling = flow.mutations.cancelMu.isPending;
+  // edit actions are navigation-only
+  const onEditEmail = () => navigate(ROUTES.SIGNUP_EMAIL_EDIT, {
+    state: { from: "review", startLocked: false },
+  });
+  const onEditPhone = () => navigate(ROUTES.SIGNUP_EMAIL_EDIT, {
+    state: { from: "review", startLocked: false },
+  });
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
@@ -81,19 +78,17 @@ export default function SignupReviewPage() {
           showCreate: true,
           showBack: true,
           showCancel: true,
-
           showEditEmail: true,
           showEditPhone: true,
           editEmailLabel: "Edit email",
           editPhoneLabel: "Edit phone",
-
           createLabel: "Create account",
           backLabel: "Back",
           cancelLabel: "Cancel",
         }}
         loading={{
-          create: isCreating,
-          cancel: isCancelling,
+          create: Boolean(flow.loading?.register),
+          cancel: Boolean(flow.loading?.cancel),
           back: false,
           editEmail: false,
           editPhone: false,

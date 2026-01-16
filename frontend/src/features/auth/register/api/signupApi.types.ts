@@ -1,3 +1,5 @@
+// src/features/auth/register/api/signupApi.types.ts
+
 export type SignupSessionState =
   | "DRAFT"
   | "EMAIL_OTP_SENT"
@@ -12,64 +14,108 @@ export type SignupSessionState =
 
 export type SignupVerificationTarget = "EMAIL" | "PHONE";
 
-export interface SignupBootstrapResponseDto {
+// ---------------------
+// Status
+// ---------------------
+export interface SignupStatusResponseDto {
   exists: boolean;
+
   email: string | null;
   emailVerified: boolean;
+
   phoneNumber: string | null;
   phoneVerified: boolean;
+
   name: string | null;
   gender: string | null;
   birthDate: string | null; // yyyy-mm-dd
-  state: SignupSessionState | null;
+
+  state: SignupSessionState;
+  
+  emailOtpPending: boolean;
+  phoneOtpPending: boolean;
 }
 
-export interface SignupStatusResponseDto extends SignupBootstrapResponseDto {}
-
+// ---------------------
+// Send OTP
+// ---------------------
 export interface SendSignupOtpRequestDto {
   target: SignupVerificationTarget;
+  destination: string; // email or phone
 }
+
+export type SendSignupOtpOutcome =
+  | "SENT"
+  | "ALREADY_VERIFIED"
+  | "INVALID_DESTINATION"
+  | "THROTTLED";
+
 export interface SendSignupOtpResponseDto {
+  outcome: SendSignupOtpOutcome;
   sent: boolean;
+
+  sessionId: string;          // always present when outcome is SENT/ALREADY_VERIFIED
+  sessionCreated: boolean;    // ✅ NEW
+
+  challengeId: string | null;
   ttlMinutes: number;
   maskedDestination: string | null;
+
   emailVerified: boolean;
   phoneVerified: boolean;
+
+  emailOtpPending: boolean;   // ✅ NEW
+  phoneOtpPending: boolean;   // ✅ NEW
+
   state: SignupSessionState;
 }
 
+// ---------------------
+// Verify OTP
+// ---------------------
 export interface VerifySignupOtpRequestDto {
   target: SignupVerificationTarget;
   code: string;
-  sessionId?: string; // optional if your API accepts cookie-only
 }
+
+export type VerifySignupOtpOutcome =
+  | "VERIFIED"
+  | "WRONG_CODE"
+  | "NO_SESSION"
+  | "NO_PENDING_OTP"
+  | "INVALID_INPUT";
+
 export interface VerifySignupOtpResponseDto {
+  outcome: VerifySignupOtpOutcome;
   success: boolean;
+
+  sessionId: string | null;
+
   emailVerified: boolean;
   phoneVerified: boolean;
-  state: string; // or SignupSessionState if you return it
-}
 
-export interface EditSignupEmailRequestDto {
-  newEmail: string;
-}
-export interface EditSignupPhoneRequestDto {
-  newPhoneNumber: string;
-}
+  emailOtpPending: boolean;
+  phoneOtpPending: boolean;
 
-export interface CancelSignupSessionResponseDto {
   state: SignupSessionState;
 }
 
-export type SignupGender = "MALE" | "FEMALE" | "OTHER";
+// ---------------------
+// Cancel
+// ---------------------
+export interface CancelSignupSessionResponseDto {
+  sessionId: string | null;
+  state: SignupSessionState;
+}
 
-// BE expects LocalDate. In FE we send "YYYY-MM-DD" and let Jackson parse it.
-export type LocalDateString = string;
+// ---------------------
+// Profile
+// ---------------------
+export type SignupGender = "MALE" | "FEMALE" | "OTHER";
+export type LocalDateString = string; // "YYYY-MM-DD"
 
 export type UpdateSignupProfileRequestDto = {
-  email?: string | null;        // optional: you can send null if you don’t want to update
   name: string;
-  phoneNumber?: string | null;  // optional (but your BE currently accepts it)
   gender: SignupGender;
-  birthDate: LocalDateString;   // "YYYY-MM-DD"
+  birthDate: LocalDateString;
 };

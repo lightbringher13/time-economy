@@ -2,26 +2,24 @@
 import type { UseFormReturn } from "react-hook-form";
 
 import type {
-  SignupProfileFormValues,
+  SignupProfileFormInput,
   SignupGender,
 } from "../forms/schemas/signupProfile.schema";
 
 type ProfileUi = {
-  title?: string; // default: "Create your account"
-  subtitle?: string; // default: "Step 3 — Profile"
+  title?: string;
+  subtitle?: string;
 
-  // what to show
-  showSubmit?: boolean; // default: true
+  showSubmit?: boolean;
   showBack?: boolean;
   showCancel?: boolean;
-  showTip?: boolean; // default: true
+  showTip?: boolean;
 
-  // labels
-  submitLabel?: string; // default: "Continue"
-  backLabel?: string; // default: "Back"
-  cancelLabel?: string; // default: "Cancel"
+  submitLabel?: string;
+  backLabel?: string;
+  cancelLabel?: string;
 
-  tipText?: string; // default: "Tip: You can change phone by going back, or using “Edit phone” in the previous step."
+  tipText?: string;
 };
 
 type ProfileLoading = {
@@ -30,7 +28,8 @@ type ProfileLoading = {
 };
 
 type ProfileActions = {
-  submit?: (values: SignupProfileFormValues) => void | Promise<void>;
+  // ✅ Input type, because gender can be "" in the form state
+  submit?: (values: SignupProfileFormInput) => void | Promise<void>;
   back?: () => void | Promise<void>;
   cancel?: () => void | Promise<void>;
 };
@@ -38,7 +37,8 @@ type ProfileActions = {
 interface Props {
   error?: string | null;
 
-  form: UseFormReturn<SignupProfileFormValues>;
+  // ✅ Input type for RHF form
+  form: UseFormReturn<SignupProfileFormInput>;
 
   ui?: ProfileUi;
   loading?: ProfileLoading;
@@ -48,7 +48,6 @@ interface Props {
 const genderOptions: Array<{ value: SignupGender; label: string }> = [
   { value: "MALE", label: "Male" },
   { value: "FEMALE", label: "Female" },
-  { value: "OTHER", label: "Other" },
 ];
 
 export function SignupProfileStep({ error, form, ui, loading, actions }: Props) {
@@ -105,7 +104,7 @@ export function SignupProfileStep({ error, form, ui, loading, actions }: Props) 
         />
         {errors.name?.message && (
           <div style={{ marginTop: 4, color: "red", fontSize: 12 }}>
-            {errors.name.message}
+            {String(errors.name.message)}
           </div>
         )}
       </div>
@@ -131,19 +130,17 @@ export function SignupProfileStep({ error, form, ui, loading, actions }: Props) 
             </option>
           ))}
         </select>
+
         {errors.gender?.message && (
           <div style={{ marginTop: 4, color: "red", fontSize: 12 }}>
-            {errors.gender.message}
+            {String(errors.gender.message)}
           </div>
         )}
       </div>
 
       {/* Birth date */}
       <div style={{ marginTop: 16 }}>
-        <label
-          htmlFor="birthDate"
-          style={{ display: "block", marginBottom: 4 }}
-        >
+        <label htmlFor="birthDate" style={{ display: "block", marginBottom: 4 }}>
           Birth date
         </label>
         <input
@@ -155,7 +152,7 @@ export function SignupProfileStep({ error, form, ui, loading, actions }: Props) 
         />
         {errors.birthDate?.message && (
           <div style={{ marginTop: 4, color: "red", fontSize: 12 }}>
-            {errors.birthDate.message}
+            {String(errors.birthDate.message)}
           </div>
         )}
       </div>

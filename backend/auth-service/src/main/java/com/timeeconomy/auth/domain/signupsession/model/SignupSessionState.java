@@ -1,18 +1,16 @@
 package com.timeeconomy.auth.domain.signupsession.model;
 
 public enum SignupSessionState {
-    DRAFT,                 // session created, user typed email/phone but hasn't started OTP yet
+    DRAFT,          // email exists but not verified, and no email OTP pending
+    EMAIL_OTP_SENT, // email OTP pending (waiting for code)
+    EMAIL_VERIFIED, // email verified, phone not verified yet
 
-    EMAIL_OTP_SENT,        // email OTP issued (cooldown applies)
-    EMAIL_VERIFIED,        // email verified ✅
+    PHONE_OTP_SENT, // phone OTP pending (waiting for code)
 
-    PHONE_OTP_SENT,        // SMS OTP issued
-    PHONE_VERIFIED,        // phone verified ✅
+    PROFILE_PENDING,// both verified, profile incomplete
+    PROFILE_READY,  // both verified, profile complete (ready to register)
 
-    PROFILE_PENDING,
-    PROFILE_READY,       // both verified, profile not submitted yet (name, etc.)
-    COMPLETED,             // register finished (auth_user created)
-
-    CANCELED,              // user canceled flow
-    EXPIRED                // TTL expired
+    COMPLETED,      // account created
+    CANCELED,       // canceled by user
+    EXPIRED         // expired by TTL
 }
