@@ -1,7 +1,7 @@
 // src/features/auth/register/pages/SignupDonePage.tsx
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
-import { SignupDoneStep } from "../components/SignupDoneStep";
+import { SignupDoneStep } from "../components/forms/SignupDoneStep";
 
 export default function SignupDonePage() {
   const navigate = useNavigate();

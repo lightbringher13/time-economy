@@ -2,8 +2,9 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { SignupPhoneStep } from "../components/SignupPhoneStep";
+import { SignupPhoneStep } from "../components/forms/SignupPhoneStep";
 import { useSignupFlow } from "../hooks/SignupFlowContext";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext"; // ✅ UPDATED
 
 import { useSignupPhoneForm } from "../forms/hooks/useSignupPhoneForm";
 import { useSignupPhoneOtpForm } from "../forms/hooks/useSignupPhoneOtpForm";
@@ -13,6 +14,7 @@ import { ROUTES } from "@/routes/paths";
 
 export default function SignupPhonePage() {
   const flow = useSignupFlow();
+  const shellUi = useSignupShellUi(); // ✅ UPDATED
   const navigate = useNavigate();
 
   const phoneForm = useSignupPhoneForm();
@@ -30,9 +32,20 @@ export default function SignupPhonePage() {
     }
   }, [flow.view.phoneNumber, phoneForm, phoneForm.formState.dirtyFields]);
 
-  const cancel = async () => {
-    navigate(ROUTES.LOGIN, { replace: true });
-    await flow.cancel();
+  // ✅ UPDATED: cancel uses shell modal (no immediate navigation/cancel here)
+  const cancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
+    });
   };
 
   const onBack = () => {
@@ -112,7 +125,7 @@ export default function SignupPhonePage() {
           send: onSend,
           verify: onVerify,
           back: onBack,
-          cancel,
+          cancel, // ✅ UPDATED
         }}
       />
     </div>

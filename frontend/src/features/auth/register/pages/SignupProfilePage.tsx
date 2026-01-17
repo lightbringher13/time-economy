@@ -3,7 +3,8 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { SignupProfileStep } from "../components/SignupProfileStep";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext"; // ✅ UPDATED
+import { SignupProfileStep } from "../components/forms/SignupProfileStep";
 
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
 import {
@@ -16,6 +17,7 @@ import { ROUTES } from "@/routes/paths";
 
 export default function SignupProfilePage() {
   const flow = useSignupFlow();
+  const shellUi = useSignupShellUi(); // ✅ UPDATED
   const profileForm = useSignupProfileForm();
   const navigate = useNavigate();
 
@@ -64,12 +66,23 @@ export default function SignupProfilePage() {
   };
 
   const onBack = () => {
-    navigate(ROUTES.SIGNUP_PHONE_EDIT);
+    navigate(ROUTES.SIGNUP_PHONE_EDIT, { state: { from: "profile" } });
   };
 
-  const onCancel = async () => {
-    navigate(ROUTES.LOGIN, { replace: true });
-    await flow.cancel();
+  // ✅ UPDATED: cancel uses shell modal
+  const onCancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
+    });
   };
 
   return (
@@ -95,7 +108,7 @@ export default function SignupProfilePage() {
         actions={{
           submit: onSubmit,
           back: onBack,
-          cancel: onCancel,
+          cancel: onCancel, // ✅ UPDATED
         }}
       />
     </div>

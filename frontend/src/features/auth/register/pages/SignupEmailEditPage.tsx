@@ -2,8 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { SignupEmailStep } from "../components/SignupEmailStep";
+import { SignupEmailStep } from "../components/forms/SignupEmailStep";
 import { useSignupFlow } from "../hooks/SignupFlowContext";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext"; // ✅ UPDATED
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
@@ -25,6 +26,7 @@ export default function SignupEmailEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const flow = useSignupFlow();
+  const shellUi = useSignupShellUi(); // ✅ UPDATED
 
   const emailForm = useSignupEmailForm();
   const otpForm = useSignupEmailOtpForm();
@@ -32,8 +34,12 @@ export default function SignupEmailEditPage() {
   const state = flow.view.state;
   const from = (location.state as any)?.from as "review" | "phone" | undefined;
 
+  // from review: start unlocked (quick edit); from phone: start locked
   const startUnlocked = from === "review";
   const [unlocked, setUnlocked] = useState<boolean>(startUnlocked);
+
+  // ✅ commit flag: once user clicks "Change email", exit button never appears again (this visit)
+  const [committedToChange, setCommittedToChange] = useState<boolean>(startUnlocked);
 
   const exitTarget = useMemo(() => {
     if (from === "review") return ROUTES.SIGNUP_REVIEW;
@@ -55,14 +61,26 @@ export default function SignupEmailEditPage() {
   useEffect(() => {
     const serverEmail = flow.view.email;
     const dirty = emailForm.formState.dirtyFields;
+
     if (serverEmail && !dirty.email) {
       emailForm.setValue("email", serverEmail, { shouldValidate: true });
     }
   }, [flow.view.email, emailForm, emailForm.formState.dirtyFields]);
 
-  const onCancel = async () => {
-    navigate(ROUTES.LOGIN, { replace: true });
-    await flow.cancel();
+  // ✅ UPDATED: cancel now opens shell modal (single global behavior)
+  const onCancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
+    });
   };
 
   // exit (single button)
@@ -70,12 +88,14 @@ export default function SignupEmailEditPage() {
     navigate(exitTarget, { replace: true });
   };
 
-  const onUnlock = async () => {
+  // ✅ committed unlock (same idea as phone edit page)
+  const onUnlockCommitted = async () => {
+    setCommittedToChange(true); // hide exit forever after this
     setUnlocked(true);
     otpForm.reset({ code: "" });
   };
 
-  const onSend = async () => {
+  const onSendCommitted = async () => {
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
@@ -94,6 +114,11 @@ export default function SignupEmailEditPage() {
 
   const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
   const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
+
+  // ✅ show exit only when:
+  // - coming from phone
+  // - user has not committed to changing
+  const finalShowSkip = from === "phone" && !committedToChange;
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
@@ -116,11 +141,11 @@ export default function SignupEmailEditPage() {
           showSend: unlocked,
           sendLabel,
 
-          // ✅ remove Back entirely
+          // no back
           showBack: false,
 
-          // ✅ always show one exit button
-          showSkip: true,
+          // ✅ updated visibility: only from phone + not committed
+          showSkip: finalShowSkip,
           skipLabel,
 
           showCancel: true,
@@ -131,17 +156,16 @@ export default function SignupEmailEditPage() {
           send: Boolean(flow.loading?.sendOtp),
           verify: Boolean(flow.loading?.verifyOtp),
           edit: false,
-          cancel: Boolean(flow.loading?.cancel),
+          cancel: Boolean(flow.loading?.cancel), // still ok (modal uses flow.cancel busy)
         }}
         actions={{
-          edit: onUnlock,
-          send: onSend,
+          edit: onUnlockCommitted,
+          send: onSendCommitted,
           verify: onVerify,
 
-          // ✅ single exit handler
-          skip: onContinueWithoutChange,
+          skip: finalShowSkip ? onContinueWithoutChange : undefined,
 
-          cancel: onCancel,
+          cancel: onCancel, // ✅ UPDATED
         }}
       />
     </div>

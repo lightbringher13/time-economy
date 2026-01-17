@@ -2,8 +2,9 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { SignupEmailStep } from "../components/SignupEmailStep";
+import { SignupEmailStep } from "../components/forms/SignupEmailStep";
 import { useSignupFlow } from "../hooks/SignupFlowContext";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
@@ -14,6 +15,7 @@ import { ROUTES } from "@/routes/paths";
 export default function SignupEmailPage() {
   const navigate = useNavigate();
   const flow = useSignupFlow();
+  const shellUi = useSignupShellUi();
 
   const emailForm = useSignupEmailForm();
   const otpForm = useSignupEmailOtpForm();
@@ -30,9 +32,20 @@ export default function SignupEmailPage() {
     }
   }, [flow.view.email, emailForm, emailForm.formState.dirtyFields]);
 
-  const cancel = async () => {
-    navigate(ROUTES.LOGIN, { replace: true });
-    await flow.cancel();
+  const onCancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        // leave signup tree first so layout effects stop fighting navigation
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
+    });
   };
 
   const onSend = async () => {
@@ -63,11 +76,7 @@ export default function SignupEmailPage() {
   const showSend = !isVerified && (state === "DRAFT" || state === "EMAIL_OTP_SENT");
   const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
 
-  /**
-   * Big-co: lock email input once OTP is pending OR once verified.
-   * - prevents mismatch while user is typing code
-   * - “change email” happens in edit page, not here
-   */
+  // lock email input once OTP is pending OR once verified
   const emailDisabled = isVerified || state === "EMAIL_OTP_SENT";
 
   return (
@@ -81,21 +90,12 @@ export default function SignupEmailPage() {
         ui={{
           title: "Create your account",
           subtitle: "Step 1 — Verify email",
-
           showOtpBox,
-
           showSend,
           sendLabel,
-
-          // ✅ plain page: no edit button
           showEdit: false,
-
-          // optional: no back here (first step)
           showBack: false,
-
           showCancel: true,
-
-          // ✅ lock rules
           emailDisabled,
         }}
         loading={{
@@ -106,7 +106,7 @@ export default function SignupEmailPage() {
         actions={{
           send: onSend,
           verify: onVerify,
-          cancel,
+          cancel: onCancel, // ✅ modal now
         }}
       />
     </div>
