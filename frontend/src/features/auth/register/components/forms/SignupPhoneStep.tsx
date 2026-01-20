@@ -1,106 +1,58 @@
-// src/features/auth/register/components/SignupPhoneStep.tsx
+// src/features/auth/register/components/forms/SignupPhoneStep.tsx
 import type { UseFormReturn } from "react-hook-form";
-import type {
-  SignupPhoneFormValues,
-  SignupPhoneOtpFormValues,
-} from "../forms/schemas/signupPhone.schema";
+import type { SignupPhoneFormValues } from "../../forms/schemas/signupPhone.schema";
 
-type PhoneUi = {
+type Props = {
   title?: string;
   subtitle?: string;
 
-  showOtpBox?: boolean;
-  showSend?: boolean;
-  showEdit?: boolean;
-  showBack?: boolean;
-  showSkip?: boolean;
-  showCancel?: boolean;
-
-  // ✅ page decides input lock
-  phoneDisabled?: boolean;
-
-  sendLabel?: string;
-  editLabel?: string;
-  backLabel?: string;
-  skipLabel?: string;
-  cancelLabel?: string;
-};
-
-type PhoneLoading = {
-  send?: boolean;
-  verify?: boolean;
-  edit?: boolean;
-  cancel?: boolean;
-};
-
-type PhoneActions = {
-  send?: () => void | Promise<void>;
-  verify?: (code: string) => void | Promise<void>;
-  edit?: () => void | Promise<void>; // ✅ no args — page reads phone value
-
-  back?: () => void | Promise<void>;
-  skip?: () => void | Promise<void>;
-  cancel?: () => void | Promise<void>;
-};
-
-interface Props {
-  phoneVerified: boolean;
+  phoneVerified?: boolean;
   maskedPhone?: string | null;
   error?: string | null;
 
   phoneForm: UseFormReturn<SignupPhoneFormValues>;
-  otpForm: UseFormReturn<SignupPhoneOtpFormValues>;
 
-  ui: PhoneUi;
-  loading?: PhoneLoading;
-  actions: PhoneActions;
-}
+  // behavior
+  onSend: () => void | Promise<void>;
+  onCancel?: () => void;
+
+  // state
+  sending?: boolean;
+  cancelling?: boolean;
+
+  // input control
+  phoneDisabled?: boolean;
+  sendLabel?: string;
+  cancelLabel?: string;
+};
 
 export function SignupPhoneStep({
-  phoneVerified,
+  title = "Create your account",
+  subtitle = "Step 2 — Verify phone",
+
+  phoneVerified = false,
   maskedPhone,
   error,
+
   phoneForm,
-  otpForm,
-  ui,
-  loading,
-  actions,
+
+  onSend,
+  onCancel,
+
+  sending = false,
+  cancelling = false,
+
+  phoneDisabled = false,
+  sendLabel = "Send code",
+  cancelLabel = "Cancel",
 }: Props) {
   const {
-    register: registerPhone,
-    formState: { errors: phoneErrors },
+    register,
+    formState: { errors },
   } = phoneForm;
 
-  const {
-    register: registerOtp,
-    formState: { errors: otpErrors },
-    handleSubmit: handleOtpSubmit,
-  } = otpForm;
-
-  const isSending = Boolean(loading?.send);
-  const isVerifying = Boolean(loading?.verify);
-  const isEditing = Boolean(loading?.edit);
-  const isCancelling = Boolean(loading?.cancel);
-
-  const busy = isSending || isVerifying || isEditing || isCancelling;
-
-  const title = ui.title ?? "Create your account";
-  const subtitle = ui.subtitle ?? "Step 2 — Verify phone";
-
-  const onClickSend = async () => {
-    await actions.send?.();
-  };
-
-  const onClickEditPhone = async () => {
-    await actions.edit?.();
-  };
-
-  const onSubmitVerify = handleOtpSubmit(async (values) => {
-    await actions.verify?.(values.code);
-  });
-
-  // ✅ page owns the lock policy
-  const phoneDisabled = busy || Boolean(ui.phoneDisabled);
+  const busy = sending || cancelling;
+  const inputDisabled = busy || phoneDisabled;
 
   return (
     <div>
@@ -111,7 +63,6 @@ export function SignupPhoneStep({
         <div style={{ marginTop: 12, color: "red", fontSize: 14 }}>{error}</div>
       )}
 
-      {/* Phone input */}
       <div style={{ marginTop: 16 }}>
         <label htmlFor="phoneNumber" style={{ display: "block", marginBottom: 4 }}>
           Phone number
@@ -121,14 +72,14 @@ export function SignupPhoneStep({
           id="phoneNumber"
           type="tel"
           autoComplete="tel"
-          disabled={phoneDisabled}
-          {...registerPhone("phoneNumber")}
+          disabled={inputDisabled}
+          {...register("phoneNumber")}
           style={{ width: "100%", padding: 8 }}
         />
 
-        {phoneErrors.phoneNumber?.message && (
+        {errors.phoneNumber?.message && (
           <div style={{ marginTop: 4, color: "red", fontSize: 12 }}>
-            {phoneErrors.phoneNumber.message}
+            {errors.phoneNumber.message}
           </div>
         )}
 
@@ -139,99 +90,27 @@ export function SignupPhoneStep({
         )}
       </div>
 
-      {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-        {ui.showSend && (
-          <button
-            type="button"
-            onClick={onClickSend}
-            disabled={busy || !actions.send}
-            style={{ padding: "8px 14px" }}
-          >
-            {isSending ? "Sending..." : ui.sendLabel ?? "Send SMS code"}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={busy}
+          style={{ padding: "8px 14px" }}
+        >
+          {sending ? "Sending..." : sendLabel}
+        </button>
 
-        {ui.showEdit && (
+        {onCancel && (
           <button
             type="button"
-            onClick={onClickEditPhone}
-            disabled={busy || !actions.edit}
+            onClick={onCancel}
+            disabled={busy}
             style={{ padding: "8px 14px" }}
           >
-            {isEditing ? "Updating..." : ui.editLabel ?? "Edit"}
-          </button>
-        )}
-
-        {ui.showBack && (
-          <button
-            type="button"
-            onClick={actions.back}
-            disabled={busy || !actions.back}
-            style={{ padding: "8px 14px" }}
-          >
-            {ui.backLabel ?? "Back"}
-          </button>
-        )}
-
-        {ui.showSkip && (
-          <button
-            type="button"
-            onClick={actions.skip}
-            disabled={busy || !actions.skip}
-            style={{ padding: "8px 14px" }}
-          >
-            {ui.skipLabel ?? "Continue"}
-          </button>
-        )}
-
-        {ui.showCancel && (
-          <button
-            type="button"
-            onClick={actions.cancel}
-            disabled={busy || !actions.cancel}
-            style={{ padding: "8px 14px" }}
-          >
-            {isCancelling ? "Cancelling..." : ui.cancelLabel ?? "Cancel"}
+            {cancelling ? "Cancelling..." : cancelLabel}
           </button>
         )}
       </div>
-
-      {/* OTP verify box */}
-      {ui.showOtpBox && (
-        <form onSubmit={onSubmitVerify} noValidate style={{ marginTop: 18 }}>
-          <div style={{ marginBottom: 8, fontSize: 13, color: "#666" }}>
-            Enter the 6-digit code you received via SMS.
-          </div>
-
-          <label htmlFor="phoneOtp" style={{ display: "block", marginBottom: 4 }}>
-            Verification code
-          </label>
-
-          <input
-            id="phoneOtp"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            disabled={busy}
-            {...registerOtp("code")}
-            style={{ width: "100%", padding: 8 }}
-          />
-
-          {otpErrors.code?.message && (
-            <div style={{ marginTop: 4, color: "red", fontSize: 12 }}>
-              {otpErrors.code.message}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={busy || !actions.verify}
-            style={{ marginTop: 12, padding: "8px 14px" }}
-          >
-            {isVerifying ? "Verifying..." : "Verify"}
-          </button>
-        </form>
-      )}
     </div>
   );
 }

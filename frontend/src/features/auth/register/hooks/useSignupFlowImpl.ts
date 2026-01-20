@@ -3,7 +3,7 @@ import { useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { SignupSessionState, UpdateSignupProfileRequestDto } from "@/features/auth/register/api/signupApi.types"
-import type { RegisterRequest } from "../api/registerApi.types";
+import type { RegisterRequestDto } from "../api/registerApi.types";
 
 import { signupSessionKeys } from "../queries/signupSession.keys";
 import { extractApiMessage } from "../queries/extractApiMessage";
@@ -40,22 +40,35 @@ export function useSignupFlowImpl() {
 
   const view = useMemo(() => {
     const s = status;
+
     return {
       exists: Boolean(s?.exists),
 
       email: s?.email ?? null,
       emailVerified: Boolean(s?.emailVerified),
-      emailOtpPending: Boolean((s as any)?.emailOtpPending), // if you added it to status dto
+      emailOtpPending: Boolean(s?.emailOtpPending),
 
       phoneNumber: s?.phoneNumber ?? null,
       phoneVerified: Boolean(s?.phoneVerified),
-      phoneOtpPending: Boolean((s as any)?.phoneOtpPending), // if you added it to status dto
+      phoneOtpPending: Boolean(s?.phoneOtpPending),
 
       name: s?.name ?? null,
       gender: s?.gender ?? null,
       birthDate: s?.birthDate ?? null,
 
-      state: (s?.state ?? null) as SignupSessionState | null,
+      state: s?.state ?? "DRAFT",
+    } satisfies {
+      exists: boolean;
+      email: string | null;
+      emailVerified: boolean;
+      emailOtpPending: boolean;
+      phoneNumber: string | null;
+      phoneVerified: boolean;
+      phoneOtpPending: boolean;
+      name: string | null;
+      gender: string | null;
+      birthDate: string | null;
+      state: SignupSessionState;
     };
   }, [status]);
 
@@ -144,35 +157,22 @@ export function useSignupFlowImpl() {
     [updateProfileMu, invalidateStatus]
   );
 
-  /**
-   * ✅ cancel: DO NOT navigate here (hook can’t).
-   * Pages should do: navigate(LOGIN) first, then await flow.cancel()
-   */
   const cancel = useCallback(async () => {
     const dto = await cancelMu.mutateAsync();
-
-    // drop cached signup data so layout/status don't keep old errors around
-    qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
-    qc.removeQueries({ queryKey: signupSessionKeys.root });
-
     return dto;
   }, [cancelMu, qc]);
 
-  /**
-   * ✅ register: DO NOT clear cache here (it can race with navigation/layout).
-   * Pages should:
-   *   await flow.register(...)
-   *   navigate("/signup/done", { replace:true })
-   *   flow.clearSignupCache()  // optionally after navigation
-   */
-  const register = useCallback(async (payload: RegisterRequest) => {
-    return await registerMu.mutateAsync(payload);
+  const register = useCallback(async (payload: RegisterRequestDto) => {
+    try {
+      const res = await registerMu.mutateAsync(payload);
+      return res.outcome === "REGISTERED" && res.registered;
+    } catch {
+      // toast handled in mutation onError
+      return false;
+    }
   }, [registerMu]);
 
-  const clearSignupCache = useCallback(() => {
-    qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
-    qc.removeQueries({ queryKey: signupSessionKeys.root });
-  }, [qc]);
+ 
 
   return {
     statusQuery,
@@ -194,7 +194,6 @@ export function useSignupFlowImpl() {
     updateProfile,
     cancel,
     register,
-    clearSignupCache,
 
     mutations: {
       sendOtpMu,

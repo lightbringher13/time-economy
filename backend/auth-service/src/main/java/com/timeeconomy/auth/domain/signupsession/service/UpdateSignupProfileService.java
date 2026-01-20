@@ -49,7 +49,7 @@ public class UpdateSignupProfileService implements UpdateSignupProfileUseCase {
         }
 
         // 1) gate by derived state (or let domain throw and map)
-        if (session.getState() != SignupSessionState.PROFILE_PENDING
+        if (session.getState() != SignupSessionState.PHONE_VERIFIED
                 && session.getState() != SignupSessionState.PROFILE_READY) {
             return new Result(Outcome.INVALID_STATE, false, sessionId, session.getState());
         }

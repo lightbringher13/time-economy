@@ -1,88 +1,64 @@
-// src/features/auth/register/components/SignupProfileStep.tsx
+// src/features/auth/register/components/forms/SignupProfileStep.tsx
 import type { UseFormReturn } from "react-hook-form";
-
 import type {
   SignupProfileFormInput,
   SignupGender,
-} from "../forms/schemas/signupProfile.schema";
+} from "../../forms/schemas/signupProfile.schema";
 
-type ProfileUi = {
+type Props = {
   title?: string;
   subtitle?: string;
 
-  showSubmit?: boolean;
-  showBack?: boolean;
-  showCancel?: boolean;
-  showTip?: boolean;
-
-  submitLabel?: string;
-  backLabel?: string;
-  cancelLabel?: string;
-
-  tipText?: string;
-};
-
-type ProfileLoading = {
-  save?: boolean;
-  cancel?: boolean;
-};
-
-type ProfileActions = {
-  // ✅ Input type, because gender can be "" in the form state
-  submit?: (values: SignupProfileFormInput) => void | Promise<void>;
-  back?: () => void | Promise<void>;
-  cancel?: () => void | Promise<void>;
-};
-
-interface Props {
   error?: string | null;
 
-  // ✅ Input type for RHF form
   form: UseFormReturn<SignupProfileFormInput>;
 
-  ui?: ProfileUi;
-  loading?: ProfileLoading;
-  actions: ProfileActions;
-}
+  onSubmit: (values: SignupProfileFormInput) => void | Promise<void>;
+  onCancel?: () => void | Promise<void>;
+
+  saving?: boolean;
+  cancelling?: boolean;
+
+  submitLabel?: string;
+  cancelLabel?: string;
+};
 
 const genderOptions: Array<{ value: SignupGender; label: string }> = [
   { value: "MALE", label: "Male" },
   { value: "FEMALE", label: "Female" },
 ];
 
-export function SignupProfileStep({ error, form, ui, loading, actions }: Props) {
+export function SignupProfileStep({
+  title = "Create your account",
+  subtitle = "Step 3 — Profile",
+
+  error,
+
+  form,
+
+  onSubmit,
+  onCancel,
+
+  saving = false,
+  cancelling = false,
+
+  submitLabel = "Continue",
+  cancelLabel = "Cancel",
+}: Props) {
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = form;
 
-  const isSaving = Boolean(loading?.save);
-  const isCancelling = Boolean(loading?.cancel);
-  const busy = isSaving || isCancelling;
+  const busy = saving || cancelling;
 
-  const title = ui?.title ?? "Create your account";
-  const subtitle = ui?.subtitle ?? "Step 3 — Profile";
-
-  const showSubmit = ui?.showSubmit ?? true;
-  const showBack = Boolean(ui?.showBack);
-  const showCancel = Boolean(ui?.showCancel);
-  const showTip = ui?.showTip ?? true;
-
-  const submitLabel = ui?.submitLabel ?? "Continue";
-  const backLabel = ui?.backLabel ?? "Back";
-  const cancelLabel = ui?.cancelLabel ?? "Cancel";
-
-  const tipText =
-    ui?.tipText ??
-    "Tip: You can change phone by going back, or using “Edit phone” in the previous step.";
-
-  const onSubmit = handleSubmit(async (values) => {
-    await actions.submit?.(values);
+  const submit = handleSubmit(async (values) => {
+    await onSubmit(values);
   });
 
   return (
-    <form onSubmit={onSubmit} noValidate>
+    <form onSubmit={submit} noValidate>
       <h2>{title}</h2>
       <h3 style={{ marginTop: 8 }}>{subtitle}</h3>
 
@@ -159,44 +135,21 @@ export function SignupProfileStep({ error, form, ui, loading, actions }: Props) 
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-        {showSubmit && (
-          <button
-            type="submit"
-            disabled={busy || !actions.submit}
-            style={{ padding: "8px 14px" }}
-          >
-            {isSaving ? "Saving..." : submitLabel}
-          </button>
-        )}
+        <button type="submit" disabled={busy} style={{ padding: "8px 14px" }}>
+          {saving ? "Saving..." : submitLabel}
+        </button>
 
-        {showBack && (
+        {onCancel && (
           <button
             type="button"
-            onClick={actions.back}
-            disabled={busy || !actions.back}
+            onClick={onCancel}
+            disabled={busy}
             style={{ padding: "8px 14px" }}
           >
-            {backLabel}
-          </button>
-        )}
-
-        {showCancel && (
-          <button
-            type="button"
-            onClick={actions.cancel}
-            disabled={busy || !actions.cancel}
-            style={{ padding: "8px 14px" }}
-          >
-            {isCancelling ? "Cancelling..." : cancelLabel}
+            {cancelling ? "Cancelling..." : cancelLabel}
           </button>
         )}
       </div>
-
-      {showTip && (
-        <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
-          {tipText}
-        </div>
-      )}
     </form>
   );
 }

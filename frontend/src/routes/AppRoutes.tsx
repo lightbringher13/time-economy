@@ -15,10 +15,10 @@ import ChangeEmailPage from "@/features/auth/changeemail/pages/ChangeEmailPage";
 
 // ✅ Signup pages (PUBLIC)
 import SignupLayout from "@/features/auth/register/pages/SignupLayout";
-import SignupEmailPage  from "@/features/auth/register/pages/SignupEmailPage";
-import SignupEmailEditPage from "@/features/auth/register/pages/SignupEmailEditPage";
+import SignupEmailPage from "@/features/auth/register/pages/SignupEmailPage";
+import SignupVerifyEmailOtpPage from "@/features/auth/register/pages/SignupVerifyEmailOtpPage.tsx";
 import SignupPhonePage from "@/features/auth/register/pages/SignupPhonePage";
-import SignupPhoneEditPage from "@/features/auth/register/pages/SignupPhoneEditPage";
+import SignupVerifyPhoneOtpPage from "@/features/auth/register/pages/SignupVerifyPhoneOtpPage.tsx";
 import SignupProfilePage from "@/features/auth/register/pages/SignupProfilePage";
 import SignupReviewPage from "@/features/auth/register/pages/SignupReviewPage";
 import SignupDonePage from "@/features/auth/register/pages/SignupDonePage";
@@ -41,18 +41,21 @@ export function AppRoutes() {
 
         {/* child paths must be RELATIVE */}
         <Route path="email" element={<SignupEmailPage />} />
-        <Route path="edit/email" element={<SignupEmailEditPage />} />
+
+        {/* ✅ NEW: verify pages */}
+        <Route path="verify/email" element={<SignupVerifyEmailOtpPage />} />
+        <Route path="verify/phone" element={<SignupVerifyPhoneOtpPage />} />
+
         <Route path="phone" element={<SignupPhonePage />} />
-        <Route path="edit/phone" element={<SignupPhoneEditPage />} />
         <Route path="profile" element={<SignupProfilePage />} />
         <Route path="review" element={<SignupReviewPage />} />
-        
 
         {/* optional */}
         {/* <Route path="canceled" element={<SignupCanceledPage />} /> */}
         {/* <Route path="expired" element={<SignupExpiredPage />} /> */}
       </Route>
 
+      {/* ✅ done outside the /signup layout tree */}
       <Route path={ROUTES.SIGNUP_DONE} element={<SignupDonePage />} />
 
       {/* Protected routes */}

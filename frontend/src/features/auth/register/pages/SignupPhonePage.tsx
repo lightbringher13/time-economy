@@ -4,25 +4,22 @@ import { useNavigate } from "react-router-dom";
 
 import { SignupPhoneStep } from "../components/forms/SignupPhoneStep";
 import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext"; // ✅ UPDATED
+import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
 import { useSignupPhoneForm } from "../forms/hooks/useSignupPhoneForm";
-import { useSignupPhoneOtpForm } from "../forms/hooks/useSignupPhoneOtpForm";
-
-import { signupPathFromState } from "../routes/signupRouteMap";
 import { ROUTES } from "@/routes/paths";
+import { signupPathFromState } from "../routes/signupPathFromState";
+
+import { getApiError } from "@/shared/api/apiError";
 
 export default function SignupPhonePage() {
-  const flow = useSignupFlow();
-  const shellUi = useSignupShellUi(); // ✅ UPDATED
   const navigate = useNavigate();
+  const flow = useSignupFlow();
+  const shellUi = useSignupShellUi();
 
   const phoneForm = useSignupPhoneForm();
-  const otpForm = useSignupPhoneOtpForm();
 
-  const state = flow.view.state;
-
-  // prefill from server, but don't overwrite user edits
+  // Prefill from server, but never overwrite user edits
   useEffect(() => {
     const serverPhone = flow.view.phoneNumber;
     const dirty = phoneForm.formState.dirtyFields;
@@ -32,8 +29,7 @@ export default function SignupPhonePage() {
     }
   }, [flow.view.phoneNumber, phoneForm, phoneForm.formState.dirtyFields]);
 
-  // ✅ UPDATED: cancel uses shell modal (no immediate navigation/cancel here)
-  const cancel = () => {
+  const onCancel = () => {
     shellUi.openCancelModal({
       reason: "user",
       title: "Cancel signup?",
@@ -42,91 +38,69 @@ export default function SignupPhonePage() {
       cancelLabel: "Keep going",
       destructive: true,
       onConfirm: async () => {
+        shellUi.clearBanner();
         navigate(ROUTES.LOGIN, { replace: true });
         await flow.cancel();
       },
     });
   };
 
-  const onBack = () => {
-    // big-co: "Back" from phone goes to email edit (so user can change email if needed)
-    navigate(ROUTES.SIGNUP_EMAIL_EDIT, { state: { from: "phone" } });
+  const clearUiErrors = () => {
+    phoneForm.clearErrors("phoneNumber");
+    shellUi.clearBanner();
   };
 
   const onSend = async () => {
+    clearUiErrors();
+
     const ok = await phoneForm.trigger("phoneNumber");
     if (!ok) return;
 
     const phone = phoneForm.getValues("phoneNumber");
-    await flow.sendPhoneOtp(phone);
 
-    // clear code input each send/resend
-    otpForm.reset({ code: "" });
+    try {
+      const res = await flow.sendPhoneOtp(phone);
+
+      // navigate based on BE-returned state
+      navigate(signupPathFromState(res.state));
+    } catch (err) {
+      const apiErr = getApiError(err);
+
+      // ✅ inline field errors
+      if (apiErr?.code === "INVALID_DESTINATION" || apiErr?.code === "PHONE_ALREADY_USED") {
+        phoneForm.setError("phoneNumber", { type: "server", message: apiErr.message });
+        return;
+      }
+
+      // ✅ banner errors (invalid state / missing session / network / unknown)
+      shellUi.showBanner({
+        kind: "error",
+        message: apiErr?.message ?? "Request failed.",
+        code: apiErr?.code,
+      });
+
+      // Optional: if session is gone, route user out
+      // if (apiErr?.code === "NO_SESSION") navigate(ROUTES.LOGIN, { replace: true });
+    }
   };
-
-  const onVerify = async (code: string) => {
-    await flow.verifyPhoneOtp(code);
-
-    const next = signupPathFromState(flow.view.state);
-    navigate(next, { replace: true });
-  };
-
-  // ---- UI rules (plain page) ----
-  const isVerified = flow.view.phoneVerified;
-
-  const showOtpBox = state === "PHONE_OTP_SENT" && !isVerified;
-
-  // show send while not verified (EMAIL_VERIFIED or already pending otp)
-  const showSend =
-    !isVerified && (state === "EMAIL_VERIFIED" || state === "PHONE_OTP_SENT");
-
-  const sendLabel = state === "PHONE_OTP_SENT" ? "Resend code" : "Send SMS code";
-
-  /**
-   * Big-co: lock phone input once OTP is pending OR once verified.
-   * change phone happens in /signup/edit/phone
-   */
-  const phoneDisabled = isVerified || state === "PHONE_OTP_SENT";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
       <SignupPhoneStep
-        phoneVerified={isVerified}
+        title="Create your account"
+        subtitle="Step 2 — Verify phone"
+        phoneVerified={Boolean(flow.view.phoneVerified)}
         maskedPhone={flow.view.phoneNumber}
-        error={flow.error ?? undefined}
+        // ✅ banner handles non-field errors
+        error={undefined}
         phoneForm={phoneForm}
-        otpForm={otpForm}
-        ui={{
-          title: "Create your account",
-          subtitle: "Step 2 — Verify phone",
-
-          showOtpBox,
-
-          showSend,
-          sendLabel,
-
-          // ✅ plain page: no edit button
-          showEdit: false,
-
-          showBack: true,
-          backLabel: "Back",
-
-          showCancel: true,
-
-          // ✅ lock rules
-          phoneDisabled,
-        }}
-        loading={{
-          send: Boolean(flow.loading?.sendOtp),
-          verify: Boolean(flow.loading?.verifyOtp),
-          cancel: Boolean(flow.loading?.cancel),
-        }}
-        actions={{
-          send: onSend,
-          verify: onVerify,
-          back: onBack,
-          cancel, // ✅ UPDATED
-        }}
+        onSend={onSend}
+        onCancel={onCancel}
+        sending={Boolean(flow.loading?.sendOtp)}
+        cancelling={Boolean(flow.loading?.cancel)}
+        phoneDisabled={false}
+        sendLabel="Send code"
+        cancelLabel="Cancel"
       />
     </div>
   );

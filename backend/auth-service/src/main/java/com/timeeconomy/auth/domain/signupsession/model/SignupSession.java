@@ -208,7 +208,7 @@ public class SignupSession {
         if (isTerminal()) return;
 
         // big-co: allow profile to be submitted once user is at/after profile stage
-        if (state != SignupSessionState.PROFILE_PENDING && state != SignupSessionState.PROFILE_READY) {
+        if (state != SignupSessionState.PHONE_VERIFIED && state != SignupSessionState.PROFILE_READY) {
             throw new IllegalStateException("Profile not allowed in state=" + state);
         }
 
@@ -302,7 +302,7 @@ public class SignupSession {
                 if (phoneVerified) throw new IllegalStateException("PHONE_OTP_SENT but phoneVerified=true");
                 if (!phoneOtpPending) throw new IllegalStateException("PHONE_OTP_SENT but phoneOtpPending=false");
             }
-            case PROFILE_PENDING -> {
+            case PHONE_VERIFIED -> {
                 if (!emailVerified) throw new IllegalStateException("PROFILE_PENDING but email not verified");
                 if (!phoneVerified) throw new IllegalStateException("PROFILE_PENDING but phone not verified");
             }
@@ -351,7 +351,7 @@ public class SignupSession {
         }
 
         if (isBlank(name) || isBlank(gender) || birthDate == null) {
-            return SignupSessionState.PROFILE_PENDING;
+            return SignupSessionState.PHONE_VERIFIED;
         }
 
         return SignupSessionState.PROFILE_READY;

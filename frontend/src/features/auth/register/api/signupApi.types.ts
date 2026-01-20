@@ -6,7 +6,6 @@ export type SignupSessionState =
   | "EMAIL_VERIFIED"
   | "PHONE_OTP_SENT"
   | "PHONE_VERIFIED"
-  | "PROFILE_PENDING"
   | "PROFILE_READY"
   | "COMPLETED"
   | "CANCELED"
@@ -39,23 +38,25 @@ export interface SignupStatusResponseDto {
 // ---------------------
 // Send OTP
 // ---------------------
-export interface SendSignupOtpRequestDto {
-  target: SignupVerificationTarget;
-  destination: string; // email or phone
-}
+// src/features/auth/register/api/signupApi.types.ts
 
+// ✅ include the new outcomes
 export type SendSignupOtpOutcome =
   | "SENT"
   | "ALREADY_VERIFIED"
   | "INVALID_DESTINATION"
-  | "THROTTLED";
+  | "THROTTLED"
+  | "EMAIL_ALREADY_USED"
+  | "PHONE_ALREADY_USED";
 
+// ✅ sessionId is not always guaranteed on invalid input / duplicates,
+// so make it nullable (safer and matches reality)
 export interface SendSignupOtpResponseDto {
   outcome: SendSignupOtpOutcome;
   sent: boolean;
 
-  sessionId: string;          // always present when outcome is SENT/ALREADY_VERIFIED
-  sessionCreated: boolean;    // ✅ NEW
+  sessionId: string | null;
+  sessionCreated: boolean;
 
   challengeId: string | null;
   ttlMinutes: number;
@@ -64,10 +65,15 @@ export interface SendSignupOtpResponseDto {
   emailVerified: boolean;
   phoneVerified: boolean;
 
-  emailOtpPending: boolean;   // ✅ NEW
-  phoneOtpPending: boolean;   // ✅ NEW
+  emailOtpPending: boolean;
+  phoneOtpPending: boolean;
 
   state: SignupSessionState;
+}
+
+export interface SendSignupOtpRequestDto {
+  target: SignupVerificationTarget;
+  destination: string;
 }
 
 // ---------------------
@@ -103,19 +109,43 @@ export interface VerifySignupOtpResponseDto {
 // ---------------------
 // Cancel
 // ---------------------
+// src/features/auth/register/api/signupApi.types.ts
+
+export type CancelSignupSessionOutcome =
+  | "CANCELED"
+  | "ALREADY_TERMINAL"
+  | "NO_SESSION"
+  | "INVALID_INPUT";
+
 export interface CancelSignupSessionResponseDto {
-  sessionId: string | null;
+  outcome: CancelSignupSessionOutcome;
+  canceled: boolean;
+
+  sessionId: string;
   state: SignupSessionState;
 }
 
 // ---------------------
 // Profile
 // ---------------------
-export type SignupGender = "MALE" | "FEMALE" | "OTHER";
-export type LocalDateString = string; // "YYYY-MM-DD"
+export type SignupGender = "MALE" | "FEMALE"; // keep in sync with BE + your zod enum
+export type LocalDateString = string;
 
 export type UpdateSignupProfileRequestDto = {
   name: string;
   gender: SignupGender;
   birthDate: LocalDateString;
+};
+
+export type UpdateSignupProfileOutcome =
+  | "UPDATED"
+  | "NO_SESSION"
+  | "INVALID_INPUT"
+  | "INVALID_STATE";
+
+export type UpdateSignupProfileResponseDto = {
+  outcome: UpdateSignupProfileOutcome;
+  updated: boolean;
+  sessionId: string;
+  state: SignupSessionState;
 };

@@ -7,22 +7,18 @@ import { useSignupFlow } from "../hooks/SignupFlowContext";
 import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
-import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
-
-import { signupPathFromState } from "../routes/signupRouteMap";
 import { ROUTES } from "@/routes/paths";
+import { signupPathFromState } from "../routes/signupPathFromState";
+
+import { getApiError } from "@/shared/api/apiError";
 
 export default function SignupEmailPage() {
   const navigate = useNavigate();
   const flow = useSignupFlow();
   const shellUi = useSignupShellUi();
-
   const emailForm = useSignupEmailForm();
-  const otpForm = useSignupEmailOtpForm();
 
-  const state = flow.view.state;
-
-  // prefill from server, but don't overwrite user edits
+  // Prefill from server, but never overwrite user edits
   useEffect(() => {
     const serverEmail = flow.view.email;
     const dirty = emailForm.formState.dirtyFields;
@@ -41,73 +37,64 @@ export default function SignupEmailPage() {
       cancelLabel: "Keep going",
       destructive: true,
       onConfirm: async () => {
-        // leave signup tree first so layout effects stop fighting navigation
         navigate(ROUTES.LOGIN, { replace: true });
         await flow.cancel();
       },
     });
   };
 
+  const clearUiErrors = () => {
+    emailForm.clearErrors("email");
+    shellUi.clearBanner(); // ✅ implement in SignupShellUiContext (no-op if none)
+  };
+
   const onSend = async () => {
+    clearUiErrors();
+
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = emailForm.getValues("email");
-    await flow.sendEmailOtp(email);
 
-    // clear code input each send/resend
-    otpForm.reset({ code: "" });
+    try {
+      const res = await flow.sendEmailOtp(email);
+
+      // Navigate based on BE-returned state (EMAIL_OTP_SENT => verify page)
+      navigate(signupPathFromState(res.state));
+    } catch (err) {
+      const apiErr = getApiError(err);
+
+      // ✅ inline field errors
+      if (apiErr?.code === "INVALID_DESTINATION" || apiErr?.code === "EMAIL_ALREADY_USED") {
+        emailForm.setError("email", { type: "server", message: apiErr.message });
+        return;
+      }
+
+      // ✅ banner errors (unknown / network / invalid state, etc.)
+      shellUi.showBanner({
+        kind: "error",
+        message: apiErr?.message ?? "Request failed.",
+        code: apiErr?.code,
+      });
+    }
   };
-
-  const onVerify = async (code: string) => {
-    await flow.verifyEmailOtp(code);
-
-    // go canonical after verify (likely /signup/phone)
-    const next = signupPathFromState(flow.view.state);
-    navigate(next, { replace: true });
-  };
-
-  // ---- UI rules (plain page) ----
-  const isVerified = flow.view.emailVerified;
-
-  const showOtpBox = state === "EMAIL_OTP_SENT" && !isVerified;
-
-  // show send while not verified (draft or otp sent)
-  const showSend = !isVerified && (state === "DRAFT" || state === "EMAIL_OTP_SENT");
-  const sendLabel = state === "EMAIL_OTP_SENT" ? "Resend code" : "Send code";
-
-  // lock email input once OTP is pending OR once verified
-  const emailDisabled = isVerified || state === "EMAIL_OTP_SENT";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
       <SignupEmailStep
-        emailVerified={isVerified}
+        title="Create your account"
+        subtitle="Step 1 — Verify email"
+        emailVerified={Boolean(flow.view.emailVerified)}
         maskedEmail={flow.view.email}
-        error={flow.error ?? undefined}
+        error={undefined}
         emailForm={emailForm}
-        otpForm={otpForm}
-        ui={{
-          title: "Create your account",
-          subtitle: "Step 1 — Verify email",
-          showOtpBox,
-          showSend,
-          sendLabel,
-          showEdit: false,
-          showBack: false,
-          showCancel: true,
-          emailDisabled,
-        }}
-        loading={{
-          send: Boolean(flow.loading?.sendOtp),
-          verify: Boolean(flow.loading?.verifyOtp),
-          cancel: Boolean(flow.loading?.cancel),
-        }}
-        actions={{
-          send: onSend,
-          verify: onVerify,
-          cancel: onCancel, // ✅ modal now
-        }}
+        onSend={onSend}
+        onCancel={onCancel}
+        sending={Boolean(flow.loading?.sendOtp)}
+        cancelling={Boolean(flow.loading?.cancel)}
+        emailDisabled={false}
+        sendLabel="Send code"
+        cancelLabel="Cancel"
       />
     </div>
   );

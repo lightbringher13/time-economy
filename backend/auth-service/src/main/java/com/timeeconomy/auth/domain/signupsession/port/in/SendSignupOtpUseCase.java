@@ -19,24 +19,33 @@ public interface SendSignupOtpUseCase {
     ) {}
 
     enum Outcome {
-        SENT,               // OTP issued
-        ALREADY_VERIFIED,   // target already verified; no OTP sent
-        INVALID_DESTINATION,// missing/invalid email/phone
-        THROTTLED           // resend blocked (cooldown/rate limit)
+        SENT,
+
+        EMAIL_ALREADY_USED,
+        PHONE_ALREADY_USED,
+
+        ALREADY_VERIFIED,
+        INVALID_DESTINATION,
+
+        // ✅ ADD THESE (so we don't throw for expected cases)
+        INVALID_STATE,      // e.g. phone OTP requested before email verified
+        INVALID_INPUT,      // e.g. null target / null command
+
+        THROTTLED
     }
 
     record Result(
             Outcome outcome,
             boolean sent,
             UUID sessionId,
-            boolean sessionCreated,         // ✅ NEW: true if session was created in this call
+            boolean sessionCreated,
             String challengeId,
             int ttlMinutes,
             String maskedDestination,
             boolean emailVerified,
             boolean phoneVerified,
-            boolean emailOtpPending,        // ✅ NEW: fact
-            boolean phoneOtpPending,        // ✅ NEW: fact
-            SignupSessionState state        // derived state from facts
+            boolean emailOtpPending,
+            boolean phoneOtpPending,
+            SignupSessionState state
     ) {}
 }

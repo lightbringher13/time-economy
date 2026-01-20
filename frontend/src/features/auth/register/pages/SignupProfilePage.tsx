@@ -1,11 +1,12 @@
 // src/features/auth/register/pages/SignupProfilePage.tsx
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { getApiError } from "@/shared/api/apiError";
 
 import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext"; // ✅ UPDATED
-import { SignupProfileStep } from "../components/forms/SignupProfileStep";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
+import { SignupProfileStep } from "../components/forms/SignupProfileStep";
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
 import {
   signupProfileSchema,
@@ -14,14 +15,15 @@ import {
 } from "../forms/schemas/signupProfile.schema";
 
 import { ROUTES } from "@/routes/paths";
+import { signupPathFromState } from "../routes/signupPathFromState";
 
 export default function SignupProfilePage() {
   const flow = useSignupFlow();
-  const shellUi = useSignupShellUi(); // ✅ UPDATED
+  const shellUi = useSignupShellUi();
   const profileForm = useSignupProfileForm();
   const navigate = useNavigate();
 
-  // ✅ Prefill from server, never overwrite user edits
+  // Prefill from server, never overwrite user edits
   useEffect(() => {
     const s = flow.status;
     if (!s) return;
@@ -32,7 +34,6 @@ export default function SignupProfilePage() {
       profileForm.setValue("name", s.name, { shouldValidate: true });
     }
 
-    // ✅ server gender should be strict enum only
     if (s.gender && !dirty.gender) {
       const parsed = genderEnum.safeParse(s.gender);
       if (parsed.success) {
@@ -51,25 +52,47 @@ export default function SignupProfilePage() {
     profileForm.formState.dirtyFields,
   ]);
 
-  // ✅ IMPORTANT: Submit receives INPUT type (gender may be "")
+  const clearUiErrors = () => {
+    shellUi.clearBanner();
+    profileForm.clearErrors(); // clears server inline errors too
+  };
+
   const onSubmit = async (values: SignupProfileFormInput) => {
-    // ✅ Convert UI input -> validated output (gender becomes "MALE" | "FEMALE")
+    clearUiErrors();
+
+    // client-side strict validation (keeps your existing behavior)
     const parsed = signupProfileSchema.parse(values);
 
-    await flow.updateProfile({
-      name: parsed.name,
-      gender: parsed.gender,
-      birthDate: parsed.birthDate,
-    });
+    try {
+      const res = await flow.updateProfile({
+        name: parsed.name,
+        gender: parsed.gender,
+        birthDate: parsed.birthDate,
+      });
 
-    navigate(ROUTES.SIGNUP_REVIEW, { replace: true });
+      navigate(signupPathFromState(res.state));
+    } catch (err) {
+      const apiErr = getApiError(err);
+
+      // ✅ inline: bad user input
+      if (apiErr?.code === "INVALID_INPUT") {
+        // If BE doesn't provide per-field details, put it on a "safe" field
+        profileForm.setError("name", { type: "server", message: apiErr.message });
+        return;
+      }
+
+      // ✅ banner: session/state/unknown/network
+      shellUi.showBanner({
+        kind: "error",
+        code: apiErr?.code,
+        message: apiErr?.message ?? "Profile update failed.",
+      });
+
+      // optional: if session is missing, you can redirect user out
+      // if (apiErr?.code === "NO_SESSION") navigate(ROUTES.LOGIN, { replace: true });
+    }
   };
 
-  const onBack = () => {
-    navigate(ROUTES.SIGNUP_PHONE_EDIT, { state: { from: "profile" } });
-  };
-
-  // ✅ UPDATED: cancel uses shell modal
   const onCancel = () => {
     shellUi.openCancelModal({
       reason: "user",
@@ -79,6 +102,7 @@ export default function SignupProfilePage() {
       cancelLabel: "Keep going",
       destructive: true,
       onConfirm: async () => {
+        shellUi.clearBanner(); // optional
         navigate(ROUTES.LOGIN, { replace: true });
         await flow.cancel();
       },
@@ -88,28 +112,14 @@ export default function SignupProfilePage() {
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
       <SignupProfileStep
-        error={flow.error ?? undefined}
+        // ✅ don’t use flow.error banner + toast + inline at same time
+        // Use the banner we added in Shell UI + RHF inline errors
+        error={undefined}
         form={profileForm}
-        ui={{
-          title: "Create your account",
-          subtitle: "Step 3 — Profile",
-          showSubmit: true,
-          showBack: true,
-          showCancel: true,
-          showTip: true,
-          submitLabel: "Continue",
-          backLabel: "Back",
-          cancelLabel: "Cancel",
-        }}
-        loading={{
-          save: Boolean(flow.loading?.updateProfile),
-          cancel: Boolean(flow.loading?.cancel),
-        }}
-        actions={{
-          submit: onSubmit,
-          back: onBack,
-          cancel: onCancel, // ✅ UPDATED
-        }}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        saving={Boolean(flow.loading?.updateProfile)}
+        cancelling={Boolean(flow.loading?.cancel)}
       />
     </div>
   );

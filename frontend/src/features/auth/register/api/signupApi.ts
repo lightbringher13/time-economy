@@ -8,6 +8,7 @@ import type {
   VerifySignupOtpResponseDto,
   CancelSignupSessionResponseDto,
   UpdateSignupProfileRequestDto,
+  UpdateSignupProfileResponseDto,
 } from "@/features/auth/register/api/signupApi.types"
 
 // ✅ bootstrap is removed in big-co version (lazy-open in send-otp)
@@ -46,6 +47,10 @@ export async function cancelSignupSessionApi(): Promise<CancelSignupSessionRespo
 
 export async function updateSignupProfileApi(
   payload: UpdateSignupProfileRequestDto
-): Promise<void> {
-  await apiClient.patch("/auth/signup/profile", payload);
+): Promise<UpdateSignupProfileResponseDto> {
+  const res = await apiClient.patch<UpdateSignupProfileResponseDto>(
+    "/auth/signup/profile",
+    payload
+  );
+  return res.data;
 }
