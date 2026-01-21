@@ -1,5 +1,5 @@
 // backend/auth-service/src/main/java/com/timeeconomy/auth/domain/signupsession/port/in/GetCompletedSignupSessionInfoUseCase.java
-package com.timeeconomy.auth.domain.signupsession.port.in;
+package com.timeeconomy.auth.domain.signupsession.port.in.internal;
 
 import java.time.LocalDate;
 import java.util.UUID;

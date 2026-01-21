@@ -1,28 +1,23 @@
 package com.timeeconomy.auth.domain.auth.service;
 
 import com.timeeconomy.auth.domain.auth.model.AuthUser;
+import com.timeeconomy.auth.domain.auth.model.payload.AuthUserRegisteredPayload;
 import com.timeeconomy.auth.domain.auth.port.in.RegisterUseCase;
 import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.common.security.port.PasswordEncoderPort;
-import com.timeeconomy.auth.domain.exception.EmailAlreadyUsedException;
-import com.timeeconomy.auth.domain.exception.EmailNotVerifiedException;
-import com.timeeconomy.auth.domain.exception.PhoneNotVerifiedException;
-import com.timeeconomy.auth.domain.exception.PhoneNumberAlreadyUsedException;
-import com.timeeconomy.auth.domain.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
+import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
-import com.timeeconomy.auth.domain.auth.model.payload.AuthUserRegisteredPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
-
-
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,10 +27,7 @@ public class RegisterService implements RegisterUseCase {
     private final PasswordEncoderPort passwordEncoderPort;
     private final SignupSessionStorePort signupSessionRepositoryPort;
 
-    // ✅ OUTBOX
     private final OutboxEventRepositoryPort outboxEventRepositoryPort;
-
-    // ✅ OUTBOX PAYLOAD SERIALIZER (port)
     private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
 
     private final Clock clock;
@@ -43,75 +35,81 @@ public class RegisterService implements RegisterUseCase {
     @Override
     @Transactional
     public RegisterResult register(RegisterCommand command) {
-        if (command.signupSessionId() == null) {
-            throw new SignupSessionNotFoundException("Missing signup session");
+        if (command == null || command.signupSessionId() == null) {
+            return fail(Outcome.NO_SESSION, null);
         }
 
+        if (command.password() == null || command.password().isBlank()) {
+            return fail(Outcome.INVALID_INPUT, command.signupSessionId());
+        }
+
+        UUID sessionId = command.signupSessionId();
         Instant now = Instant.now(clock);
 
         SignupSession session = signupSessionRepositoryPort
-                .findActiveById(command.signupSessionId(), now)
-                .orElseThrow(() -> new SignupSessionNotFoundException("Signup session not found or expired"));
+                .findActiveById(sessionId, now)
+                .orElse(null);
 
-        String email = normalizeEmail(command.email());
-
-        if (session.getEmail() == null || !session.getEmail().equalsIgnoreCase(email)) {
-            throw new SignupSessionNotFoundException("Email mismatch between signup session and request");
+        if (session == null) {
+            return fail(Outcome.SESSION_EXPIRED_OR_NOT_FOUND, sessionId);
         }
 
-        if (!session.isEmailVerified()) {
-            throw new EmailNotVerifiedException("Email must be verified to register");
+        // ✅ Big-co: only allow registration from PROFILE_READY
+        if (session.getState() != SignupSessionState.PROFILE_READY) {
+            return fail(Outcome.INVALID_STATE, sessionId);
         }
 
-        if (!session.isPhoneVerified()) {
-            throw new PhoneNotVerifiedException("Phone number must be verified to register");
+        // ✅ Source of truth is the session
+        String email = session.getEmail();              // already normalized in your domain
+        String phoneNumber = session.getPhoneNumber();  // already normalized in your domain
+
+        // duplicates
+        if (authUserRepositoryPort.findByEmail(email).isPresent()) {
+            return fail(Outcome.EMAIL_ALREADY_USED, sessionId);
         }
 
-        authUserRepositoryPort.findByEmail(email).ifPresent(existing -> {
-            session.setEmailVerified(false);
-            signupSessionRepositoryPort.save(session);
-            throw new EmailAlreadyUsedException("Email is already in use");
-        });
+        if (authUserRepositoryPort.findByPhoneNumber(phoneNumber).isPresent()) {
+            return fail(Outcome.PHONE_ALREADY_USED, sessionId);
+        }
 
-        authUserRepositoryPort.findByPhoneNumber(command.phoneNumber()).ifPresent(existing -> {
-            session.setPhoneVerified(false);
-            signupSessionRepositoryPort.save(session);
-            throw new PhoneNumberAlreadyUsedException("Phone number is already in use");
-        });
-
+        // create user
         String passwordHash = passwordEncoderPort.encode(command.password());
 
-        AuthUser user = new AuthUser(email, passwordHash, command.phoneNumber());
+        AuthUser user = new AuthUser(email, passwordHash, phoneNumber);
         user.setEmailVerified(true);
         user.setPhoneVerified(true);
 
         AuthUser saved = authUserRepositoryPort.save(user);
 
+        // complete session
         session.markCompleted(now);
         signupSessionRepositoryPort.save(session);
 
-        // ✅ OUTBOX EVENT APPEND (for CDC / Debezium)
-        String payloadJson = outboxPayloadSerializerPort.serialize(new AuthUserRegisteredPayload(
-                saved.getId(),
-                command.signupSessionId()
-        ));
+        // outbox
+        String payloadJson = outboxPayloadSerializerPort.serialize(
+                new AuthUserRegisteredPayload(saved.getId(), sessionId)
+        );
 
         OutboxEvent event = OutboxEvent.newPending(
-                "auth_user",               // aggregateType
-                saved.getId().toString(),   // aggregateId
-                "AuthUserRegistered.v1",    // eventType
+                "auth_user",
+                saved.getId().toString(),
+                "AuthUserRegistered.v1",
                 payloadJson,
                 now
         );
 
         outboxEventRepositoryPort.save(event);
 
-        return new RegisterResult(saved.getId(), saved.getEmail());
+        return new RegisterResult(
+                Outcome.REGISTERED,
+                true,
+                sessionId,
+                saved.getId(),
+                saved.getEmail()
+        );
     }
 
-    private String normalizeEmail(String raw) {
-        if (raw == null) return null;
-        return raw.trim().toLowerCase();
+    private RegisterResult fail(Outcome outcome, UUID sessionId) {
+        return new RegisterResult(outcome, false, sessionId, null, null);
     }
-    
 }

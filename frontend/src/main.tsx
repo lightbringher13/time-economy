@@ -6,14 +6,12 @@ import App from "./App";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
-// ✅ Create once (top-level)
+import { Toaster } from "react-hot-toast"; // ✅ add
+
 const queryClient = new QueryClient();
 
 const rootElement = document.getElementById("root");
-
-if (!rootElement) {
-  throw new Error("Root element not found");
-}
+if (!rootElement) throw new Error("Root element not found");
 
 const root = ReactDOM.createRoot(rootElement);
 
@@ -21,10 +19,18 @@ root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        {/* ✅ global toast host */}
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 4000,
+            style: { fontSize: "20px" },
+          }}
+        />
+
         <App />
       </BrowserRouter>
 
-      {/* ✅ Dev only (won’t show in production build) */}
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   </React.StrictMode>

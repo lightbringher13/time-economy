@@ -1,110 +1,125 @@
 // src/features/auth/register/pages/SignupProfilePage.tsx
-import { useEffect, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { getApiError } from "@/shared/api/apiError";
 
-import { useSignupFlow } from "../hooks/useSignupFlow";
-import { SignupProfileStep } from "../components/SignupProfileStep";
+import { useSignupFlow } from "../hooks/SignupFlowContext";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
+import { SignupProfileStep } from "../components/forms/SignupProfileStep";
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
-import type { SignupProfileFormValues } from "../forms/schemas/signupProfile.schema";
+import {
+  signupProfileSchema,
+  genderEnum,
+  type SignupProfileFormInput,
+} from "../forms/schemas/signupProfile.schema";
 
-import { signupPathFromState } from "../routes/signupRouteMap";
-import type { SignupSessionState } from "../api/signupApi.types";
-
-const PROFILE_PAGE_ALLOWED: SignupSessionState[] = ["PROFILE_PENDING","PROFILE_READY"];
+import { ROUTES } from "@/routes/paths";
+import { signupPathFromState } from "../routes/signupPathFromState";
 
 export default function SignupProfilePage() {
   const flow = useSignupFlow();
+  const shellUi = useSignupShellUi();
   const profileForm = useSignupProfileForm();
-
   const navigate = useNavigate();
-  const location = useLocation();
 
-  // ---- bootstrap once ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
-  // ---- route guard ----
-  useEffect(() => {
-    if (!flow.state) return;
-
-    if (PROFILE_PAGE_ALLOWED.includes(flow.state)) return;
-
-    const path = signupPathFromState(flow.state);
-    if (path !== location.pathname) {
-      navigate(path, { replace: true });
-    }
-  }, [flow.state, navigate, location.pathname]);
-
-  // ---- prefill from server once ----
+  // Prefill from server, never overwrite user edits
   useEffect(() => {
     const s = flow.status;
     if (!s) return;
 
-    if (s.name && !profileForm.getValues("name")) {
+    const dirty = profileForm.formState.dirtyFields;
+
+    if (s.name && !dirty.name) {
       profileForm.setValue("name", s.name, { shouldValidate: true });
     }
-    if (s.gender && !profileForm.getValues("gender")) {
-      profileForm.setValue("gender", s.gender as any, { shouldValidate: true });
+
+    if (s.gender && !dirty.gender) {
+      const parsed = genderEnum.safeParse(s.gender);
+      if (parsed.success) {
+        profileForm.setValue("gender", parsed.data, { shouldValidate: true });
+      }
     }
-    if (s.birthDate && !profileForm.getValues("birthDate")) {
+
+    if (s.birthDate && !dirty.birthDate) {
       profileForm.setValue("birthDate", s.birthDate, { shouldValidate: true });
     }
-  }, [flow.status?.name, flow.status?.gender, flow.status?.birthDate, profileForm]);
+  }, [
+    flow.status?.name,
+    flow.status?.gender,
+    flow.status?.birthDate,
+    profileForm,
+    profileForm.formState.dirtyFields,
+  ]);
 
-  // ---- handlers ----
-  const onSubmit = async (values: SignupProfileFormValues) => {
-    await flow.updateProfile({
-      email: flow.status?.email ?? null,
-      phoneNumber: flow.status?.phoneNumber ?? null,
-      name: values.name,
-      gender: values.gender,
-      birthDate: values.birthDate,
+  const clearUiErrors = () => {
+    shellUi.clearBanner();
+    profileForm.clearErrors(); // clears server inline errors too
+  };
+
+  const onSubmit = async (values: SignupProfileFormInput) => {
+    clearUiErrors();
+
+    // client-side strict validation (keeps your existing behavior)
+    const parsed = signupProfileSchema.parse(values);
+
+    try {
+      const res = await flow.updateProfile({
+        name: parsed.name,
+        gender: parsed.gender,
+        birthDate: parsed.birthDate,
+      });
+
+      navigate(signupPathFromState(res.state));
+    } catch (err) {
+      const apiErr = getApiError(err);
+
+      // ✅ inline: bad user input
+      if (apiErr?.code === "INVALID_INPUT") {
+        // If BE doesn't provide per-field details, put it on a "safe" field
+        profileForm.setError("name", { type: "server", message: apiErr.message });
+        return;
+      }
+
+      // ✅ banner: session/state/unknown/network
+      shellUi.showBanner({
+        kind: "error",
+        code: apiErr?.code,
+        message: apiErr?.message ?? "Profile update failed.",
+      });
+
+      // optional: if session is missing, you can redirect user out
+      // if (apiErr?.code === "NO_SESSION") navigate(ROUTES.LOGIN, { replace: true });
+    }
+  };
+
+  const onCancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        shellUi.clearBanner(); // optional
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
     });
-
-    // optional (recommended): navigate immediately for better UX
-    navigate("/signup/review", { replace: true });
-  };
-
-  const onBackToPhone = () => {
-    navigate("/signup/edit/phone");
-  };
-
-  const onCancel = async () => {
-    await flow.cancel();
-    // since cancel may remove cache / state becomes null, redirect explicitly
-    navigate("/signup/email", { replace: true });
   };
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
       <SignupProfileStep
-        error={flow.error ?? undefined}
+        // ✅ don’t use flow.error banner + toast + inline at same time
+        // Use the banner we added in Shell UI + RHF inline errors
+        error={undefined}
         form={profileForm}
-        ui={{
-          title: "Create your account",
-          subtitle: "Step 3 — Profile",
-          showSubmit: true,
-          showBack: true,
-          showCancel: true,
-          showTip: true,
-          submitLabel: "Continue",
-          backLabel: "Back",
-          cancelLabel: "Cancel",
-        }}
-        loading={{
-          save: Boolean(flow.loading?.updateProfile),
-          cancel: Boolean(flow.loading?.cancel),
-        }}
-        actions={{
-          submit: onSubmit,
-          back: onBackToPhone,
-          cancel: onCancel,
-        }}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+        saving={Boolean(flow.loading?.updateProfile)}
+        cancelling={Boolean(flow.loading?.cancel)}
       />
     </div>
   );

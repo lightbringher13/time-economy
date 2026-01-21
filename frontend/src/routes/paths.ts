@@ -3,12 +3,14 @@ export const ROUTES = {
   DASHBOARD: "/dashboard",
   LOGIN: "/login",
 
-  // ✅ Signup (multi-step)
   SIGNUP: "/signup",
   SIGNUP_EMAIL: "/signup/email",
-  SIGNUP_EMAIL_EDIT: "/signup/edit/email",
+
+  // ✅ NEW: verify pages
+  SIGNUP_VERIFY_EMAIL: "/signup/verify/email",
+  SIGNUP_VERIFY_PHONE: "/signup/verify/phone",
+
   SIGNUP_PHONE: "/signup/phone",
-  SIGNUP_PHONE_EDIT: "/signup/edit/phone",
   SIGNUP_PROFILE: "/signup/profile",
   SIGNUP_REVIEW: "/signup/review",
   SIGNUP_DONE: "/signup/done",

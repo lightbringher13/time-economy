@@ -1,11 +1,11 @@
 // backend/auth-service/src/main/java/com/timeeconomy/auth/domain/signupsession/service/GetCompletedSignupSessionInfoService.java
-package com.timeeconomy.auth.domain.signupsession.service;
+package com.timeeconomy.auth.domain.signupsession.service.internal;
 
 import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotCompletedException;
 import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotFoundException;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
-import com.timeeconomy.auth.domain.signupsession.port.in.GetCompletedSignupSessionInfoUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.in.internal.GetCompletedSignupSessionInfoUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

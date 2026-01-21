@@ -25,33 +25,46 @@ public class GetSignupSessionStatusService implements GetSignupSessionStatusUseC
     @Transactional(readOnly = true)
     public Result getStatus(Query query) {
         UUID sessionId = query.sessionId();
+
+        if (sessionId == null) {
+            return noSession();
+        }
+
         Instant now = Instant.now(clock);
 
         return signupSessionRepositoryPort.findActiveById(sessionId, now)
                 .map(this::mapToResult)
-                .orElseGet(() -> new Result(
-                        false,
-                        null,
-                        false,
-                        null,
-                        false,
-                        null,
-                        null,
-                        null,
-                        SignupSessionState.EXPIRED // "not found / expired" fallback
-                ));
+                .orElseGet(this::noSession);
+    }
+
+    private Result noSession() {
+        return new Result(
+                false,
+                null,
+                false,
+                false,          // emailOtpPending
+                null,
+                false,
+                false,          // phoneOtpPending
+                null,
+                null,
+                null,
+                SignupSessionState.DRAFT
+        );
     }
 
     private Result mapToResult(SignupSession s) {
-        // Optional: if your store might still return terminal states, normalize here
-        SignupSessionState state = s.getState() == null ? SignupSessionState.EXPIRED : s.getState();
+        SignupSessionState state =
+                (s.getState() == null) ? SignupSessionState.DRAFT : s.getState();
 
         return new Result(
                 true,
                 s.getEmail(),
                 s.isEmailVerified(),
+                s.isEmailOtpPending(),   // ✅ NEW
                 s.getPhoneNumber(),
                 s.isPhoneVerified(),
+                s.isPhoneOtpPending(),   // ✅ NEW
                 s.getName(),
                 s.getGender(),
                 s.getBirthDate(),

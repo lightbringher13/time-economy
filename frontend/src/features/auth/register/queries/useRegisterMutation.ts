@@ -1,19 +1,19 @@
+// src/features/auth/register/queries/useRegisterMutation.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { registerApi } from "../api/registerApi";
-
+import type { RegisterRequestDto, RegisterResponseDto } from "../api/registerApi.types";
 import { signupSessionKeys } from "./signupSession.keys";
 
 export function useRegisterMutation() {
   const qc = useQueryClient();
 
-  return useMutation({
+  return useMutation<RegisterResponseDto, unknown, RegisterRequestDto>({
     mutationFn: registerApi,
 
+    // ✅ only side-effects that are always safe on success
     onSuccess: () => {
-      // after register, backend clears signup cookie.
-      // status query should now become "EXPIRED/NOT_FOUND" or "COMPLETED" depending on your BE,
-      // so force refetch.
-      qc.invalidateQueries({ queryKey: signupSessionKeys.root });
+      // cookie cleared on success -> signup session is gone
+      qc.removeQueries({ queryKey: signupSessionKeys.status(), exact: true });
     },
   });
 }

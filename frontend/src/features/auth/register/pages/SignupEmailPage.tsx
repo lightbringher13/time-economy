@@ -1,117 +1,100 @@
 // src/features/auth/register/pages/SignupEmailPage.tsx
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { SignupEmailStep } from "../components/SignupEmailStep";
-import { useSignupFlow } from "../hooks/useSignupFlow";
+import { SignupEmailStep } from "../components/forms/SignupEmailStep";
+import { useSignupFlow } from "../hooks/SignupFlowContext";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
-import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
+import { ROUTES } from "@/routes/paths";
+import { signupPathFromState } from "../routes/signupPathFromState";
 
-import { signupPathFromState } from "../routes/signupRouteMap";
+import { getApiError } from "@/shared/api/apiError";
 
 export default function SignupEmailPage() {
   const navigate = useNavigate();
   const flow = useSignupFlow();
-
+  const shellUi = useSignupShellUi();
   const emailForm = useSignupEmailForm();
-  const otpForm = useSignupEmailOtpForm();
 
-  // ---- bootstrap once (creates/refreshes session cookie) ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
-
-  // ---- route guard: if server state says "not email step", redirect ----
-  const state = flow.view.state;
-  const expectedPath = useMemo(() => signupPathFromState(state), [state]);
-
-  useEffect(() => {
-    if (!state) return;
-    if (expectedPath !== "/signup/email") {
-      navigate(expectedPath, { replace: true });
-    }
-  }, [expectedPath, state, navigate]);
-
-  // ---- prefill email from server once ----
+  // Prefill from server, but never overwrite user edits
   useEffect(() => {
     const serverEmail = flow.view.email;
-    if (serverEmail && !emailForm.getValues("email")) {
+    const dirty = emailForm.formState.dirtyFields;
+
+    if (serverEmail && !dirty.email) {
       emailForm.setValue("email", serverEmail, { shouldValidate: true });
     }
-  }, [flow.view.email, emailForm]);
+  }, [flow.view.email, emailForm, emailForm.formState.dirtyFields]);
 
-  // ---- handlers (same logic as before) ----
-  const cancel = async () => {
-    await flow.cancel();
-    // after cancel, state becomes CANCELED -> guard redirects
+  const onCancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
+    });
   };
 
-  const editEmail = async (newEmail: string) => {
-    await flow.editEmail(newEmail);
-    otpForm.reset({ code: "" });
+  const clearUiErrors = () => {
+    emailForm.clearErrors("email");
+    shellUi.clearBanner(); // ✅ implement in SignupShellUiContext (no-op if none)
   };
 
-  const sendEmailOtp = async () => {
+  const onSend = async () => {
+    clearUiErrors();
+
     const ok = await emailForm.trigger("email");
     if (!ok) return;
 
     const email = emailForm.getValues("email");
-    await editEmail(email);     // persist first
-    await flow.sendEmailOtp();  // then send
+
+    try {
+      const res = await flow.sendEmailOtp(email);
+
+      // Navigate based on BE-returned state (EMAIL_OTP_SENT => verify page)
+      navigate(signupPathFromState(res.state));
+    } catch (err) {
+      const apiErr = getApiError(err);
+
+      // ✅ inline field errors
+      if (apiErr?.code === "INVALID_DESTINATION" || apiErr?.code === "EMAIL_ALREADY_USED") {
+        emailForm.setError("email", { type: "server", message: apiErr.message });
+        return;
+      }
+
+      // ✅ banner errors (unknown / network / invalid state, etc.)
+      shellUi.showBanner({
+        kind: "error",
+        message: apiErr?.message ?? "Request failed.",
+        code: apiErr?.code,
+      });
+    }
   };
-
-  const resendEmailOtp = async () => {
-    otpForm.reset({ code: "" });
-    await flow.resendEmailOtp();
-  };
-
-  const verifyEmailOtp = async (code: string) => {
-    await flow.verifyEmailOtp(code);
-    const path = signupPathFromState(state);
-    navigate(path, { replace: true });
-  };
-
-  // ---- UI flags computed here (page decides) ----
-  const showOtpBox = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
-  const showSend = state === "DRAFT" && !flow.view.emailVerified;
-  const showResend = state === "EMAIL_OTP_SENT" && !flow.view.emailVerified;
-
-  // Optional: show edit in this page or move edit to /signup/edit/email
-  const showEdit = state === "EMAIL_OTP_SENT" || state === "EMAIL_VERIFIED";
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
       <SignupEmailStep
-        emailVerified={flow.view.emailVerified}
+        title="Create your account"
+        subtitle="Step 1 — Verify email"
+        emailVerified={Boolean(flow.view.emailVerified)}
         maskedEmail={flow.view.email}
-        error={flow.error ?? undefined}
+        error={undefined}
         emailForm={emailForm}
-        otpForm={otpForm}
-        ui={{
-          showOtpBox,
-          showSend,
-          showResend,
-          showEdit,      // set false if you want edit only in /signup/edit/email
-          showCancel: true,
-        }}
-        loading={{
-          send: Boolean(flow.loading?.sendOtp),
-          resend: Boolean(flow.loading?.resendOtp),
-          verify: Boolean(flow.loading?.verifyOtp),
-          edit: Boolean(flow.loading?.editEmail),
-          cancel: Boolean(flow.loading?.cancel),
-        }}
-        actions={{
-          send: sendEmailOtp,
-          resend: resendEmailOtp,
-          verify: verifyEmailOtp,
-          edit: editEmail,
-          cancel,
-        }}
+        onSend={onSend}
+        onCancel={onCancel}
+        sending={Boolean(flow.loading?.sendOtp)}
+        cancelling={Boolean(flow.loading?.cancel)}
+        emailDisabled={false}
+        sendLabel="Send code"
+        cancelLabel="Cancel"
       />
     </div>
   );

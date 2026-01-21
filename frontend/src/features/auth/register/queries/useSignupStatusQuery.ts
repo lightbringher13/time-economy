@@ -1,4 +1,4 @@
-// src/features/auth/register/queries/signupSession.queries.ts
+// src/features/auth/register/queries/useSignupStatusQuery.ts
 import { useQuery } from "@tanstack/react-query";
 import { getSignupStatusApi } from "../api/signupApi";
 import { signupSessionKeys } from "./signupSession.keys";

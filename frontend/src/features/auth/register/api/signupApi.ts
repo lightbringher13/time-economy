@@ -1,23 +1,18 @@
+// src/features/auth/register/api/signupApi.ts
 import { apiClient } from "@/shared/api/apiClient";
 import type {
-  SignupBootstrapResponseDto,
   SignupStatusResponseDto,
   SendSignupOtpRequestDto,
   SendSignupOtpResponseDto,
-  ResendSignupOtpRequestDto,
-  ResendSignupOtpResponseDto,
   VerifySignupOtpRequestDto,
   VerifySignupOtpResponseDto,
-  EditSignupEmailRequestDto,
-  EditSignupPhoneRequestDto,
   CancelSignupSessionResponseDto,
-  UpdateSignupProfileRequestDto
+  UpdateSignupProfileRequestDto,
+  UpdateSignupProfileResponseDto,
 } from "@/features/auth/register/api/signupApi.types"
 
-export async function signupBootstrapApi(): Promise<SignupBootstrapResponseDto> {
-  const res = await apiClient.get<SignupBootstrapResponseDto>("/auth/signup/bootstrap");
-  return res.data;
-}
+// ✅ bootstrap is removed in big-co version (lazy-open in send-otp)
+// export async function signupBootstrapApi() { ... }
 
 export async function getSignupStatusApi(): Promise<SignupStatusResponseDto> {
   const res = await apiClient.get<SignupStatusResponseDto>("/auth/signup/status");
@@ -27,31 +22,21 @@ export async function getSignupStatusApi(): Promise<SignupStatusResponseDto> {
 export async function sendSignupOtpApi(
   payload: SendSignupOtpRequestDto
 ): Promise<SendSignupOtpResponseDto> {
-  const res = await apiClient.post<SendSignupOtpResponseDto>("/auth/signup/send-otp", payload);
-  return res.data;
-}
-
-export async function resendSignupOtpApi(
-  payload: ResendSignupOtpRequestDto
-): Promise<ResendSignupOtpResponseDto> {
-  const res = await apiClient.post<ResendSignupOtpResponseDto>("/auth/signup/resend-otp", payload);
+  const res = await apiClient.post<SendSignupOtpResponseDto>(
+    "/auth/signup/send-otp",
+    payload
+  );
   return res.data;
 }
 
 export async function verifySignupOtpApi(
   payload: VerifySignupOtpRequestDto
 ): Promise<VerifySignupOtpResponseDto> {
-  const res = await apiClient.post<VerifySignupOtpResponseDto>("/auth/signup/verify-otp", payload);
-  return res.data;
-}
-
-export async function editSignupEmailApi(payload: EditSignupEmailRequestDto) {
-  const res = await apiClient.post("/auth/signup/edit-email", payload);
-  return res.data;
-}
-
-export async function editSignupPhoneApi(payload: EditSignupPhoneRequestDto) {
-  const res = await apiClient.post("/auth/signup/edit-phone", payload);
+  // ✅ cookie-only API: DO NOT send sessionId in body
+  const res = await apiClient.post<VerifySignupOtpResponseDto>(
+    "/auth/signup/verify-otp",
+    payload
+  );
   return res.data;
 }
 
@@ -62,6 +47,10 @@ export async function cancelSignupSessionApi(): Promise<CancelSignupSessionRespo
 
 export async function updateSignupProfileApi(
   payload: UpdateSignupProfileRequestDto
-): Promise<void> {
-  await apiClient.patch("/auth/signup/profile", payload);
+): Promise<UpdateSignupProfileResponseDto> {
+  const res = await apiClient.patch<UpdateSignupProfileResponseDto>(
+    "/auth/signup/profile",
+    payload
+  );
+  return res.data;
 }

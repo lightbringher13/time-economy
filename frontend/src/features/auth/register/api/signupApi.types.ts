@@ -1,10 +1,11 @@
+// src/features/auth/register/api/signupApi.types.ts
+
 export type SignupSessionState =
   | "DRAFT"
   | "EMAIL_OTP_SENT"
   | "EMAIL_VERIFIED"
   | "PHONE_OTP_SENT"
   | "PHONE_VERIFIED"
-  | "PROFILE_PENDING"
   | "PROFILE_READY"
   | "COMPLETED"
   | "CANCELED"
@@ -12,74 +13,139 @@ export type SignupSessionState =
 
 export type SignupVerificationTarget = "EMAIL" | "PHONE";
 
-export interface SignupBootstrapResponseDto {
+// ---------------------
+// Status
+// ---------------------
+export interface SignupStatusResponseDto {
   exists: boolean;
+
   email: string | null;
   emailVerified: boolean;
+
   phoneNumber: string | null;
   phoneVerified: boolean;
+
   name: string | null;
   gender: string | null;
   birthDate: string | null; // yyyy-mm-dd
-  state: SignupSessionState | null;
+
+  state: SignupSessionState;
+  
+  emailOtpPending: boolean;
+  phoneOtpPending: boolean;
 }
 
-export interface SignupStatusResponseDto extends SignupBootstrapResponseDto {}
+// ---------------------
+// Send OTP
+// ---------------------
+// src/features/auth/register/api/signupApi.types.ts
+
+// ✅ include the new outcomes
+export type SendSignupOtpOutcome =
+  | "SENT"
+  | "ALREADY_VERIFIED"
+  | "INVALID_DESTINATION"
+  | "THROTTLED"
+  | "EMAIL_ALREADY_USED"
+  | "PHONE_ALREADY_USED";
+
+// ✅ sessionId is not always guaranteed on invalid input / duplicates,
+// so make it nullable (safer and matches reality)
+export interface SendSignupOtpResponseDto {
+  outcome: SendSignupOtpOutcome;
+  sent: boolean;
+
+  sessionId: string | null;
+  sessionCreated: boolean;
+
+  challengeId: string | null;
+  ttlMinutes: number;
+  maskedDestination: string | null;
+
+  emailVerified: boolean;
+  phoneVerified: boolean;
+
+  emailOtpPending: boolean;
+  phoneOtpPending: boolean;
+
+  state: SignupSessionState;
+}
 
 export interface SendSignupOtpRequestDto {
   target: SignupVerificationTarget;
-}
-export interface SendSignupOtpResponseDto {
-  sent: boolean;
-  ttlMinutes: number;
-  maskedDestination: string | null;
-  emailVerified: boolean;
-  phoneVerified: boolean;
-  state: SignupSessionState;
+  destination: string;
 }
 
-export interface ResendSignupOtpRequestDto {
-  target: SignupVerificationTarget;
-}
-export interface ResendSignupOtpResponseDto {
-  sent: boolean;
-  ttlMinutes: number;
-  maskedDestination: string | null;
-  state: SignupSessionState;
-}
-
+// ---------------------
+// Verify OTP
+// ---------------------
 export interface VerifySignupOtpRequestDto {
   target: SignupVerificationTarget;
   code: string;
-  sessionId?: string; // optional if your API accepts cookie-only
 }
+
+export type VerifySignupOtpOutcome =
+  | "VERIFIED"
+  | "WRONG_CODE"
+  | "NO_SESSION"
+  | "NO_PENDING_OTP"
+  | "INVALID_INPUT";
+
 export interface VerifySignupOtpResponseDto {
+  outcome: VerifySignupOtpOutcome;
   success: boolean;
+
+  sessionId: string | null;
+
   emailVerified: boolean;
   phoneVerified: boolean;
-  state: string; // or SignupSessionState if you return it
-}
 
-export interface EditSignupEmailRequestDto {
-  newEmail: string;
-}
-export interface EditSignupPhoneRequestDto {
-  newPhoneNumber: string;
-}
+  emailOtpPending: boolean;
+  phoneOtpPending: boolean;
 
-export interface CancelSignupSessionResponseDto {
   state: SignupSessionState;
 }
 
-export type SignupGender = "MALE" | "FEMALE" | "OTHER";
+// ---------------------
+// Cancel
+// ---------------------
+// src/features/auth/register/api/signupApi.types.ts
 
-// BE expects LocalDate. In FE we send "YYYY-MM-DD" and let Jackson parse it.
+export type CancelSignupSessionOutcome =
+  | "CANCELED"
+  | "ALREADY_TERMINAL"
+  | "NO_SESSION"
+  | "INVALID_INPUT";
+
+export interface CancelSignupSessionResponseDto {
+  outcome: CancelSignupSessionOutcome;
+  canceled: boolean;
+
+  sessionId: string;
+  state: SignupSessionState;
+}
+
+// ---------------------
+// Profile
+// ---------------------
+export type SignupGender = "MALE" | "FEMALE"; // keep in sync with BE + your zod enum
 export type LocalDateString = string;
 
 export type UpdateSignupProfileRequestDto = {
-  email?: string | null;        // optional: you can send null if you don’t want to update
   name: string;
-  phoneNumber?: string | null;  // optional (but your BE currently accepts it)
   gender: SignupGender;
-  birthDate: LocalDateString;   // "YYYY-MM-DD"
+  birthDate: LocalDateString;
+};
+
+export type UpdateSignupProfileOutcome =
+  | "UPDATED"
+  | "NO_SESSION"
+  | "INVALID_INPUT"
+  | "INVALID_STATE";
+
+export type UpdateSignupProfileResponseDto = {
+  outcome: UpdateSignupProfileOutcome;
+  updated: boolean;
+  sessionId: string;
+  state: SignupSessionState;
 };

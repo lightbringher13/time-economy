@@ -8,14 +8,16 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 
 public interface GetSignupSessionStatusUseCase {
 
-  record Query(UUID sessionId) {}
+  record Query(UUID sessionId) {} // may be null
 
   record Result(
       boolean exists,
       String email,
       boolean emailVerified,
+      boolean emailOtpPending,    // ✅ NEW
       String phoneNumber,
       boolean phoneVerified,
+      boolean phoneOtpPending,    // ✅ NEW
       String name,
       String gender,
       LocalDate birthDate,

@@ -1,13 +1,11 @@
-// backend/auth-service/src/main/java/com/timeeconomy/auth/domain/signupsession/service/CancelSignupSessionService.java
 package com.timeeconomy.auth.domain.signupsession.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.exception.SignupSessionNotFoundException;
-import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotActiveException;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
+import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.port.in.CancelSignupSessionUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
 
@@ -26,38 +24,49 @@ import java.util.UUID;
 public class CancelSignupSessionService implements CancelSignupSessionUseCase {
 
     private final SignupSessionStorePort signupSessionStorePort;
-    private final VerificationChallengeRepositoryPort verificationChallengeRepositoryPort; // ✅ optional but good
+    private final VerificationChallengeRepositoryPort verificationChallengeRepositoryPort;
     private final Clock clock;
 
     @Override
     @Transactional
     public Result cancel(Command command) {
-        Instant now = Instant.now(clock);
-        UUID sessionId = command.sessionId();
+        final Instant now = Instant.now(clock);
 
-        SignupSession session = signupSessionStorePort.findById(sessionId)
-                .orElseThrow(() -> new SignupSessionNotFoundException(sessionId));
+        if (command == null) {
+            return new Result(Outcome.INVALID_INPUT, false, null, SignupSessionState.DRAFT);
+        }
 
-        // expire materialization
+        final UUID sessionId = command.sessionId();
+        if (sessionId == null) {
+            return new Result(Outcome.NO_SESSION, false, null, SignupSessionState.EXPIRED);
+        }
+
+        // Big-co: “not found” is normal => NO_SESSION (don’t throw)
+        final SignupSession session = signupSessionStorePort.findById(sessionId).orElse(null);
+        if (session == null) {
+            return new Result(Outcome.NO_SESSION, false, sessionId, SignupSessionState.EXPIRED);
+        }
+
+        // If expired, treat as NO_SESSION (expected) — don’t throw
         if (session.expireIfNeeded(now)) {
             signupSessionStorePort.save(session);
-            throw new SignupSessionNotActiveException("Signup session expired");
+            return new Result(Outcome.NO_SESSION, false, sessionId, SignupSessionState.EXPIRED);
         }
 
-        // idempotent: already terminal -> return current state
+        // idempotent
         if (session.isTerminal()) {
-            return new Result(session.getId(), session.getState());
+            return new Result(Outcome.ALREADY_TERMINAL, false, session.getId(), session.getState());
         }
 
-        // mark canceled
+        // cancel
         session.cancel(now);
         signupSessionStorePort.save(session);
 
-        // ✅ cancel any pending signup OTP challenges (email + phone)
+        // cancel pending challenges (best effort)
         cancelPendingOtp(now, sessionId, VerificationPurpose.SIGNUP_EMAIL, VerificationChannel.EMAIL);
         cancelPendingOtp(now, sessionId, VerificationPurpose.SIGNUP_PHONE, VerificationChannel.SMS);
 
-        return new Result(session.getId(), session.getState());
+        return new Result(Outcome.CANCELED, true, session.getId(), session.getState());
     }
 
     private void cancelPendingOtp(

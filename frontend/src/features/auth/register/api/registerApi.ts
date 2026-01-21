@@ -1,10 +1,10 @@
 import { apiClient } from "@/shared/api/apiClient";
 
-import type { RegisterRequest, RegisterResponse } from "./registerApi.types";
+import type { RegisterRequestDto, RegisterResponseDto } from "./registerApi.types";
 
 export async function registerApi(
-  data: RegisterRequest
-): Promise<RegisterResponse> {
-  const res = await apiClient.post<RegisterResponse>("/auth/register", data);
+  data: RegisterRequestDto
+): Promise<RegisterResponseDto> {
+  const res = await apiClient.post<RegisterResponseDto>("/auth/register", data);
   return res.data;
 }

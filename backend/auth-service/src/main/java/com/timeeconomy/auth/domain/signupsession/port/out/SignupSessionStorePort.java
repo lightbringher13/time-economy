@@ -18,6 +18,8 @@ public interface SignupSessionStorePort {
      */
     Optional<SignupSession> findById(UUID id);
 
+    SignupSession createNew(Instant now);
+
     /**
      * Find latest non-expired, non-completed signup session by email.
      */
@@ -28,7 +30,7 @@ public interface SignupSessionStorePort {
      */
     default Optional<SignupSession> findActiveById(UUID id, Instant now) {
         return findById(id)
-        .filter(s -> !s.isTerminal())
-        .filter(s -> !s.isExpired(now));
+            .filter(s -> !s.isTerminal())
+            .filter(s -> s.getExpiresAt() == null || s.getExpiresAt().isAfter(now));
     }
 }

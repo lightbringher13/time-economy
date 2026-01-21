@@ -1,95 +1,115 @@
 // src/features/auth/register/pages/SignupReviewPage.tsx
-import { useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { ROUTES } from "@/routes/paths";
 
-import { useSignupFlow } from "../hooks/useSignupFlow";
-import { signupPathFromState } from "../routes/signupRouteMap";
+import { useSignupFlow } from "../hooks/SignupFlowContext";
+import { useSignupShellUi } from "../hooks/SignupShellUiContext";
 
-import { SignupReviewStep } from "../components/SignupReviewStep";
+import { SignupReviewStep } from "../components/forms/SignupReviewStep";
 import { useSignupPasswordForm } from "../forms/hooks/useSignupPasswordForm";
+
+import { getApiError } from "@/shared/api/apiError";
 
 export default function SignupReviewPage() {
   const flow = useSignupFlow();
+  const shellUi = useSignupShellUi();
   const navigate = useNavigate();
-
   const passwordForm = useSignupPasswordForm();
 
-  // ---- bootstrap once (ensures cookie/session exists) ----
-  const bootedRef = useRef(false);
-  useEffect(() => {
-    if (bootedRef.current) return;
-    bootedRef.current = true;
-    void flow.bootstrap();
-  }, [flow.bootstrap]);
+  const clearUiErrors = () => {
+    passwordForm.clearErrors();
+    shellUi.clearBanner();
+  };
 
-  // ---- route guard: if server state says not REVIEW, redirect ----
-  const expectedPath = useMemo(() => {
-    return signupPathFromState(flow.state);
-  }, [flow.state]);
-
-  useEffect(() => {
-    if (!flow.state) return;
-
-    if (expectedPath !== "/signup/review") {
-      navigate(expectedPath, { replace: true });
-    }
-  }, [expectedPath, flow.state, navigate]);
-
-  // ---- actions ----
   const onCreate = async (password: string) => {
-    const s = flow.status;
+    clearUiErrors();
 
-    const email = s?.email ?? null;
-    const phoneNumber = s?.phoneNumber ?? null;
-    const name = s?.name ?? null;
-    const gender = s?.gender ?? null;
-    const birthDate = s?.birthDate ?? null;
+    try {
+      await flow.register({ password }); // throws on non-2xx
+      shellUi.clearBanner();
+      navigate(ROUTES.SIGNUP_DONE, { replace: true });
+    } catch (err) {
+      const apiErr = getApiError(err);
 
-    if (!email || !phoneNumber || !name || !gender || !birthDate) {
-      navigate("/signup/profile", { replace: true });
-      return;
+      // ✅ inline (field-level)
+      if (apiErr?.code === "INVALID_INPUT") {
+        passwordForm.setError("password", { type: "server", message: apiErr.message });
+        return;
+      }
+
+      // ✅ banner (session/state/conflict/network/etc.)
+      shellUi.showBanner({
+        kind: "error",
+        code: apiErr?.code,
+        message: apiErr?.message ?? "Registration failed. Please try again.",
+      });
+
+      // ✅ optional big-co routing: if session is dead, exit signup
+      if (
+        apiErr?.code === "NO_SESSION" ||
+        apiErr?.code === "SESSION_EXPIRED_OR_NOT_FOUND"
+      ) {
+        navigate(ROUTES.LOGIN, { replace: true });
+      }
     }
+  };
 
-    await flow.register({
-      email,
-      password,
-      phoneNumber,
-      name,
-      gender,
-      birthDate,
+  const onCancel = () => {
+    shellUi.openCancelModal({
+      reason: "user",
+      title: "Cancel signup?",
+      description: "Your signup progress will be discarded. You can start again anytime.",
+      confirmLabel: "Cancel signup",
+      cancelLabel: "Keep going",
+      destructive: true,
+      onConfirm: async () => {
+        shellUi.clearBanner(); // prevent banner leaking to login
+        navigate(ROUTES.LOGIN, { replace: true });
+        await flow.cancel();
+      },
     });
-
-    // ✅ register clears cookie => do NOT rely on status after this
-    navigate("/signup/done", { replace: true });
   };
 
-  const onBack = () => {
-    navigate("/signup/profile");
-  };
-
-  const onCancel = async () => {
-    await flow.cancel();
-    navigate("/signup/email", { replace: true });
-  };
-
-  // ✅ NEW: edit actions (navigation only)
   const onEditEmail = () => {
-    // optional: add returnTo later if you want
-    navigate("/signup/edit/email");
+    clearUiErrors();
+    shellUi.openConfirmModal({
+      title: "Edit email?",
+      description:
+        "Changing your email requires verifying the new email again. Your progress will be kept, but verification will be required.",
+      confirmLabel: "Continue",
+      cancelLabel: "Stay here",
+      onConfirm: () => navigate(ROUTES.SIGNUP_EMAIL),
+    });
   };
 
   const onEditPhone = () => {
-    navigate("/signup/edit/phone");
+    clearUiErrors();
+    shellUi.openConfirmModal({
+      title: "Edit phone number?",
+      description:
+        "Changing your phone number requires verifying the new phone again. Your progress will be kept, but verification will be required.",
+      confirmLabel: "Continue",
+      cancelLabel: "Stay here",
+      onConfirm: () => navigate(ROUTES.SIGNUP_PHONE),
+    });
   };
 
-  // ✅ per-action flags
-  const isCreating = flow.mutations.registerMu.isPending;
-  const isCancelling = flow.mutations.cancelMu.isPending;
+  const onEditProfile = () => {
+    clearUiErrors();
+    shellUi.openConfirmModal({
+      title: "Edit profile?",
+      description: "You can update your name, gender, and birth date. Your progress will be kept.",
+      confirmLabel: "Continue",
+      cancelLabel: "Stay here",
+      onConfirm: () => navigate(ROUTES.SIGNUP_PROFILE),
+    });
+  };
 
   return (
     <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
       <SignupReviewStep
-        error={flow.error ?? undefined}
+        // ✅ banner is shown globally by ShellUiContext, so don't also show step error
+        error={undefined}
         data={{
           email: flow.status?.email ?? null,
           phoneNumber: flow.status?.phoneNumber ?? null,
@@ -98,41 +118,13 @@ export default function SignupReviewPage() {
           birthDate: flow.status?.birthDate ?? null,
         }}
         passwordForm={passwordForm}
-        ui={{
-          title: "Create your account",
-          subtitle: "Step 4 — Review",
-          showCreate: true,
-          showBack: true,
-          showCancel: true,
-
-          // ✅ NEW
-          showEditEmail: true,
-          showEditPhone: true,
-          editEmailLabel: "Edit email",
-          editPhoneLabel: "Edit phone",
-
-          createLabel: "Create account",
-          backLabel: "Back",
-          cancelLabel: "Cancel",
-        }}
-        loading={{
-          create: isCreating,
-          cancel: isCancelling,
-          back: false,
-
-          // ✅ NEW (optional; navigation-only so keep false)
-          editEmail: false,
-          editPhone: false,
-        }}
-        actions={{
-          create: onCreate,
-          back: onBack,
-          cancel: onCancel,
-
-          // ✅ NEW
-          editEmail: onEditEmail,
-          editPhone: onEditPhone,
-        }}
+        loadingCreate={Boolean(flow.loading?.register)}
+        loadingCancel={Boolean(flow.loading?.cancel)}
+        onCreate={onCreate}
+        onCancel={onCancel}
+        onEditEmail={onEditEmail}
+        onEditPhone={onEditPhone}
+        onEditProfile={onEditProfile}
       />
     </div>
   );

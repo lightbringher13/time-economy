@@ -1,13 +1,22 @@
-export type RegisterRequest = {
-  email: string;
+// src/features/auth/register/api/registerApi.types.ts (or inside signupApi.types.ts)
+
+export type RegisterRequestDto = {
   password: string;
-  phoneNumber: string;
-  name: string;
-  gender: string;        // "MALE" | "FEMALE" | "OTHER" | etc. (depending on UI)
-  birthDate: string;     // "yyyy-MM-dd"
 };
 
-export type RegisterResponse = {
-  userId: number;
-  email: string;
+export type RegisterOutcome =
+  | "REGISTERED"
+  | "NO_SESSION"
+  | "SESSION_EXPIRED_OR_NOT_FOUND"
+  | "INVALID_STATE"
+  | "EMAIL_ALREADY_USED"
+  | "PHONE_ALREADY_USED"
+  | "INVALID_INPUT";
+
+// What the controller returns (recommended: always include outcome)
+export type RegisterResponseDto = {
+  outcome: RegisterOutcome;
+  registered: boolean;
+  userId: number | null;
+  email: string | null;
 };
