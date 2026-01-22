@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.adapter.out.redis.signupsession;
+package com.timeeconomy.auth.adapter.out.signupsession.persistence;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
 
 import java.time.Clock;
 import java.time.Duration;

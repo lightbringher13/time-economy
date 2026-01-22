@@ -6,7 +6,8 @@ import com.timeeconomy.auth.domain.signupsession.exception.SignupSessionNotFound
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.port.in.internal.GetCompletedSignupSessionInfoUseCase;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.domain.verification.port.out;
+package com.timeeconomy.auth.domain.verification.port.out.persistence;
 
 import java.util.Optional;
 import java.time.Duration;

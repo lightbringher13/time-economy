@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.adapter.out.redis.verification;
+package com.timeeconomy.auth.adapter.out.verification.persistence;
 
 import java.time.Instant;
 

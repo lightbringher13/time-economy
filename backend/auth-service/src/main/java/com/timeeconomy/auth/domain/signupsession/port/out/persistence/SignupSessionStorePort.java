@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.domain.signupsession.port.out;
+package com.timeeconomy.auth.domain.signupsession.port.out.persistence;
 
 import java.time.Instant;
 import java.util.Optional;

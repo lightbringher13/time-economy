@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
 
 import java.time.Clock;
 import java.time.Instant;

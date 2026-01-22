@@ -5,17 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.auth.port.out.AuthUserRepositoryPort;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.model.SignupVerificationTarget;
 import com.timeeconomy.auth.domain.signupsession.port.in.SendSignupOtpUseCase;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
-
-import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
-import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
-import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.out.integration.SignupIdentityUniquenessPort;
+import com.timeeconomy.auth.domain.signupsession.port.out.integration.SignupOtpIssuerPort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -30,9 +26,11 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
     private static final Duration OTP_TTL = Duration.ofMinutes(10);
     private static final int OTP_MAX_ATTEMPTS = 5;
 
+    // ✅ SignupSession-owned dependencies
     private final SignupSessionStorePort signupSessionStorePort;
-    private final AuthUserRepositoryPort authUserRepositoryPort;
-    private final CreateOtpUseCase createOtpUseCase;
+    private final SignupIdentityUniquenessPort uniquenessPort;
+    private final SignupOtpIssuerPort otpIssuerPort;
+
     private final Clock clock;
 
     @Override
@@ -50,14 +48,22 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
             return invalidDestination(command.sessionId());
         }
 
-        // 1) fast-fail duplicates (no exceptions)
+        // 1) fast-fail duplicates (no exceptions, via SignupSession port)
         if (target == SignupVerificationTarget.EMAIL) {
-            if (authUserRepositoryPort.findByEmail(destination).isPresent()) {
+            var u = uniquenessPort.checkEmail(destination);
+            if (u.outcome() == SignupIdentityUniquenessPort.Outcome.EMAIL_ALREADY_USED) {
                 return simpleOutcome(Outcome.EMAIL_ALREADY_USED, command.sessionId());
             }
+            if (u.outcome() == SignupIdentityUniquenessPort.Outcome.INVALID_INPUT) {
+                return invalidDestination(command.sessionId());
+            }
         } else {
-            if (authUserRepositoryPort.findByPhoneNumber(destination).isPresent()) {
+            var u = uniquenessPort.checkPhone(destination);
+            if (u.outcome() == SignupIdentityUniquenessPort.Outcome.PHONE_ALREADY_USED) {
                 return simpleOutcome(Outcome.PHONE_ALREADY_USED, command.sessionId());
+            }
+            if (u.outcome() == SignupIdentityUniquenessPort.Outcome.INVALID_INPUT) {
+                return invalidDestination(command.sessionId());
             }
         }
 
@@ -84,16 +90,16 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
             return fromSession(Outcome.ALREADY_VERIFIED, false, session, sessionCreated, null, 0, null);
         }
 
-        // 5) verification params
-        final VerificationPurpose purpose =
+        // 5) resolve issuer params (SignupSession-owned enums)
+        final SignupOtpIssuerPort.Purpose purpose =
                 (target == SignupVerificationTarget.EMAIL)
-                        ? VerificationPurpose.SIGNUP_EMAIL
-                        : VerificationPurpose.SIGNUP_PHONE;
+                        ? SignupOtpIssuerPort.Purpose.SIGNUP_EMAIL
+                        : SignupOtpIssuerPort.Purpose.SIGNUP_PHONE;
 
-        final VerificationChannel channel =
+        final SignupOtpIssuerPort.Channel channel =
                 (target == SignupVerificationTarget.EMAIL)
-                        ? VerificationChannel.EMAIL
-                        : VerificationChannel.SMS;
+                        ? SignupOtpIssuerPort.Channel.EMAIL
+                        : SignupOtpIssuerPort.Channel.SMS;
 
         log.info("[SignupSendOtp] sessionId={} created={} target={} purpose={} channel={} destMasked={} ip={} uaPresent={}",
                 session.getId(),
@@ -106,9 +112,8 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 command.userAgent() != null && !command.userAgent().isBlank()
         );
 
-        // 6) create OTP first
-        var createdOtp = createOtpUseCase.createOtp(new CreateOtpUseCase.CreateOtpCommand(
-                VerificationSubjectType.SIGNUP_SESSION,
+        // 6) issue OTP first (via SignupSession port)
+        var issued = otpIssuerPort.issue(new SignupOtpIssuerPort.IssueCommand(
                 session.getId().toString(),
                 purpose,
                 channel,
@@ -120,19 +125,19 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
         ));
 
         // ✅ If throttled / not sent, do NOT mutate session facts/state
-        if (!createdOtp.sent()) {
+        if (!issued.sent()) {
             return fromSession(
                     Outcome.THROTTLED,
                     false,
                     session,
                     sessionCreated,
-                    createdOtp.challengeId(),
-                    createdOtp.ttlMinutes(),
-                    createdOtp.maskedDestination()
+                    issued.challengeId(),
+                    issued.ttlMinutes(),
+                    issued.maskedDestination()
             );
         }
 
-        // 7) apply domain command AFTER OTP creation
+        // 7) apply domain command AFTER OTP issuance
         try {
             if (target == SignupVerificationTarget.EMAIL) {
                 session.requestEmailOtp(destination, now);
@@ -152,9 +157,9 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 true,
                 session,
                 sessionCreated,
-                createdOtp.challengeId(),
-                createdOtp.ttlMinutes(),
-                createdOtp.maskedDestination()
+                issued.challengeId(),
+                issued.ttlMinutes(),
+                issued.maskedDestination()
         );
     }
 
@@ -250,9 +255,9 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
         return raw == null ? null : raw.trim();
     }
 
-    private String mask(VerificationChannel channel, String destination) {
+    private String mask(SignupOtpIssuerPort.Channel channel, String destination) {
         if (destination == null) return "***";
-        if (channel == VerificationChannel.EMAIL) {
+        if (channel == SignupOtpIssuerPort.Channel.EMAIL) {
             int at = destination.indexOf('@');
             if (at <= 1) return "***" + destination.substring(Math.max(0, at));
             return destination.charAt(0) + "***" + destination.substring(at);

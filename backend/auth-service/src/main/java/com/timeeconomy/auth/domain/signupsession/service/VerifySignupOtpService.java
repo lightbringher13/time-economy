@@ -10,16 +10,11 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.model.SignupVerificationTarget;
 import com.timeeconomy.auth.domain.signupsession.port.in.VerifySignupOtpUseCase;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
-
-import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
-import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
-import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
+import com.timeeconomy.auth.domain.signupsession.port.out.integration.SignupOtpVerifierPort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.UUID;
 
 @Slf4j
@@ -28,22 +23,17 @@ import java.util.UUID;
 public class VerifySignupOtpService implements VerifySignupOtpUseCase {
 
     private final SignupSessionStorePort signupSessionStorePort;
-    private final VerifyOtpUseCase verifyOtpUseCase;
+    private final SignupOtpVerifierPort otpVerifierPort;   // ✅ SignupSession-owned port
     private final Clock clock;
 
     @Override
     @Transactional
     public Result verify(Command command) {
-        Objects.requireNonNull(command, "command is required");
-
         final Instant now = Instant.now(clock);
 
         // 0) Validate input (big-co: return outcome, don’t throw)
-        final SignupVerificationTarget target = command.target();
-        final String code = command.code();
-
-        if (target == null || code == null || code.isBlank()) {
-            return ResultBuilder.invalidInput(command.sessionId());
+        if (command == null || command.target() == null || command.code() == null || command.code().isBlank()) {
+            return ResultBuilder.invalidInput(command == null ? null : command.sessionId());
         }
 
         // 1) No session id => NO_SESSION (cookie missing / expired)
@@ -62,43 +52,41 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
         }
 
         // 3) Gate using FACTS (otpPending), not state
-        if (target == SignupVerificationTarget.EMAIL) {
-            return verifyEmail(session, code, now);
-        } else {
-            return verifyPhone(session, code, now);
-        }
+        return (command.target() == SignupVerificationTarget.EMAIL)
+                ? verifyEmail(session, command.code(), now)
+                : verifyPhone(session, command.code(), now);
     }
 
     private Result verifyEmail(SignupSession session, String code, Instant now) {
-        // no pending => no verify allowed
         if (!session.isEmailOtpPending()) {
             return ResultBuilder.noPendingOtp(session);
         }
 
         final String destination = session.getEmail();
         if (destination == null || destination.isBlank()) {
-            // session corrupted/inconsistent; treat as no-pending (safe UX)
             return ResultBuilder.noPendingOtp(session);
         }
 
-        final boolean ok = verifyOtpUseCase.verifyOtp(
-                new VerifyOtpUseCase.VerifyOtpCommand(
-                        VerificationSubjectType.SIGNUP_SESSION,
-                        session.getId().toString(),
-                        VerificationPurpose.SIGNUP_EMAIL,
-                        VerificationChannel.EMAIL,
-                        destination,
-                        code
-                )
-        ).success();
+        boolean ok = otpVerifierPort.verify(new SignupOtpVerifierPort.VerifyCommand(
+                session.getId().toString(),
+                SignupOtpVerifierPort.Purpose.SIGNUP_EMAIL,
+                SignupOtpVerifierPort.Channel.EMAIL,
+                destination,
+                code
+        )).success();
 
         if (!ok) {
             return ResultBuilder.wrongCode(session);
         }
 
-        session.confirmEmailVerified(now);
-        signupSessionStorePort.save(session);
+        try {
+            session.confirmEmailVerified(now);
+        } catch (IllegalStateException e) {
+            // defensive: session facts/state changed unexpectedly
+            return ResultBuilder.noPendingOtp(session);
+        }
 
+        signupSessionStorePort.save(session);
         return ResultBuilder.verified(session);
     }
 
@@ -112,24 +100,25 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
             return ResultBuilder.noPendingOtp(session);
         }
 
-        final boolean ok = verifyOtpUseCase.verifyOtp(
-                new VerifyOtpUseCase.VerifyOtpCommand(
-                        VerificationSubjectType.SIGNUP_SESSION,
-                        session.getId().toString(),
-                        VerificationPurpose.SIGNUP_PHONE,
-                        VerificationChannel.SMS,
-                        destination,
-                        code
-                )
-        ).success();
+        boolean ok = otpVerifierPort.verify(new SignupOtpVerifierPort.VerifyCommand(
+                session.getId().toString(),
+                SignupOtpVerifierPort.Purpose.SIGNUP_PHONE,
+                SignupOtpVerifierPort.Channel.SMS,
+                destination,
+                code
+        )).success();
 
         if (!ok) {
             return ResultBuilder.wrongCode(session);
         }
 
-        session.confirmPhoneVerified(now);
-        signupSessionStorePort.save(session);
+        try {
+            session.confirmPhoneVerified(now);
+        } catch (IllegalStateException e) {
+            return ResultBuilder.noPendingOtp(session);
+        }
 
+        signupSessionStorePort.save(session);
         return ResultBuilder.verified(session);
     }
 

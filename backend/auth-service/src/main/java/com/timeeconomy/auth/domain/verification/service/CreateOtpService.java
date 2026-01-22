@@ -4,19 +4,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
-import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
-import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChallenge;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
-import com.timeeconomy.auth.domain.verification.model.payload.VerificationOtpDeliveryRequestedPayload;
 import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasherPort;
+import com.timeeconomy.auth.domain.verification.port.out.integration.VerificationOtpDeliveryPublisherPort;
+import com.timeeconomy.auth.domain.verification.port.out.persistence.VerificationChallengeRepositoryPort;
 
-import java.util.UUID;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,22 +23,17 @@ public class CreateOtpService implements CreateOtpUseCase {
 
     private final VerificationChallengeRepositoryPort repo;
     private final VerificationTokenHasherPort hasher;
-    private final OutboxEventRepositoryPort outboxEventRepositoryPort;
-    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
+    private final VerificationOtpDeliveryPublisherPort otpDeliveryPublisherPort; // ✅ ADD THIS
     private final java.time.Clock clock;
 
     private final SecureRandom random = new SecureRandom();
-
-    // =========================
-    // OTP
-    // =========================
 
     @Override
     @Transactional
     public CreateOtpResult createOtp(CreateOtpCommand command) {
         Instant now = Instant.now(clock);
 
-        // 1) cancel active pending (unique index safe + prevent duplicate flows)
+        // 1) cancel active pending
         repo.findActivePending(command.subjectType(), command.subjectId(), command.purpose(), command.channel())
                 .ifPresent(pending -> {
                     pending.cancel(now);
@@ -71,32 +63,23 @@ public class CreateOtpService implements CreateOtpUseCase {
         );
 
         VerificationChallenge saved = repo.save(challenge);
-        
+
+        // store raw OTP (e.g., Redis)
         repo.put(saved.getId(), rawCode, command.ttl());
-        
+
         int ttlSeconds = (int) Math.max(1, command.ttl().toSeconds());
 
-        String payloadJson = outboxPayloadSerializerPort.serialize(
-                new VerificationOtpDeliveryRequestedPayload(
-                        UUID.fromString(saved.getId()), // saved.getId() is String -> UUID
-                        command.purpose().name(),
-                        command.channel().name(),
-                        command.subjectType().name(),
-                        command.subjectId(),
-                        normalizeDestination(command.channel(), command.destination()),
-                        ttlSeconds
-                )
-        );
-
-        OutboxEvent event = OutboxEvent.newPending(
-                "verification_challenge",
-                saved.getId(),
-                "VerificationOtpDeliveryRequested.v1",
-                payloadJson,
+        // ✅ publish via Verification-owned port (outbox hidden behind adapter)
+        otpDeliveryPublisherPort.publish(new VerificationOtpDeliveryPublisherPort.PublishCommand(
+                UUID.fromString(saved.getId()),                 // keep as-is if saved.getId() is String UUID
+                command.purpose().name(),
+                command.channel().name(),
+                command.subjectType().name(),
+                command.subjectId(),
+                normalizeDestination(command.channel(), command.destination()),
+                ttlSeconds,
                 now
-        );
-
-        outboxEventRepositoryPort.save(event);
+        ));
 
         return new CreateOtpResult(
                 saved.getId(),
@@ -116,8 +99,7 @@ public class CreateOtpService implements CreateOtpUseCase {
         if (destination == null) return "";
         String d = destination.trim();
         if (channel == VerificationChannel.EMAIL) return d.toLowerCase();
-        // TODO: SMS normalize to E.164 later
-        return d;
+        return d; // TODO: E.164
     }
 
     private String maskDestination(VerificationChannel channel, String destination) {
@@ -127,7 +109,6 @@ public class CreateOtpService implements CreateOtpUseCase {
             if (at <= 1) return "***" + destination.substring(Math.max(0, at));
             return destination.charAt(0) + "***" + destination.substring(at);
         }
-        // PHONE
         if (destination.length() <= 4) return "***";
         return destination.substring(0, 3) + "****" + destination.substring(destination.length() - 2);
     }

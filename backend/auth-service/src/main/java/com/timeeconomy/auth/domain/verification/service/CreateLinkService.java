@@ -4,15 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
-import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
-import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.verification.model.VerificationChallenge;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
-import com.timeeconomy.auth.domain.verification.model.payload.VerificationLinkDeliveryRequestedPayload;
 import com.timeeconomy.auth.domain.verification.port.in.CreateLinkUseCase;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasherPort;
+import com.timeeconomy.auth.domain.verification.port.out.integration.VerificationLinkDeliveryPublisherPort;
+import com.timeeconomy.auth.domain.verification.port.out.persistence.VerificationChallengeRepositoryPort;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -25,14 +22,11 @@ public class CreateLinkService implements CreateLinkUseCase {
 
     private final VerificationChallengeRepositoryPort repo;
     private final VerificationTokenHasherPort hasher;
-    private final OutboxEventRepositoryPort outboxEventRepositoryPort;
-    private final OutboxPayloadSerializerPort outboxPayloadSerializerPort;
-
+    private final VerificationLinkDeliveryPublisherPort linkDeliveryPublisherPort; // ✅ NEW
     private final java.time.Clock clock;
 
     private final SecureRandom random = new SecureRandom();
 
-    
     @Override
     @Transactional
     public CreateLinkResult createLink(CreateLinkCommand command) {
@@ -61,7 +55,6 @@ public class CreateLinkService implements CreateLinkUseCase {
                 normalizeDestination(command.channel(), command.destination()),
                 tokenHash,
                 expiresAt,
-                // link usually doesn’t need “max attempts”, but keep it consistent
                 5,
                 now,
                 command.requestIp(),
@@ -73,28 +66,18 @@ public class CreateLinkService implements CreateLinkUseCase {
         repo.putLinkToken(saved.getId(), rawToken, command.ttl());
 
         int ttlSeconds = (int) Math.max(1, command.ttl().toSeconds());
-        
-        String payloadJson = outboxPayloadSerializerPort.serialize(
-                new VerificationLinkDeliveryRequestedPayload(
-                        UUID.fromString(saved.getId()), // saved.getId() is String -> UUID
-                        command.purpose().name(),
-                        command.channel().name(),
-                        command.subjectType().name(),
-                        command.subjectId(),
-                        normalizeDestination(command.channel(), command.destination()),
-                        ttlSeconds
-                )
-        );
 
-        OutboxEvent event = OutboxEvent.newPending(
-                "verification_challenge",
-                saved.getId(),
-                "VerificationLinkDeliveryRequested.v1",
-                payloadJson,
+        // ✅ publish delivery request via port (adapter will write outbox)
+        linkDeliveryPublisherPort.publish(new VerificationLinkDeliveryPublisherPort.PublishCommand(
+                UUID.fromString(saved.getId()),
+                command.purpose().name(),
+                command.channel().name(),
+                command.subjectType().name(),
+                command.subjectId(),
+                normalizeDestination(command.channel(), command.destination()),
+                ttlSeconds,
                 now
-        );
-
-        outboxEventRepositoryPort.save(event);
+        ));
 
         return new CreateLinkResult(
                 saved.getId(),
@@ -114,7 +97,6 @@ public class CreateLinkService implements CreateLinkUseCase {
         if (destination == null) return "";
         String d = destination.trim();
         if (channel == VerificationChannel.EMAIL) return d.toLowerCase();
-        // TODO: SMS normalize to E.164 later
         return d;
     }
 
@@ -125,7 +107,6 @@ public class CreateLinkService implements CreateLinkUseCase {
             if (at <= 1) return "***" + destination.substring(Math.max(0, at));
             return destination.charAt(0) + "***" + destination.substring(at);
         }
-        // PHONE
         if (destination.length() <= 4) return "***";
         return destination.substring(0, 3) + "****" + destination.substring(destination.length() - 2);
     }
