@@ -12,7 +12,8 @@ import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
 import com.timeeconomy.auth.domain.verification.model.VerificationStatus;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
+import com.timeeconomy.auth.domain.verification.port.out.persistence.VerificationChallengeRepositoryPort;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

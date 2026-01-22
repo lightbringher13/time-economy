@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.adapter.out.redis.verification;
+package com.timeeconomy.auth.adapter.out.verification.persistence;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Primary;
@@ -6,13 +6,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import com.timeeconomy.auth.domain.verification.model.*;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
-
-import static com.timeeconomy.auth.adapter.out.redis.verification.VerificationRedisKeys.*;
+import com.timeeconomy.auth.domain.verification.port.out.persistence.VerificationChallengeRepositoryPort;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+
+import static com.timeeconomy.auth.adapter.out.verification.persistence.VerificationRedisKeys.*;
+
 import java.time.Clock;
 
 import lombok.extern.slf4j.Slf4j;

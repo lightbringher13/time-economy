@@ -5,8 +5,8 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 
 import com.timeeconomy.auth.domain.verification.port.in.internal.GetVerificationLinkUrlOnceUseCase;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
 import com.timeeconomy.auth.domain.verification.port.out.internal.VerificationLinkBuilderPort;
+import com.timeeconomy.auth.domain.verification.port.out.persistence.VerificationChallengeRepositoryPort;
 
 import lombok.RequiredArgsConstructor;
 

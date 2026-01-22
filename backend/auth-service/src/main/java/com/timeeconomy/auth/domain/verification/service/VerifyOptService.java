@@ -8,8 +8,8 @@ import com.timeeconomy.auth.domain.verification.model.VerificationChallenge;
 import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
 import com.timeeconomy.auth.domain.verification.model.VerificationStatus;
 import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
 import com.timeeconomy.auth.domain.verification.port.out.VerificationTokenHasherPort;
+import com.timeeconomy.auth.domain.verification.port.out.persistence.VerificationChallengeRepositoryPort;
 
 import java.time.Instant;
 

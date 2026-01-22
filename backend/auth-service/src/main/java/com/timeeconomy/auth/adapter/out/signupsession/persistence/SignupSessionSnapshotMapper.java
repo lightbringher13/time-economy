@@ -1,4 +1,4 @@
-package com.timeeconomy.auth.adapter.out.redis.signupsession;
+package com.timeeconomy.auth.adapter.out.signupsession.persistence;
 
 import java.time.Instant;
 import java.time.LocalDate;

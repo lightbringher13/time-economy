@@ -7,13 +7,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 import com.timeeconomy.auth.domain.signupsession.port.in.CancelSignupSessionUseCase;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
-
-import com.timeeconomy.auth.domain.verification.model.VerificationChannel;
-import com.timeeconomy.auth.domain.verification.model.VerificationPurpose;
-import com.timeeconomy.auth.domain.verification.model.VerificationStatus;
-import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.out.VerificationChallengeRepositoryPort;
+import com.timeeconomy.auth.domain.signupsession.port.out.integration.SignupOtpChallengeCancelerPort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -24,7 +19,7 @@ import java.util.UUID;
 public class CancelSignupSessionService implements CancelSignupSessionUseCase {
 
     private final SignupSessionStorePort signupSessionStorePort;
-    private final VerificationChallengeRepositoryPort verificationChallengeRepositoryPort;
+    private final SignupOtpChallengeCancelerPort otpChallengeCancelerPort; // ✅ SignupSession-owned
     private final Clock clock;
 
     @Override
@@ -63,28 +58,22 @@ public class CancelSignupSessionService implements CancelSignupSessionUseCase {
         signupSessionStorePort.save(session);
 
         // cancel pending challenges (best effort)
-        cancelPendingOtp(now, sessionId, VerificationPurpose.SIGNUP_EMAIL, VerificationChannel.EMAIL);
-        cancelPendingOtp(now, sessionId, VerificationPurpose.SIGNUP_PHONE, VerificationChannel.SMS);
+        String subjectId = sessionId.toString();
+
+        otpChallengeCancelerPort.cancelPending(new SignupOtpChallengeCancelerPort.CancelCommand(
+                subjectId,
+                SignupOtpChallengeCancelerPort.Purpose.SIGNUP_EMAIL,
+                SignupOtpChallengeCancelerPort.Channel.EMAIL,
+                now
+        ));
+
+        otpChallengeCancelerPort.cancelPending(new SignupOtpChallengeCancelerPort.CancelCommand(
+                subjectId,
+                SignupOtpChallengeCancelerPort.Purpose.SIGNUP_PHONE,
+                SignupOtpChallengeCancelerPort.Channel.SMS,
+                now
+        ));
 
         return new Result(Outcome.CANCELED, true, session.getId(), session.getState());
-    }
-
-    private void cancelPendingOtp(
-            Instant now,
-            UUID sessionId,
-            VerificationPurpose purpose,
-            VerificationChannel channel
-    ) {
-        verificationChallengeRepositoryPort.findActivePending(
-                VerificationSubjectType.SIGNUP_SESSION,
-                sessionId.toString(),
-                purpose,
-                channel
-        ).ifPresent(ch -> {
-            if (ch.getStatus() == VerificationStatus.PENDING) {
-                ch.cancel(now);
-                verificationChallengeRepositoryPort.save(ch);
-            }
-        });
     }
 }

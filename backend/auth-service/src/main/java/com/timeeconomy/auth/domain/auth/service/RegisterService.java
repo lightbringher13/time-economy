@@ -10,7 +10,8 @@ import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 import com.timeeconomy.auth.domain.outbox.port.out.OutboxPayloadSerializerPort;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSession;
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
-import com.timeeconomy.auth.domain.signupsession.port.out.SignupSessionStorePort;
+import com.timeeconomy.auth.domain.signupsession.port.out.persistence.SignupSessionStorePort;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
