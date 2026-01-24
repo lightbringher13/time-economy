@@ -33,10 +33,6 @@ public class PublicVerificationController {
     private final CreateOtpUseCase createOtpUseCase;
     private final VerifyOtpUseCase verifyOtpUseCase;
 
-    // Policy defaults (server decides)
-    private static final Duration DEFAULT_OTP_TTL = Duration.ofMinutes(10);
-    private static final int DEFAULT_MAX_ATTEMPTS = 5;
-
     private static final Duration DEFAULT_LINK_TTL = Duration.ofMinutes(30);
     private static final Duration DEFAULT_LINK_TOKEN_TTL = Duration.ofMinutes(30);
 
@@ -44,19 +40,18 @@ public class PublicVerificationController {
     // OTP
     // =========================
 
-    @PostMapping("/otp")
-    public ResponseEntity<CreateOtpResponse> createOtp(
-            @Valid @RequestBody CreateOtpRequest request,
-            HttpServletRequest http
-    ) {
+        @PostMapping("/otp")
+        public ResponseEntity<CreateOtpResponse> createOtp(
+                @RequestHeader("X-User-Id") Long userId,
+                @Valid @RequestBody CreateOtpRequest request,
+                HttpServletRequest http
+        ) {
         var cmd = new CreateOtpUseCase.CreateOtpCommand(
-                VerificationSubjectType.EMAIL,
-                request.destination(), // subjectId = email itself
+                VerificationSubjectType.USER,
+                userId.toString(),
                 request.purpose(),
                 request.channel(),
                 request.destination(),
-                DEFAULT_OTP_TTL,
-                DEFAULT_MAX_ATTEMPTS,
                 clientIp(http),
                 userAgent(http)
         );
@@ -66,27 +61,36 @@ public class PublicVerificationController {
         return ResponseEntity.ok(new CreateOtpResponse(
                 result.challengeId(),
                 result.sent(),
-                result.ttlMinutes(),
+                result.expiresAt(),
                 result.maskedDestination()
         ));
-    }
+        }
 
     @PostMapping("/otp/verify")
     public ResponseEntity<VerifyOtpResponse> verifyOtp(
-            @Valid @RequestBody VerifyOtpRequest request
+        @RequestHeader("X-User-Id") Long userId,
+            @Valid @RequestBody VerifyOtpRequest request,
+            HttpServletRequest http
     ) {
         var cmd = new VerifyOtpUseCase.VerifyOtpCommand(
-                VerificationSubjectType.EMAIL,
-                request.destination(),
+                VerificationSubjectType.SIGNUP_SESSION,
+                userId.toString(),
                 request.purpose(),
                 request.channel(),
                 request.destination(),
-                request.code()
+                request.code(),
+                clientIp(http) // ✅ NEW
         );
 
         var result = verifyOtpUseCase.verifyOtp(cmd);
 
-        return ResponseEntity.ok(new VerifyOtpResponse(result.success()));
+        return ResponseEntity.ok(new VerifyOtpResponse(
+                result.success(),
+                result.outcome().name(),
+                result.expiresAt(),
+                result.remainingAttempts(),
+                result.retryAfterSeconds()
+        ));
     }
 
     // =========================

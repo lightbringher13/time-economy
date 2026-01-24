@@ -1,6 +1,7 @@
 // src/main/java/com/timeeconomy/auth/domain/signupsession/port/in/SendSignupOtpUseCase.java
 package com.timeeconomy.auth.domain.signupsession.port.in;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
@@ -11,11 +12,11 @@ public interface SendSignupOtpUseCase {
     Result send(Command command);
 
     record Command(
-            UUID sessionId,                 // nullable (lazy-open)
+            UUID sessionId,
             SignupVerificationTarget target,
-            String destination,             // raw email/phone from client
-            String requestIp,               // optional
-            String userAgent                // optional
+            String destination,
+            String requestIp,
+            String userAgent
     ) {}
 
     enum Outcome {
@@ -27,11 +28,11 @@ public interface SendSignupOtpUseCase {
         ALREADY_VERIFIED,
         INVALID_DESTINATION,
 
-        // ✅ ADD THESE (so we don't throw for expected cases)
-        INVALID_STATE,      // e.g. phone OTP requested before email verified
-        INVALID_INPUT,      // e.g. null target / null command
+        INVALID_STATE,
+        INVALID_INPUT,
 
-        THROTTLED
+        THROTTLED,
+        DELIVERY_FAILED   // ✅ strongly recommended
     }
 
     record Result(
@@ -42,6 +43,11 @@ public interface SendSignupOtpUseCase {
             String challengeId,
             int ttlMinutes,
             String maskedDestination,
+
+            Integer retryAfterSeconds,      // ✅ NEW (nullable)
+
+            Instant emailOtpExpiresAt,
+            Instant phoneOtpExpiresAt,
             boolean emailVerified,
             boolean phoneVerified,
             boolean emailOtpPending,

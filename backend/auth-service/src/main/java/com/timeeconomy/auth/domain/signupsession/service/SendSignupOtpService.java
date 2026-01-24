@@ -23,10 +23,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SendSignupOtpService implements SendSignupOtpUseCase {
 
-    private static final Duration OTP_TTL = Duration.ofMinutes(10);
-    private static final int OTP_MAX_ATTEMPTS = 5;
-
-    // ✅ SignupSession-owned dependencies
     private final SignupSessionStorePort signupSessionStorePort;
     private final SignupIdentityUniquenessPort uniquenessPort;
     private final SignupOtpIssuerPort otpIssuerPort;
@@ -48,7 +44,7 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
             return invalidDestination(command.sessionId());
         }
 
-        // 1) fast-fail duplicates (no exceptions, via SignupSession port)
+        // 1) fast-fail duplicates (via SignupSession port)
         if (target == SignupVerificationTarget.EMAIL) {
             var u = uniquenessPort.checkEmail(destination);
             if (u.outcome() == SignupIdentityUniquenessPort.Outcome.EMAIL_ALREADY_USED) {
@@ -67,30 +63,30 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
             }
         }
 
-        // 2) load-or-create (tolerant: stale cookie => create new)
+        // 2) load-or-create
         LoadOrCreate loaded = loadOrCreateSession(command.sessionId(), now);
         SignupSession session = loaded.session();
         boolean sessionCreated = loaded.created();
 
-        // 3) state guard for phone flow (don’t throw)
+        // 3) state guard for phone flow
         if (target == SignupVerificationTarget.PHONE && !session.isEmailVerified()) {
-            return fromSession(Outcome.INVALID_STATE, false, session, sessionCreated, null, 0, null);
+            return fromSession(Outcome.INVALID_STATE, false, session, sessionCreated, null, 0, null, null);
         }
 
         // 4) idempotency: already verified & destination matches
         if (target == SignupVerificationTarget.EMAIL
                 && session.isEmailVerified()
                 && destination.equals(normalizeEmail(session.getEmail()))) {
-            return fromSession(Outcome.ALREADY_VERIFIED, false, session, sessionCreated, null, 0, null);
+            return fromSession(Outcome.ALREADY_VERIFIED, false, session, sessionCreated, null, 0, null, null);
         }
 
         if (target == SignupVerificationTarget.PHONE
                 && session.isPhoneVerified()
                 && destination.equals(normalizePhone(session.getPhoneNumber()))) {
-            return fromSession(Outcome.ALREADY_VERIFIED, false, session, sessionCreated, null, 0, null);
+            return fromSession(Outcome.ALREADY_VERIFIED, false, session, sessionCreated, null, 0, null, null);
         }
 
-        // 5) resolve issuer params (SignupSession-owned enums)
+        // 5) issuer params
         final SignupOtpIssuerPort.Purpose purpose =
                 (target == SignupVerificationTarget.EMAIL)
                         ? SignupOtpIssuerPort.Purpose.SIGNUP_EMAIL
@@ -112,42 +108,71 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 command.userAgent() != null && !command.userAgent().isBlank()
         );
 
-        // 6) issue OTP first (via SignupSession port)
-        var issued = otpIssuerPort.issue(new SignupOtpIssuerPort.IssueCommand(
+        // 6) issue OTP (Verification decides TTL/maxAttempts/policy)
+        SignupOtpIssuerPort.IssueResult issued = otpIssuerPort.issue(new SignupOtpIssuerPort.IssueCommand(
                 session.getId().toString(),
                 purpose,
                 channel,
                 destination,
-                OTP_TTL,
-                OTP_MAX_ATTEMPTS,
                 command.requestIp(),
                 command.userAgent()
         ));
 
-        // ✅ If throttled / not sent, do NOT mutate session facts/state
-        if (!issued.sent()) {
-            return fromSession(
-                    Outcome.THROTTLED,
-                    false,
-                    session,
-                    sessionCreated,
-                    issued.challengeId(),
-                    issued.ttlMinutes(),
-                    issued.maskedDestination()
-            );
+        // Safety: if adapter returns null, treat as delivery failure
+        if (issued == null) {
+            return fromSession(Outcome.DELIVERY_FAILED, false, session, sessionCreated, null, 0, null, null);
         }
 
-        // 7) apply domain command AFTER OTP issuance
+        int ttlMinutes = toTtlMinutes(now, issued.expiresAt());
+
+        // ✅ Do not mutate SignupSession if delivery didn't happen
+        switch (issued.outcome()) {
+            case SENT -> {
+                // continue
+            }
+
+            case THROTTLED -> {
+                return fromSession(
+                        Outcome.THROTTLED,
+                        false,
+                        session,
+                        sessionCreated,
+                        issued.challengeId(),
+                        ttlMinutes,
+                        issued.maskedDestination(),
+                        issued.retryAfterSeconds() // ✅ pass through
+                );
+            }
+
+            case INVALID_DESTINATION, INVALID_INPUT -> {
+                return invalidDestination(command.sessionId());
+            }
+
+            case DELIVERY_FAILED -> {
+                return fromSession(
+                        Outcome.DELIVERY_FAILED,
+                        false,
+                        session,
+                        sessionCreated,
+                        issued.challengeId(),
+                        ttlMinutes,
+                        issued.maskedDestination(),
+                        null
+                );
+            }
+        }
+
+        // 7) apply domain command AFTER issuance (source-of-truth expiresAt)
         try {
             if (target == SignupVerificationTarget.EMAIL) {
-                session.requestEmailOtp(destination, now);
+                session.requestEmailOtp(destination, issued.expiresAt(), now);
             } else {
-                session.requestPhoneOtp(destination, now);
+                session.requestPhoneOtp(destination, issued.expiresAt(), now);
             }
         } catch (IllegalArgumentException e) {
-            return fromSession(Outcome.INVALID_DESTINATION, false, session, sessionCreated, null, 0, null);
+            return fromSession(Outcome.INVALID_DESTINATION, false, session, sessionCreated, null, 0, null, null);
         } catch (IllegalStateException e) {
-            return fromSession(Outcome.INVALID_STATE, false, session, sessionCreated, null, 0, null);
+            return fromSession(Outcome.INVALID_STATE, false, session, sessionCreated, null, 0, null, null);
         }
 
         signupSessionStorePort.save(session);
@@ -158,8 +183,9 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 session,
                 sessionCreated,
                 issued.challengeId(),
-                issued.ttlMinutes(),
-                issued.maskedDestination()
+                ttlMinutes,
+                issued.maskedDestination(),
+                null
         );
     }
 
@@ -177,8 +203,14 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
 
         return signupSessionStorePort.findActiveById(sessionId, now)
                 .map(s -> new LoadOrCreate(s, false))
-                // stale cookie => create new (nice UX)
+                // stale cookie => new session (UX)
                 .orElseGet(() -> new LoadOrCreate(signupSessionStorePort.createNew(now), true));
+    }
+
+    private int toTtlMinutes(Instant now, Instant expiresAt) {
+        if (expiresAt == null) return 0;
+        long mins = Duration.between(now, expiresAt).toMinutes();
+        return (int) Math.max(1, mins);
     }
 
     private Result invalidInput(UUID sessionId) {
@@ -188,6 +220,8 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 sessionId,
                 false,
                 null, 0, null,
+                null,                 // ✅ retryAfterSeconds
+                null, null,
                 false, false, false, false,
                 SignupSessionState.DRAFT
         );
@@ -200,6 +234,8 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 sessionId,
                 false,
                 null, 0, null,
+                null,                 // ✅ retryAfterSeconds
+                null, null,
                 false, false, false, false,
                 SignupSessionState.DRAFT
         );
@@ -212,6 +248,8 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 sessionId,
                 false,
                 null, 0, null,
+                null,                 // ✅ retryAfterSeconds
+                null, null,
                 false, false, false, false,
                 SignupSessionState.DRAFT
         );
@@ -224,7 +262,8 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
             boolean sessionCreated,
             String challengeId,
             int ttlMinutes,
-            String maskedDestination
+            String maskedDestination,
+            Integer retryAfterSeconds
     ) {
         return new Result(
                 outcome,
@@ -234,6 +273,9 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 challengeId,
                 ttlMinutes,
                 maskedDestination,
+                retryAfterSeconds,                 // ✅ correct slot
+                session.getEmailOtpExpiresAt(),
+                session.getPhoneOtpExpiresAt(),
                 session.isEmailVerified(),
                 session.isPhoneVerified(),
                 session.isEmailOtpPending(),

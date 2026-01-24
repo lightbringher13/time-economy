@@ -23,7 +23,7 @@ import java.util.UUID;
 public class VerifySignupOtpService implements VerifySignupOtpUseCase {
 
     private final SignupSessionStorePort signupSessionStorePort;
-    private final SignupOtpVerifierPort otpVerifierPort;   // ✅ SignupSession-owned port
+    private final SignupOtpVerifierPort otpVerifierPort;
     private final Clock clock;
 
     @Override
@@ -31,18 +31,15 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
     public Result verify(Command command) {
         final Instant now = Instant.now(clock);
 
-        // 0) Validate input (big-co: return outcome, don’t throw)
-        if (command == null || command.target() == null || command.code() == null || command.code().isBlank()) {
+        if (command == null || command.target() == null || isBlank(command.code())) {
             return ResultBuilder.invalidInput(command == null ? null : command.sessionId());
         }
 
-        // 1) No session id => NO_SESSION (cookie missing / expired)
         final UUID sessionId = command.sessionId();
         if (sessionId == null) {
             return ResultBuilder.noSession(null);
         }
 
-        // 2) Load session (active only)
         final SignupSession session = signupSessionStorePort
                 .findActiveById(sessionId, now)
                 .orElse(null);
@@ -51,80 +48,114 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
             return ResultBuilder.noSession(sessionId);
         }
 
-        // 3) Gate using FACTS (otpPending), not state
         return (command.target() == SignupVerificationTarget.EMAIL)
-                ? verifyEmail(session, command.code(), now)
-                : verifyPhone(session, command.code(), now);
+                ? verifyEmail(session, command.code(), command.requestIp(), now)
+                : verifyPhone(session, command.code(), command.requestIp(), now);
     }
 
-    private Result verifyEmail(SignupSession session, String code, Instant now) {
-        if (!session.isEmailOtpPending()) {
+    private Result verifyEmail(SignupSession session, String code, String requestIp, Instant now) {
+        if (!session.isEmailOtpPending() || isBlank(session.getEmail())) {
             return ResultBuilder.noPendingOtp(session);
         }
 
-        final String destination = session.getEmail();
-        if (destination == null || destination.isBlank()) {
+        SignupOtpVerifierPort.VerifyResult vr = otpVerifierPort.verify(
+                new SignupOtpVerifierPort.VerifyCommand(
+                        session.getId().toString(),
+                        SignupOtpVerifierPort.Purpose.SIGNUP_EMAIL,
+                        SignupOtpVerifierPort.Channel.EMAIL,
+                        session.getEmail(),
+                        code,
+                        requestIp
+                )
+        );
+
+        return handleVerifierResult(session, vr, true, now);
+    }
+
+    private Result verifyPhone(SignupSession session, String code, String requestIp, Instant now) {
+        if (!session.isPhoneOtpPending() || isBlank(session.getPhoneNumber())) {
             return ResultBuilder.noPendingOtp(session);
         }
 
-        boolean ok = otpVerifierPort.verify(new SignupOtpVerifierPort.VerifyCommand(
-                session.getId().toString(),
-                SignupOtpVerifierPort.Purpose.SIGNUP_EMAIL,
-                SignupOtpVerifierPort.Channel.EMAIL,
-                destination,
-                code
-        )).success();
+        SignupOtpVerifierPort.VerifyResult vr = otpVerifierPort.verify(
+                new SignupOtpVerifierPort.VerifyCommand(
+                        session.getId().toString(),
+                        SignupOtpVerifierPort.Purpose.SIGNUP_PHONE,
+                        SignupOtpVerifierPort.Channel.SMS,
+                        session.getPhoneNumber(),
+                        code,
+                        requestIp
+                )
+        );
 
-        if (!ok) {
-            return ResultBuilder.wrongCode(session);
+        return handleVerifierResult(session, vr, false, now);
+    }
+
+    private Result handleVerifierResult(SignupSession session,
+                                        SignupOtpVerifierPort.VerifyResult vr,
+                                        boolean isEmail,
+                                        Instant now) {
+
+        if (vr == null) {
+            // conservative bucket
+            return ResultBuilder.fromSession(session, Outcome.WRONG_CODE, false, null, null, null);
         }
 
+        Outcome out = switch (vr.outcome()) {
+            case VERIFIED -> Outcome.VERIFIED;
+            case WRONG_CODE -> Outcome.WRONG_CODE;
+            case EXPIRED -> Outcome.EXPIRED;
+            case LOCKED -> Outcome.LOCKED;
+            case THROTTLED -> Outcome.THROTTLED;
+
+            // verification says "no usable pending challenge" -> session-level NO_PENDING_OTP
+            case NO_PENDING_CHALLENGE, DESTINATION_MISMATCH -> Outcome.NO_PENDING_OTP;
+
+            // safe default buckets
+            case INVALID_INPUT, DELIVERY_FAILED -> Outcome.WRONG_CODE;
+        };
+
+        // not verified => no session mutation
+        if (out != Outcome.VERIFIED) {
+            return ResultBuilder.fromSession(
+                    session,
+                    out,
+                    false,
+                    vr.expiresAt(),
+                    vr.remainingAttempts(),
+                    vr.retryAfterSeconds()
+            );
+        }
+
+        // verified => advance session facts
         try {
-            session.confirmEmailVerified(now);
+            if (isEmail) session.confirmEmailVerified(now);
+            else session.confirmPhoneVerified(now);
         } catch (IllegalStateException e) {
-            // defensive: session facts/state changed unexpectedly
-            return ResultBuilder.noPendingOtp(session);
+            return ResultBuilder.fromSession(
+                    session,
+                    Outcome.NO_PENDING_OTP,
+                    false,
+                    vr.expiresAt(),
+                    vr.remainingAttempts(),
+                    vr.retryAfterSeconds()
+            );
         }
 
         signupSessionStorePort.save(session);
-        return ResultBuilder.verified(session);
+
+        return ResultBuilder.fromSession(
+                session,
+                Outcome.VERIFIED,
+                true,
+                vr.expiresAt(),
+                vr.remainingAttempts(),
+                vr.retryAfterSeconds()
+        );
     }
 
-    private Result verifyPhone(SignupSession session, String code, Instant now) {
-        if (!session.isPhoneOtpPending()) {
-            return ResultBuilder.noPendingOtp(session);
-        }
+    private boolean isBlank(String s) { return s == null || s.isBlank(); }
 
-        final String destination = session.getPhoneNumber();
-        if (destination == null || destination.isBlank()) {
-            return ResultBuilder.noPendingOtp(session);
-        }
-
-        boolean ok = otpVerifierPort.verify(new SignupOtpVerifierPort.VerifyCommand(
-                session.getId().toString(),
-                SignupOtpVerifierPort.Purpose.SIGNUP_PHONE,
-                SignupOtpVerifierPort.Channel.SMS,
-                destination,
-                code
-        )).success();
-
-        if (!ok) {
-            return ResultBuilder.wrongCode(session);
-        }
-
-        try {
-            session.confirmPhoneVerified(now);
-        } catch (IllegalStateException e) {
-            return ResultBuilder.noPendingOtp(session);
-        }
-
-        signupSessionStorePort.save(session);
-        return ResultBuilder.verified(session);
-    }
-
-    // ------------------------------------------------------
-    // small builder to keep Result construction consistent
-    // ------------------------------------------------------
     private static final class ResultBuilder {
 
         static Result invalidInput(UUID sessionId) {
@@ -132,10 +163,8 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
                     Outcome.INVALID_INPUT,
                     false,
                     sessionId,
-                    false,
-                    false,
-                    false,
-                    false,
+                    null, null, null,
+                    false, false, false, false,
                     SignupSessionState.DRAFT
             );
         }
@@ -145,55 +174,35 @@ public class VerifySignupOtpService implements VerifySignupOtpUseCase {
                     Outcome.NO_SESSION,
                     false,
                     sessionId,
-                    false,
-                    false,
-                    false,
-                    false,
+                    null, null, null,
+                    false, false, false, false,
                     SignupSessionState.EXPIRED
             );
         }
 
         static Result noPendingOtp(SignupSession s) {
+            return fromSession(s, Outcome.NO_PENDING_OTP, false, null, null, null);
+        }
+
+        static Result fromSession(SignupSession s,
+                                 Outcome outcome,
+                                 boolean success,
+                                 Instant otpExpiresAt,
+                                 Integer remainingAttempts,
+                                 Integer retryAfterSeconds) {
             return new Result(
-                    Outcome.NO_PENDING_OTP,
-                    false,
+                    outcome,
+                    success,
                     s.getId(),
+                    otpExpiresAt,
+                    remainingAttempts,
+                    retryAfterSeconds,
                     s.isEmailVerified(),
                     s.isPhoneVerified(),
                     s.isEmailOtpPending(),
                     s.isPhoneOtpPending(),
-                    safeState(s.getState())
+                    (s.getState() == null ? SignupSessionState.DRAFT : s.getState())
             );
-        }
-
-        static Result wrongCode(SignupSession s) {
-            return new Result(
-                    Outcome.WRONG_CODE,
-                    false,
-                    s.getId(),
-                    s.isEmailVerified(),
-                    s.isPhoneVerified(),
-                    s.isEmailOtpPending(),
-                    s.isPhoneOtpPending(),
-                    safeState(s.getState())
-            );
-        }
-
-        static Result verified(SignupSession s) {
-            return new Result(
-                    Outcome.VERIFIED,
-                    true,
-                    s.getId(),
-                    s.isEmailVerified(),
-                    s.isPhoneVerified(),
-                    s.isEmailOtpPending(),
-                    s.isPhoneOtpPending(),
-                    safeState(s.getState())
-            );
-        }
-
-        private static SignupSessionState safeState(SignupSessionState state) {
-            return (state == null) ? SignupSessionState.DRAFT : state;
         }
     }
 }

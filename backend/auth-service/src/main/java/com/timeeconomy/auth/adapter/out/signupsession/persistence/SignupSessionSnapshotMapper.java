@@ -10,24 +10,29 @@ import com.timeeconomy.auth.domain.signupsession.model.SignupSessionState;
 public final class SignupSessionSnapshotMapper {
     private SignupSessionSnapshotMapper() {}
 
-    public static final int VERSION = 2; // ✅ bump schema version
+    public static final int VERSION = 3; // ✅ bump schema version again (otp expiresAt added)
 
     public static SignupSessionSnapshot toSnapshot(SignupSession s) {
         return SignupSessionSnapshot.builder()
                 .schemaVersion(VERSION)
                 .id(s.getId() == null ? null : s.getId().toString())
+
                 .email(s.getEmail())
                 .emailVerified(s.isEmailVerified())
-                .emailOtpPending(s.isEmailOtpPending())      // ✅ NEW
+                .emailOtpPending(s.isEmailOtpPending())
+                .emailOtpExpiresAtEpochMillis(toEpochMillis(s.getEmailOtpExpiresAt())) // ✅ NEW
 
                 .phoneNumber(s.getPhoneNumber())
                 .phoneVerified(s.isPhoneVerified())
-                .phoneOtpPending(s.isPhoneOtpPending())      // ✅ NEW
+                .phoneOtpPending(s.isPhoneOtpPending())
+                .phoneOtpExpiresAtEpochMillis(toEpochMillis(s.getPhoneOtpExpiresAt())) // ✅ NEW
 
                 .name(s.getName())
                 .gender(s.getGender())
                 .birthDateEpochDays(s.getBirthDate() == null ? null : (int) s.getBirthDate().toEpochDay())
+
                 .state(s.getState() == null ? null : s.getState().name())
+
                 .createdAtEpochMillis(toEpochMillis(s.getCreatedAt()))
                 .updatedAtEpochMillis(toEpochMillis(s.getUpdatedAt()))
                 .expiresAtEpochMillis(toEpochMillis(s.getExpiresAt()))
@@ -41,11 +46,17 @@ public final class SignupSessionSnapshotMapper {
 
         s.setEmail(textOrNull(snap.email()));
         s.setEmailVerified(snap.emailVerified());
-        s.setEmailOtpPending(snap.emailOtpPending());       // ✅ NEW (defaults false on old data)
+        s.setEmailOtpPending(snap.emailOtpPending());
+
+        // ✅ NEW (old snapshots just deserialize null here)
+        s.setEmailOtpExpiresAt(toInstant(snap.emailOtpExpiresAtEpochMillis()));
 
         s.setPhoneNumber(textOrNull(snap.phoneNumber()));
         s.setPhoneVerified(snap.phoneVerified());
-        s.setPhoneOtpPending(snap.phoneOtpPending());       // ✅ NEW (defaults false on old data)
+        s.setPhoneOtpPending(snap.phoneOtpPending());
+
+        // ✅ NEW
+        s.setPhoneOtpExpiresAt(toInstant(snap.phoneOtpExpiresAtEpochMillis()));
 
         s.setName(textOrNull(snap.name()));
         s.setGender(textOrNull(snap.gender()));
@@ -54,7 +65,7 @@ public final class SignupSessionSnapshotMapper {
             s.setBirthDate(LocalDate.ofEpochDay(snap.birthDateEpochDays()));
         }
 
-        // ✅ default state = DRAFT
+        // ✅ default state = DRAFT if missing
         if (hasText(snap.state())) {
             s.setState(SignupSessionState.valueOf(snap.state()));
         } else {

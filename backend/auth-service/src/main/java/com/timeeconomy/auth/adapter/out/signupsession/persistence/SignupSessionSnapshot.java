@@ -9,19 +9,25 @@ public record SignupSessionSnapshot(
 
         String email,
         boolean emailVerified,
-        boolean emailOtpPending,     // ✅ NEW (big-co fact)
+        boolean emailOtpPending,
+
+        // ✅ NEW: OTP expiry for email verification
+        Long emailOtpExpiresAtEpochMillis,
 
         String phoneNumber,
         boolean phoneVerified,
-        boolean phoneOtpPending,     // ✅ NEW (big-co fact)
+        boolean phoneOtpPending,
+
+        // ✅ NEW: OTP expiry for phone verification
+        Long phoneOtpExpiresAtEpochMillis,
 
         String name,
         String gender,
-        Integer birthDateEpochDays,  // LocalDate.toEpochDay()
+        Integer birthDateEpochDays,
 
         String state,
 
-        Long createdAtEpochMillis,   // Instant.toEpochMilli()
+        Long createdAtEpochMillis,
         Long updatedAtEpochMillis,
         Long expiresAtEpochMillis
 ) {}
