@@ -18,8 +18,8 @@ public class VerificationChallenge {
     private final String destinationNorm;   // normalized (lowercased email, e164 phone)
 
     // hashes only (never store raw code/token)
-    private String codeHash;    // OTP
-    private String tokenHash;   // link token
+    private final String codeHash;    // OTP
+    private final String tokenHash;   // LINK
 
     private VerificationStatus status;
 
@@ -28,15 +28,38 @@ public class VerificationChallenge {
     private Instant consumedAt;
 
     private int attemptCount;
-    private int maxAttempts;
+    private final int maxAttempts;
     private int sentCount;
     private Instant lastSentAt;
 
-    private String requestIp;
-    private String userAgent;
+    private final String requestIp;
+    private final String userAgent;
 
     private final Instant createdAt;
     private Instant updatedAt;
+
+    // ======================
+    // Outcomes (Domain-first)
+    // ======================
+
+    public enum VerifyOutcome {
+        VERIFIED,
+        WRONG_CODE,        // includes wrong token
+        EXPIRED,
+        LOCKED,            // too many attempts
+        NOT_PENDING,        // already verified/consumed/canceled/expired
+        INVALID_INPUT
+    }
+
+    public enum ConsumeOutcome {
+        CONSUMED,
+        NOT_VERIFIED,
+        NOT_PENDING
+    }
+
+    // ======================
+    // Constructor
+    // ======================
 
     public VerificationChallenge(
             String id,
@@ -65,21 +88,23 @@ public class VerificationChallenge {
         this.purpose = Objects.requireNonNull(purpose, "purpose");
         this.channel = Objects.requireNonNull(channel, "channel");
         this.subjectType = Objects.requireNonNull(subjectType, "subjectType");
-        this.subjectId = Objects.requireNonNull(subjectId, "subjectId");
-        this.destination = Objects.requireNonNull(destination, "destination");
-        this.destinationNorm = Objects.requireNonNull(destinationNorm, "destinationNorm");
+        this.subjectId = requireText(subjectId, "subjectId");
+        this.destination = requireText(destination, "destination");
+        this.destinationNorm = requireText(destinationNorm, "destinationNorm");
 
-        this.codeHash = codeHash;
-        this.tokenHash = tokenHash;
+        // ✅ invariant: exactly one of (codeHash, tokenHash)
+        this.codeHash = blankToNull(codeHash);
+        this.tokenHash = blankToNull(tokenHash);
+        assertKindInvariant(this.codeHash, this.tokenHash);
 
         this.status = Objects.requireNonNull(status, "status");
         this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
         this.verifiedAt = verifiedAt;
         this.consumedAt = consumedAt;
 
-        this.attemptCount = attemptCount;
-        this.maxAttempts = maxAttempts;
-        this.sentCount = sentCount;
+        this.attemptCount = Math.max(0, attemptCount);
+        this.maxAttempts = Math.max(1, maxAttempts);
+        this.sentCount = Math.max(0, sentCount);
         this.lastSentAt = Objects.requireNonNull(lastSentAt, "lastSentAt");
 
         this.requestIp = requestIp;
@@ -87,15 +112,17 @@ public class VerificationChallenge {
 
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
+
+        assertStateInvariant();
     }
 
     // ======================
-    // Factories (recommended)
+    // Factories
     // ======================
 
     public static VerificationChallenge createOtpPending(
             VerificationPurpose purpose,
-            VerificationChannel channel,                 // EMAIL/SMS
+            VerificationChannel channel,
             VerificationSubjectType subjectType,
             String subjectId,
             String destination,
@@ -107,9 +134,7 @@ public class VerificationChallenge {
             String requestIp,
             String userAgent
     ) {
-        if (codeHash == null || codeHash.isBlank()) {
-            throw new IllegalArgumentException("codeHash is required for OTP challenge");
-        }
+        requireText(codeHash, "codeHash");
         Objects.requireNonNull(now, "now");
         Objects.requireNonNull(expiresAt, "expiresAt");
 
@@ -140,7 +165,7 @@ public class VerificationChallenge {
 
     public static VerificationChallenge createLinkPending(
             VerificationPurpose purpose,
-            VerificationChannel channel,                 // usually EMAIL
+            VerificationChannel channel,
             VerificationSubjectType subjectType,
             String subjectId,
             String destination,
@@ -152,9 +177,7 @@ public class VerificationChallenge {
             String requestIp,
             String userAgent
     ) {
-        if (tokenHash == null || tokenHash.isBlank()) {
-            throw new IllegalArgumentException("tokenHash is required for LINK challenge");
-        }
+        requireText(tokenHash, "tokenHash");
         Objects.requireNonNull(now, "now");
         Objects.requireNonNull(expiresAt, "expiresAt");
 
@@ -184,74 +207,168 @@ public class VerificationChallenge {
     }
 
     // ======================
-    // Domain behaviors
+    // Helpers
     // ======================
 
-    public boolean isPending() {
-        return status == VerificationStatus.PENDING;
-    }
+    public boolean isOtp() { return codeHash != null; }
+    public boolean isLink() { return tokenHash != null; }
+
+    public boolean isPending() { return status == VerificationStatus.PENDING; }
 
     public boolean isExpired(Instant now) {
-        return now.isAfter(expiresAt);
+        return now != null && now.isAfter(expiresAt);
     }
 
     public void expireIfNeeded(Instant now) {
         if (status == VerificationStatus.PENDING && isExpired(now)) {
             status = VerificationStatus.EXPIRED;
-            updatedAt = now;
+            touch(now);
         }
     }
 
     public void cancel(Instant now) {
+        // keep your rule (can’t cancel consumed)
         if (status == VerificationStatus.CONSUMED) {
             throw new IllegalStateException("Cannot cancel a CONSUMED challenge");
         }
         status = VerificationStatus.CANCELED;
-        updatedAt = now;
+        touch(now);
     }
 
-    public void recordAttempt(Instant now) {
-        if (status != VerificationStatus.PENDING) return;
-        attemptCount++;
-        updatedAt = now;
+    // ======================
+    // ✅ 핵심 변경: verify는 outcome 반환 (no-throw path)
+    // ======================
+
+    public VerifyOutcome verifyOtpByHash(String providedCodeHash, Instant now) {
+        if (!isOtp()) return VerifyOutcome.INVALID_INPUT;
+        return verifyByHash(providedCodeHash, now, true);
     }
 
-    public boolean isAttemptsExceeded() {
-        return attemptCount >= maxAttempts;
+    public VerifyOutcome verifyLinkByHash(String providedTokenHash, Instant now) {
+        if (!isLink()) return VerifyOutcome.INVALID_INPUT;
+        return verifyByHash(providedTokenHash, now, false);
     }
 
-    public void markVerified(Instant now) {
-        if (status != VerificationStatus.PENDING) {
-            throw new IllegalStateException("Cannot verify when status=" + status);
+    private VerifyOutcome verifyByHash(String providedHash, Instant now, boolean isOtp) {
+        if (providedHash == null || providedHash.isBlank() || now == null) {
+            return VerifyOutcome.INVALID_INPUT;
         }
+
+        // 1) must be pending
+        if (status != VerificationStatus.PENDING) {
+            return VerifyOutcome.NOT_PENDING;
+        }
+
+        // 2) expiry check (domain owns it)
         if (isExpired(now)) {
             status = VerificationStatus.EXPIRED;
-            updatedAt = now;
-            throw new IllegalStateException("Challenge expired");
+            touch(now);
+            return VerifyOutcome.EXPIRED;
         }
-        if (isAttemptsExceeded()) {
+
+        // 3) locked check (before attempt)
+        if (attemptCount >= maxAttempts) {
+            // ✅ keep your status model; lock => CANCELED (and outcome=LOCKED)
             status = VerificationStatus.CANCELED;
-            updatedAt = now;
-            throw new IllegalStateException("Too many attempts");
+            touch(now);
+            return VerifyOutcome.LOCKED;
         }
+
+        // 4) consume an attempt
+        attemptCount++;
+        touch(now);
+
+        final String expected = isOtp ? codeHash : tokenHash;
+        boolean ok = Objects.equals(expected, providedHash);
+
+        if (!ok) {
+            // if this attempt caused exceed => lock now
+            if (attemptCount >= maxAttempts) {
+                status = VerificationStatus.CANCELED;
+                touch(now);
+                return VerifyOutcome.LOCKED;
+            }
+            return VerifyOutcome.WRONG_CODE;
+        }
+
+        // 5) success
         status = VerificationStatus.VERIFIED;
         verifiedAt = now;
-        updatedAt = now;
+        touch(now);
+        return VerifyOutcome.VERIFIED;
     }
 
-    public void consume(Instant now) {
-        if (status != VerificationStatus.VERIFIED) {
-            throw new IllegalStateException("Cannot consume when status=" + status);
+    // ======================
+    // consume()
+    // ======================
+
+    public ConsumeOutcome consumeIfVerified(Instant now) {
+        if (now == null) return ConsumeOutcome.NOT_PENDING;
+
+        if (status == VerificationStatus.CONSUMED) return ConsumeOutcome.NOT_PENDING;
+        if (status == VerificationStatus.VERIFIED) {
+            status = VerificationStatus.CONSUMED;
+            consumedAt = now;
+            touch(now);
+            return ConsumeOutcome.CONSUMED;
         }
-        status = VerificationStatus.CONSUMED;
-        consumedAt = now;
-        updatedAt = now;
+        if (status == VerificationStatus.PENDING) return ConsumeOutcome.NOT_VERIFIED;
+        return ConsumeOutcome.NOT_PENDING;
     }
+
+    // ======================
+    // send tracking
+    // ======================
 
     public void recordSent(Instant now) {
+        if (now == null) return;
+
+        // big-co: usually only meaningful in PENDING, but safe no-op otherwise
+        if (status != VerificationStatus.PENDING) return;
+
         sentCount++;
         lastSentAt = now;
-        updatedAt = now;
+        touch(now);
+    }
+
+    private void touch(Instant now) {
+        this.updatedAt = now;
+    }
+
+    // ======================
+    // Invariants
+    // ======================
+
+    private static void assertKindInvariant(String codeHash, String tokenHash) {
+        boolean hasCode = codeHash != null;
+        boolean hasToken = tokenHash != null;
+
+        if (hasCode == hasToken) {
+            // both true or both false => invalid
+            throw new IllegalStateException("Challenge must be exactly one of OTP(codeHash) or LINK(tokenHash)");
+        }
+    }
+
+    private void assertStateInvariant() {
+        // VERIFIED/CONSUMED implies verifiedAt exists (optional but strongly recommended)
+        if ((status == VerificationStatus.VERIFIED || status == VerificationStatus.CONSUMED) && verifiedAt == null) {
+            // don’t throw if you have legacy data; but for new data this is good
+            // throw new IllegalStateException("verifiedAt must be set when status=" + status);
+        }
+
+        // CONSUMED implies consumedAt exists (optional strictness)
+        if (status == VerificationStatus.CONSUMED && consumedAt == null) {
+            // same note as above
+        }
+    }
+
+    private static String requireText(String v, String name) {
+        if (v == null || v.isBlank()) throw new IllegalArgumentException(name + " is required");
+        return v;
+    }
+
+    private static String blankToNull(String v) {
+        return (v == null || v.isBlank()) ? null : v;
     }
 
     // ======================

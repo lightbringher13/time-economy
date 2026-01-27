@@ -94,40 +94,6 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
     }
 
     @Override
-    public Optional<VerificationChallenge> findPendingByCodeHash(
-            VerificationSubjectType subjectType,
-            String subjectId,
-            VerificationPurpose purpose,
-            VerificationChannel channel,
-            String destinationNorm,
-            String codeHash
-    ) {
-        String id = redis.opsForValue().get(otp(subjectType, subjectId, purpose, channel, destinationNorm, codeHash));
-        if (id == null || id.isBlank()) return Optional.empty();
-
-        return findById(id)
-                .filter(c -> c.getStatus() == VerificationStatus.PENDING)
-                .filter(c -> Objects.equals(c.getDestinationNorm(), destinationNorm))
-                .filter(c -> Objects.equals(c.getCodeHash(), codeHash));
-    }
-
-    @Override
-    public Optional<VerificationChallenge> findPendingByTokenHash(
-            VerificationSubjectType subjectType,
-            String subjectId,
-            VerificationPurpose purpose,
-            VerificationChannel channel,
-            String tokenHash
-    ) {
-        String id = redis.opsForValue().get(link(subjectType, subjectId, purpose, channel, tokenHash));
-        if (id == null || id.isBlank()) return Optional.empty();
-
-        return findById(id)
-                .filter(c -> c.getStatus() == VerificationStatus.PENDING)
-                .filter(c -> Objects.equals(c.getTokenHash(), tokenHash));
-    }
-
-    @Override
     public Optional<VerificationChallenge> findActivePendingByTokenHash(
             VerificationPurpose purpose,
             VerificationChannel channel,
@@ -153,12 +119,12 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
     }
 
     @Override
-    public void put(String challengeId, String rawCode, Duration ttl) {
+    public void putOtp(String challengeId, String rawCode, Duration ttl) {
         redis.opsForValue().set(rawOtp(challengeId), rawCode, ttl);
     }
 
     @Override
-    public Optional<String> getAndDelete(String challengeId) {
+    public Optional<String> getAndDeleteOtp(String challengeId) {
         String v = redis.opsForValue().getAndDelete(rawOtp(challengeId));
         return Optional.ofNullable(v);
     }
@@ -193,16 +159,6 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         String pk = pending(c.getSubjectType(), c.getSubjectId(), c.getPurpose(), c.getChannel());
         redis.opsForValue().set(pk, id, ttl);
 
-        // OTP lookup index
-        if (notBlank(c.getCodeHash())) {
-            String ok = otp(
-                    c.getSubjectType(), c.getSubjectId(),
-                    c.getPurpose(), c.getChannel(),
-                    c.getDestinationNorm(), c.getCodeHash()
-            );
-            redis.opsForValue().set(ok, id, ttl);
-        }
-
         // LINK lookup indexes (subject-known + public)
         if (notBlank(c.getTokenHash())) {
             String lk = link(c.getSubjectType(), c.getSubjectId(), c.getPurpose(), c.getChannel(), c.getTokenHash());
@@ -217,15 +173,6 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
         // SAFE pending-pointer cleanup (compare-and-delete)
         String pk = pending(c.getSubjectType(), c.getSubjectId(), c.getPurpose(), c.getChannel());
         deleteIfValueMatches(pk, id);
-
-        // Optional cleanup: delete verify index keys for this exact record
-        if (notBlank(c.getCodeHash())) {
-            redis.delete(otp(
-                    c.getSubjectType(), c.getSubjectId(),
-                    c.getPurpose(), c.getChannel(),
-                    c.getDestinationNorm(), c.getCodeHash()
-            ));
-        }
 
         if (notBlank(c.getTokenHash())) {
             redis.delete(link(
@@ -254,13 +201,6 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
 
     private static Duration ttlFrom(VerificationChallenge c, Instant now) {
         Instant exp = c.getExpiresAt();
-
-        // keep record until later of (expiresAt, tokenExpiresAt)
-        Instant tokenExp = c.getExpiresAt();
-        if (tokenExp != null && (exp == null || tokenExp.isAfter(exp))) {
-            exp = tokenExp;
-        }
-
         if (exp == null) return Duration.ofHours(24);
 
         Duration d = Duration.between(now, exp);

@@ -1,6 +1,7 @@
 // backend/auth-service/src/main/java/com/timeeconomy/auth/domain/signupsession/port/in/GetSignupSessionStatusUseCase.java
 package com.timeeconomy.auth.domain.signupsession.port.in;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -12,12 +13,17 @@ public interface GetSignupSessionStatusUseCase {
 
   record Result(
       boolean exists,
+
       String email,
       boolean emailVerified,
-      boolean emailOtpPending,    // ✅ NEW
+      boolean emailOtpPending,
+      Instant emailOtpExpiresAt,     // ✅ NEW
+
       String phoneNumber,
       boolean phoneVerified,
-      boolean phoneOtpPending,    // ✅ NEW
+      boolean phoneOtpPending,
+      Instant phoneOtpExpiresAt,     // ✅ NEW
+
       String name,
       String gender,
       LocalDate birthDate,

@@ -5,33 +5,40 @@ import { ROUTES } from "@/routes/paths";
 
 import { useSignupFlow } from "../hooks/SignupFlowContext";
 import { useSignupShellUi } from "../hooks/SignupShellUiContext";
+import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
+
 import { signupPathFromState } from "../routes/signupPathFromState";
 
 import { useSignupEmailOtpForm } from "../forms/hooks/useSignupEmailOtpForm";
 import { SignupVerifyOtpStep } from "../components/forms/SignupVerifyOtpStep";
 
-import { getApiError } from "@/shared/api/apiError"; // { code, message } | null
+import { getApiError } from "@/shared/api/apiError";
 
 export default function SignupVerifyEmailOtpPage() {
   const flow = useSignupFlow();
-  const shellUi = useSignupShellUi();
   const navigate = useNavigate();
 
   const form = useSignupEmailOtpForm();
 
-  const clearUiErrors = useCallback(() => {
-    shellUi.clearBanner();
-    form.clearErrors();
-  }, [shellUi, form]);
+  // ✅ destructure stable functions (do NOT depend on whole objects that change)
+  const { clearBanner, showBanner, openCancelModal } = useSignupShellUi();
+  const { applyVerifyResult, applyVerifyError, clearVerifyFeedback } = useSignupOtpUiContext();
 
-  // always start clean
+  const clearUiErrors = useCallback(() => {
+    clearBanner();
+    form.clearErrors();
+    clearVerifyFeedback("EMAIL");
+  }, [clearBanner, form, clearVerifyFeedback]);
+
+  // ✅ run once on mount (only stable deps)
   useEffect(() => {
     form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
-    shellUi.clearBanner();
-  }, [form, shellUi]);
+    clearBanner();
+    clearVerifyFeedback("EMAIL");
+  }, [form.reset, clearBanner, clearVerifyFeedback]);
 
   const onCancel = () => {
-    shellUi.openCancelModal({
+    openCancelModal({
       reason: "user",
       title: "Cancel signup?",
       description: "Your signup progress will be discarded. You can start again anytime.",
@@ -39,7 +46,7 @@ export default function SignupVerifyEmailOtpPage() {
       cancelLabel: "Keep going",
       destructive: true,
       onConfirm: async () => {
-        shellUi.clearBanner();
+        clearBanner();
         navigate(ROUTES.LOGIN, { replace: true });
         await flow.cancel();
       },
@@ -50,17 +57,33 @@ export default function SignupVerifyEmailOtpPage() {
     clearUiErrors();
 
     try {
-      const res = await flow.verifyEmailOtp(code); // ✅ resolves only on VERIFIED (2xx)
+      const res = await flow.verifyEmailOtp(code);
+      applyVerifyResult("EMAIL", res);
+
       form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
       navigate(signupPathFromState(res.state));
     } catch (err) {
       const apiErr = getApiError(err);
+      applyVerifyError("EMAIL", apiErr);
 
-      // ✅ inline (field) errors
+      if (apiErr?.code === "NO_SESSION") {
+        showBanner({
+          kind: "error",
+          code: apiErr.code,
+          message: apiErr.message ?? "Session expired. Please start again.",
+        });
+        navigate(ROUTES.LOGIN, { replace: true });
+        return;
+      }
+
       if (apiErr?.code === "WRONG_CODE") {
+        const attempts = apiErr.details?.remainingAttempts;
         form.setError("code", {
           type: "server",
-          message: apiErr.message ?? "Incorrect code. Please try again.",
+          message:
+            attempts != null
+              ? `${apiErr.message ?? "Incorrect code."} (${attempts} attempts left)`
+              : apiErr.message ?? "Incorrect code. Please try again.",
         });
         return;
       }
@@ -73,17 +96,22 @@ export default function SignupVerifyEmailOtpPage() {
         return;
       }
 
-      // ✅ banner errors (session/state/network/unknown)
-      shellUi.showBanner({
+      if (apiErr?.code === "THROTTLED") {
+        const retry = apiErr.details?.retryAfterSeconds;
+        showBanner({
+          kind: "error",
+          code: apiErr.code,
+          message: retry != null ? `Too many requests. Try again in ${retry}s.` : (apiErr.message ?? "Too many requests."),
+        });
+        return;
+      }
+
+      // LOCKED / EXPIRED / NO_PENDING_OTP / fallback
+      showBanner({
         kind: "error",
         code: apiErr?.code,
         message: apiErr?.message ?? "Verification failed. Please try again.",
       });
-
-      // Optional: if session is gone, route out (recommended UX)
-      // if (apiErr?.code === "NO_SESSION") {
-      //   navigate(ROUTES.LOGIN, { replace: true });
-      // }
     }
   };
 
@@ -94,7 +122,7 @@ export default function SignupVerifyEmailOtpPage() {
         subtitle="Enter the 6-digit code we sent to your email."
         destinationLabel="Email"
         maskedDestination={flow.view.email ?? null}
-        error={undefined} // banner is global in shellUi
+        error={undefined}
         form={form as any}
         onVerify={onVerify}
         onCancel={onCancel}

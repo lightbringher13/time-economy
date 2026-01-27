@@ -14,14 +14,18 @@ function makeEmptyStatus(): SignupStatusResponseDto {
     exists: false,
     email: null,
     emailVerified: false,
+    emailOtpPending: false,
+    emailOtpExpiresAt: null,     // ✅
+
     phoneNumber: null,
     phoneVerified: false,
+    phoneOtpPending: false,
+    phoneOtpExpiresAt: null,     // ✅
+
     name: null,
     gender: null,
     birthDate: null,
     state: "DRAFT",
-    emailOtpPending: false,
-    phoneOtpPending: false,
   };
 }
 
@@ -32,25 +36,36 @@ export function useSendSignupOtpMutation() {
     mutationFn: sendSignupOtpApi,
 
     onSuccess: (res, vars) => {
-      // ✅ optimistic cache update only when request accepted
-      if (res.outcome === "SENT" || res.outcome === "ALREADY_VERIFIED") {
+      const accepted =
+        res.outcome === "SENT" ||
+        res.outcome === "ALREADY_VERIFIED" ||
+        res.outcome === "THROTTLED";
+
+      if (accepted) {
         qc.setQueryData<SignupStatusResponseDto>(signupSessionKeys.status(), (prev) => {
           const base = prev ?? makeEmptyStatus();
+
           return {
             ...base,
             exists: true,
             state: res.state,
+
             emailVerified: res.emailVerified,
             phoneVerified: res.phoneVerified,
             emailOtpPending: res.emailOtpPending,
             phoneOtpPending: res.phoneOtpPending,
+
+            // ✅ persist expiresAt into status cache (so UI countdown survives refetch)
+            emailOtpExpiresAt: res.emailOtpExpiresAt ?? base.emailOtpExpiresAt,
+            phoneOtpExpiresAt: res.phoneOtpExpiresAt ?? base.phoneOtpExpiresAt,
+
+            // destination reflection (optional)
             email: vars.target === "EMAIL" ? vars.destination : base.email,
             phoneNumber: vars.target === "PHONE" ? vars.destination : base.phoneNumber,
           };
         });
       }
 
-      // ✅ backend is source of truth
       qc.invalidateQueries({ queryKey: signupSessionKeys.status(), exact: true });
     },
 

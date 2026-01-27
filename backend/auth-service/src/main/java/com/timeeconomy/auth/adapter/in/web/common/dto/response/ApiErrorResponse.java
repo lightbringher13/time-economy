@@ -3,5 +3,10 @@ package com.timeeconomy.auth.adapter.in.web.common.dto.response;
 
 public record ApiErrorResponse(
         String code,
-        String message
-) {}
+        String message,
+        Object details
+) {
+    public ApiErrorResponse(String code, String message) {
+        this(code, message, null);
+    }
+}

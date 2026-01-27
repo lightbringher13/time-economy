@@ -1,5 +1,4 @@
 // src/features/auth/register/api/signupApi.types.ts
-
 export type SignupSessionState =
   | "DRAFT"
   | "EMAIL_OTP_SENT"
@@ -30,27 +29,29 @@ export interface SignupStatusResponseDto {
   birthDate: string | null; // yyyy-mm-dd
 
   state: SignupSessionState;
-  
+
   emailOtpPending: boolean;
   phoneOtpPending: boolean;
+
+  // ✅ NEW (Instant -> ISO string)
+  emailOtpExpiresAt: string | null;
+  phoneOtpExpiresAt: string | null;
 }
 
 // ---------------------
 // Send OTP
 // ---------------------
-// src/features/auth/register/api/signupApi.types.ts
-
-// ✅ include the new outcomes
 export type SendSignupOtpOutcome =
   | "SENT"
   | "ALREADY_VERIFIED"
   | "INVALID_DESTINATION"
+  | "INVALID_INPUT"
+  | "INVALID_STATE"
   | "THROTTLED"
+  | "DELIVERY_FAILED"
   | "EMAIL_ALREADY_USED"
   | "PHONE_ALREADY_USED";
 
-// ✅ sessionId is not always guaranteed on invalid input / duplicates,
-// so make it nullable (safer and matches reality)
 export interface SendSignupOtpResponseDto {
   outcome: SendSignupOtpOutcome;
   sent: boolean;
@@ -59,8 +60,18 @@ export interface SendSignupOtpResponseDto {
   sessionCreated: boolean;
 
   challengeId: string | null;
+
+  // keep for backward compatibility (you can compute from expiresAt too)
   ttlMinutes: number;
+
   maskedDestination: string | null;
+
+  // ✅ NEW (server truth)
+  retryAfterSeconds: number | null;
+
+  // ✅ NEW (Instant -> ISO string)
+  emailOtpExpiresAt: string | null;
+  phoneOtpExpiresAt: string | null;
 
   emailVerified: boolean;
   phoneVerified: boolean;
@@ -79,17 +90,16 @@ export interface SendSignupOtpRequestDto {
 // ---------------------
 // Verify OTP
 // ---------------------
-export interface VerifySignupOtpRequestDto {
-  target: SignupVerificationTarget;
-  code: string;
-}
-
 export type VerifySignupOtpOutcome =
   | "VERIFIED"
   | "WRONG_CODE"
   | "NO_SESSION"
   | "NO_PENDING_OTP"
-  | "INVALID_INPUT";
+  | "INVALID_INPUT"
+  // ✅ if you later bubble these up from verification:
+  | "EXPIRED"
+  | "LOCKED"
+  | "THROTTLED";
 
 export interface VerifySignupOtpResponseDto {
   outcome: VerifySignupOtpOutcome;
@@ -104,6 +114,16 @@ export interface VerifySignupOtpResponseDto {
   phoneOtpPending: boolean;
 
   state: SignupSessionState;
+
+  // ✅ optional future-proof fields (only if your BE returns them)
+  expiresAt?: string | null;
+  remainingAttempts?: number | null;
+  retryAfterSeconds?: number | null;
+}
+
+export interface VerifySignupOtpRequestDto {
+  target: SignupVerificationTarget;
+  code: string;
 }
 
 // ---------------------

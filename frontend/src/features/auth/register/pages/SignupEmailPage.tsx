@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { SignupEmailStep } from "../components/forms/SignupEmailStep";
 import { useSignupFlow } from "../hooks/SignupFlowContext";
 import { useSignupShellUi } from "../hooks/SignupShellUiContext";
+import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { ROUTES } from "@/routes/paths";
@@ -17,6 +18,7 @@ export default function SignupEmailPage() {
   const flow = useSignupFlow();
   const shellUi = useSignupShellUi();
   const emailForm = useSignupEmailForm();
+  const otpUi = useSignupOtpUiContext();
 
   // Prefill from server, but never overwrite user edits
   useEffect(() => {
@@ -59,8 +61,37 @@ export default function SignupEmailPage() {
     try {
       const res = await flow.sendEmailOtp(email);
 
-      // Navigate based on BE-returned state (EMAIL_OTP_SENT => verify page)
-      navigate(signupPathFromState(res.state));
+      // ✅ seed cooldown timer from server (works for SENT + THROTTLED)
+      otpUi.applySendResult("EMAIL", res); // <- from useSignupOtpUiContext()
+
+      // ✅ navigate only when a new OTP was accepted/sent or already verified
+      if (res.outcome === "SENT" || res.outcome === "ALREADY_VERIFIED") {
+        navigate(signupPathFromState(res.state));
+        return;
+      }
+
+      // ✅ throttled is not "error" UX — just inform user
+      if (res.outcome === "THROTTLED") {
+        shellUi.showBanner({
+          kind: "info",
+          code: "THROTTLED",
+          message:
+            res.retryAfterSeconds != null
+              ? `Please wait ${res.retryAfterSeconds}s before resending.`
+              : "Please wait a moment before resending.",
+        });
+        return;
+      }
+
+      // ✅ delivery failed etc.
+      if (res.outcome === "DELIVERY_FAILED") {
+        shellUi.showBanner({
+          kind: "error",
+          code: res.outcome,
+          message: "We couldn't send the code right now. Please try again.",
+        });
+        return;
+      }
     } catch (err) {
       const apiErr = getApiError(err);
 
@@ -70,7 +101,7 @@ export default function SignupEmailPage() {
         return;
       }
 
-      // ✅ banner errors (unknown / network / invalid state, etc.)
+      // ✅ banner errors
       shellUi.showBanner({
         kind: "error",
         message: apiErr?.message ?? "Request failed.",

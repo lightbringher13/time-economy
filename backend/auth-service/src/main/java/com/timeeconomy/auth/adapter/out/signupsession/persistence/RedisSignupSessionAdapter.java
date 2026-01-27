@@ -37,6 +37,9 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
         s.setUpdatedAt(now);
         s.setExpiresAt(now.plus(SESSION_TTL));
 
+        s.setEmailOtpExpiresAt(null);
+        s.setPhoneOtpExpiresAt(null);
+
         s.setEmailVerified(false);
         s.setEmailOtpPending(false);   // ✅ NEW
 
@@ -167,10 +170,12 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
         m.put("email", n(s.email()));
         m.put("emailVerified", Boolean.toString(s.emailVerified()));
         m.put("emailOtpPending", Boolean.toString(s.emailOtpPending()));   // ✅ NEW
-
+        m.put("emailOtpExpiresAtEpochMillis", nLong(s.emailOtpExpiresAtEpochMillis()));
+        
         m.put("phoneNumber", n(s.phoneNumber()));
         m.put("phoneVerified", Boolean.toString(s.phoneVerified()));
         m.put("phoneOtpPending", Boolean.toString(s.phoneOtpPending()));   // ✅ NEW
+        m.put("phoneOtpExpiresAtEpochMillis", nLong(s.phoneOtpExpiresAtEpochMillis()));
 
         m.put("name", n(s.name()));
         m.put("gender", n(s.gender()));
@@ -193,11 +198,13 @@ public class RedisSignupSessionAdapter implements SignupSessionStorePort {
                 .email(blankToNull(get(raw, "email")))
                 .emailVerified(parseBool(get(raw, "emailVerified"), false))
                 .emailOtpPending(parseBool(get(raw, "emailOtpPending"), false))   // ✅ NEW (defaults false)
+                .emailOtpExpiresAtEpochMillis(parseLongObj(get(raw, "emailOtpExpiresAtEpochMillis")))
 
                 .phoneNumber(blankToNull(get(raw, "phoneNumber")))
                 .phoneVerified(parseBool(get(raw, "phoneVerified"), false))
                 .phoneOtpPending(parseBool(get(raw, "phoneOtpPending"), false))   // ✅ NEW (defaults false)
-
+                .phoneOtpExpiresAtEpochMillis(parseLongObj(get(raw, "phoneOtpExpiresAtEpochMillis")))
+                
                 .name(blankToNull(get(raw, "name")))
                 .gender(blankToNull(get(raw, "gender")))
                 .birthDateEpochDays(parseIntObj(get(raw, "birthDateEpochDays")))

@@ -4,6 +4,8 @@ import { ROUTES } from "@/routes/paths";
 
 import { SignupFlowProvider, useSignupFlow } from "../hooks/SignupFlowContext";
 import { SignupShellUiProvider } from "../hooks/SignupShellUiContext";
+import { SignupOtpUiProvider } from "../hooks/SignupOtpUiContext";
+import { SignupProgressCard } from "../components/ui/SignupProgressCard";
 
 import { signupPathFromState } from "../routes/signupPathFromState";
 import { allowedPathsByState } from "../routes/signupAllowedPaths";
@@ -13,7 +15,9 @@ export default function SignupLayout() {
   return (
     <SignupFlowProvider>
       <SignupShellUiProvider>
-        <SignupLayoutInner />
+        <SignupOtpUiProvider>
+          <SignupLayoutInner />
+        </SignupOtpUiProvider>
       </SignupShellUiProvider>
     </SignupFlowProvider>
   );
@@ -68,5 +72,10 @@ function SignupLayoutInner() {
     navigate,
   ]);
 
-  return <Outlet />;
+  return (
+    <div style={{ maxWidth: 460, margin: "0 auto", padding: 16 }}>
+      <SignupProgressCard />
+      <Outlet />
+    </div>
+  );
 }

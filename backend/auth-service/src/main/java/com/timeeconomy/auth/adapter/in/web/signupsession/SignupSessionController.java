@@ -22,6 +22,7 @@ import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.SignupStat
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.UpdateSignupProfileResponse;
 import com.timeeconomy.auth.adapter.in.web.signupsession.dto.response.VerifySignupOtpResponse;
 import com.timeeconomy.auth.adapter.in.web.common.dto.response.ApiErrorResponse;
+import com.timeeconomy.auth.adapter.in.web.common.dto.response.ApiErrorDetails;
 
 import com.timeeconomy.auth.domain.signupsession.port.in.CancelSignupSessionUseCase;
 import com.timeeconomy.auth.domain.signupsession.port.in.GetSignupSessionStatusUseCase;
@@ -92,7 +93,8 @@ public class SignupSessionController {
     @PostMapping("/verify-otp")
     public ResponseEntity<?> verifyOtp(
             @Valid @RequestBody VerifySignupOtpRequest req,
-            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue
+            @CookieValue(name = SIGNUP_SESSION_COOKIE, required = false) String sessionIdValue,
+            HttpServletRequest http
     ) {
         UUID sessionId = parseCookieUuidOrNull(sessionIdValue);
 
@@ -100,7 +102,8 @@ public class SignupSessionController {
                 new VerifySignupOtpUseCase.Command(
                         sessionId,
                         req.target(),
-                        req.code()
+                        req.code(),
+                        clientIp(http)   // ✅ NEW
                 )
         );
 
@@ -158,9 +161,13 @@ public class SignupSessionController {
                 r.email(),
                 r.emailVerified(),
                 r.emailOtpPending(),
+                r.emailOtpExpiresAt(),      // ✅ NEW
+
                 r.phoneNumber(),
                 r.phoneVerified(),
                 r.phoneOtpPending(),
+                r.phoneOtpExpiresAt(),      // ✅ NEW
+
                 r.name(),
                 r.gender(),
                 r.birthDate(),
@@ -177,6 +184,12 @@ public class SignupSessionController {
                 r.challengeId(),
                 r.ttlMinutes(),
                 r.maskedDestination(),
+
+                r.retryAfterSeconds(),      // ✅ NEW
+
+                r.emailOtpExpiresAt(),      // ✅ NEW
+                r.phoneOtpExpiresAt(),      // ✅ NEW
+
                 r.emailVerified(),
                 r.phoneVerified(),
                 r.emailOtpPending(),
@@ -190,6 +203,9 @@ public class SignupSessionController {
                 r.outcome(),
                 r.success(),
                 r.sessionId(),
+                r.otpExpiresAt(),
+                r.remainingAttempts(),
+                r.retryAfterSeconds(),
                 r.emailVerified(),
                 r.phoneVerified(),
                 r.emailOtpPending(),
@@ -229,10 +245,10 @@ public class SignupSessionController {
             return ok.body(body);
         }
 
-        // ❌ expected failures -> return ApiErrorResponse
         HttpStatus status = switch (r.outcome()) {
             case INVALID_DESTINATION, INVALID_INPUT -> HttpStatus.BAD_REQUEST; // 400
-            case EMAIL_ALREADY_USED, PHONE_ALREADY_USED, INVALID_STATE -> HttpStatus.CONFLICT; // 409 (or 422 if you prefer)
+            case EMAIL_ALREADY_USED, PHONE_ALREADY_USED, INVALID_STATE -> HttpStatus.CONFLICT; // 409
+            case DELIVERY_FAILED -> HttpStatus.SERVICE_UNAVAILABLE; // ✅ 503
             default -> HttpStatus.BAD_REQUEST;
         };
 
@@ -242,6 +258,7 @@ public class SignupSessionController {
             case INVALID_STATE -> "Complete the previous step first.";
             case EMAIL_ALREADY_USED -> "That email is already in use.";
             case PHONE_ALREADY_USED -> "That phone number is already in use.";
+            case DELIVERY_FAILED -> "Failed to send OTP. Please try again."; // ✅
             default -> "Request failed.";
         };
 
@@ -290,15 +307,22 @@ public class SignupSessionController {
     }
 
     private ResponseEntity<?> toVerifyOtpHttp(VerifySignupOtpUseCase.Result r) {
-        // ✅ success -> success DTO
+
+        // ✅ Success
         if (r.outcome() == VerifySignupOtpUseCase.Outcome.VERIFIED) {
             VerifySignupOtpResponse body = toVerifyOtpResponse(r);
             return ResponseEntity.ok(body);
         }
 
-        // ❌ expected failures -> ApiErrorResponse
+        // ❌ Expected failures -> ApiErrorResponse (with metadata)
         HttpStatus status = switch (r.outcome()) {
-            case NO_SESSION -> HttpStatus.UNAUTHORIZED;          // 401
+            case NO_SESSION -> HttpStatus.UNAUTHORIZED; // 401
+
+            case THROTTLED -> HttpStatus.TOO_MANY_REQUESTS; // 429
+
+            case LOCKED -> HttpStatus.LOCKED; // 423 (or 429 if you prefer)
+            case EXPIRED -> HttpStatus.GONE;  // 410
+
             case WRONG_CODE, NO_PENDING_OTP, INVALID_INPUT -> HttpStatus.BAD_REQUEST; // 400
             default -> HttpStatus.BAD_REQUEST;
         };
@@ -308,11 +332,36 @@ public class SignupSessionController {
             case NO_SESSION -> "Your signup session is missing or expired. Please start again.";
             case NO_PENDING_OTP -> "No verification is pending. Please request a new code.";
             case INVALID_INPUT -> "Invalid request.";
+            case EXPIRED -> "This code has expired. Please request a new code.";
+            case LOCKED -> "Too many attempts. Please request a new code.";
+            case THROTTLED -> "Too many requests. Please try again later.";
             default -> "Verification failed.";
         };
 
-        ApiErrorResponse err = new ApiErrorResponse(r.outcome().name(), message);
-        return ResponseEntity.status(status).body(err);
+        // ✅ Optionally set Retry-After header for THROTTLED
+        if (r.outcome() == VerifySignupOtpUseCase.Outcome.THROTTLED && r.retryAfterSeconds() != null) {
+            return ResponseEntity.status(status)
+                    .header("Retry-After", String.valueOf(r.retryAfterSeconds()))
+                    .body(new ApiErrorResponse(
+                            r.outcome().name(),
+                            message,
+                            new ApiErrorDetails(
+                                    r.otpExpiresAt(),
+                                    r.remainingAttempts(),
+                                    r.retryAfterSeconds()
+                            )
+                    ));
+        }
+
+        return ResponseEntity.status(status).body(new ApiErrorResponse(
+                r.outcome().name(),
+                message,
+                new ApiErrorDetails(
+                        r.otpExpiresAt(),
+                        r.remainingAttempts(),
+                        r.retryAfterSeconds()
+                )
+        ));
     }
 
     // =========================================================

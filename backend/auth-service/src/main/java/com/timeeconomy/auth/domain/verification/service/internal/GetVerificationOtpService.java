@@ -17,7 +17,7 @@ public class GetVerificationOtpService implements GetVerificationOtpOnceUseCase 
 
     @Override
     public Result getOnce(Command command) {
-        String otp = repo.getAndDelete(command.challengeId()) // ✅ PEEK (non-destructive)
+        String otp = repo.getAndDeleteOtp(command.challengeId()) // ✅ PEEK (non-destructive)
                 .orElseThrow(() -> new NoSuchElementException("otp not found"));
 
         return new Result(command.challengeId(), otp);

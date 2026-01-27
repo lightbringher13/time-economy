@@ -5,6 +5,8 @@ import { ROUTES } from "@/routes/paths";
 
 import { useSignupFlow } from "../hooks/SignupFlowContext";
 import { useSignupShellUi } from "../hooks/SignupShellUiContext";
+import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
+
 import { signupPathFromState } from "../routes/signupPathFromState";
 
 import { useSignupPhoneOtpForm } from "../forms/hooks/useSignupPhoneOtpForm";
@@ -14,24 +16,27 @@ import { getApiError } from "@/shared/api/apiError";
 
 export default function SignupVerifyPhoneOtpPage() {
   const flow = useSignupFlow();
-  const shellUi = useSignupShellUi();
   const navigate = useNavigate();
 
   const form = useSignupPhoneOtpForm();
 
-  const clearUiErrors = useCallback(() => {
-    shellUi.clearBanner();
-    form.clearErrors();
-  }, [shellUi, form]);
+  const { clearBanner, showBanner, openCancelModal } = useSignupShellUi();
+  const { applyVerifyResult, applyVerifyError, clearVerifyFeedback } = useSignupOtpUiContext();
 
-  // always start clean
+  const clearUiErrors = useCallback(() => {
+    clearBanner();
+    form.clearErrors();
+    clearVerifyFeedback("PHONE");
+  }, [clearBanner, form, clearVerifyFeedback]);
+
   useEffect(() => {
     form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
-    shellUi.clearBanner();
-  }, [form, shellUi]);
+    clearBanner();
+    clearVerifyFeedback("PHONE");
+  }, [form.reset, clearBanner, clearVerifyFeedback]);
 
   const onCancel = () => {
-    shellUi.openCancelModal({
+    openCancelModal({
       reason: "user",
       title: "Cancel signup?",
       description: "Your signup progress will be discarded. You can start again anytime.",
@@ -39,7 +44,7 @@ export default function SignupVerifyPhoneOtpPage() {
       cancelLabel: "Keep going",
       destructive: true,
       onConfirm: async () => {
-        shellUi.clearBanner();
+        clearBanner();
         navigate(ROUTES.LOGIN, { replace: true });
         await flow.cancel();
       },
@@ -50,17 +55,33 @@ export default function SignupVerifyPhoneOtpPage() {
     clearUiErrors();
 
     try {
-      const res = await flow.verifyPhoneOtp(code); // ✅ resolves only on VERIFIED (2xx)
+      const res = await flow.verifyPhoneOtp(code);
+      applyVerifyResult("PHONE", res);
+
       form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
       navigate(signupPathFromState(res.state));
     } catch (err) {
       const apiErr = getApiError(err);
+      applyVerifyError("PHONE", apiErr);
 
-      // ✅ inline (field) errors
+      if (apiErr?.code === "NO_SESSION") {
+        showBanner({
+          kind: "error",
+          code: apiErr.code,
+          message: apiErr.message ?? "Session expired. Please start again.",
+        });
+        navigate(ROUTES.LOGIN, { replace: true });
+        return;
+      }
+
       if (apiErr?.code === "WRONG_CODE") {
+        const attempts = apiErr.details?.remainingAttempts;
         form.setError("code", {
           type: "server",
-          message: apiErr.message ?? "Incorrect code. Please try again.",
+          message:
+            attempts != null
+              ? `${apiErr.message ?? "Incorrect code."} (${attempts} attempts left)`
+              : apiErr.message ?? "Incorrect code. Please try again.",
         });
         return;
       }
@@ -73,17 +94,21 @@ export default function SignupVerifyPhoneOtpPage() {
         return;
       }
 
-      // ✅ banner errors (session/state/network/unknown)
-      shellUi.showBanner({
+      if (apiErr?.code === "THROTTLED") {
+        const retry = apiErr.details?.retryAfterSeconds;
+        showBanner({
+          kind: "error",
+          code: apiErr.code,
+          message: retry != null ? `Too many requests. Try again in ${retry}s.` : (apiErr.message ?? "Too many requests."),
+        });
+        return;
+      }
+
+      showBanner({
         kind: "error",
         code: apiErr?.code,
         message: apiErr?.message ?? "Verification failed. Please try again.",
       });
-
-      // Optional: if session is gone, route out (recommended UX)
-      // if (apiErr?.code === "NO_SESSION") {
-      //   navigate(ROUTES.LOGIN, { replace: true });
-      // }
     }
   };
 
@@ -94,7 +119,7 @@ export default function SignupVerifyPhoneOtpPage() {
         subtitle="Enter the 6-digit code we sent via SMS."
         destinationLabel="Phone"
         maskedDestination={flow.view.phoneNumber ?? null}
-        error={undefined} // banner is global via shellUi
+        error={undefined}
         form={form as any}
         onVerify={onVerify}
         onCancel={onCancel}

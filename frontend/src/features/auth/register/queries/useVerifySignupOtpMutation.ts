@@ -18,9 +18,9 @@ export function useVerifySignupOtpMutation() {
     mutationFn: verifySignupOtpApi,
 
     onSuccess: (res) => {
-      // ✅ only VERIFIED should reach here (200)
       qc.setQueryData<SignupStatusResponseDto>(signupSessionKeys.status(), (prev) => {
         if (!prev) return prev;
+
         return {
           ...prev,
           exists: true,
@@ -29,10 +29,13 @@ export function useVerifySignupOtpMutation() {
           phoneVerified: res.phoneVerified,
           emailOtpPending: res.emailOtpPending,
           phoneOtpPending: res.phoneOtpPending,
+
+          // ✅ if verified, pending false => expiresAt should be null
+          emailOtpExpiresAt: res.emailOtpPending ? prev.emailOtpExpiresAt : null,
+          phoneOtpExpiresAt: res.phoneOtpPending ? prev.phoneOtpExpiresAt : null,
         };
       });
 
-      // ✅ still refetch in background (source of truth)
       qc.invalidateQueries({ queryKey: signupSessionKeys.status(), exact: true });
     },
 
