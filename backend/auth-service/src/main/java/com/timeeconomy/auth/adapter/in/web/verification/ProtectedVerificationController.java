@@ -6,13 +6,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.timeeconomy.auth.adapter.in.web.verification.dto.request.ConsumeRequest;
+// import com.timeeconomy.auth.adapter.in.web.verification.dto.request.ConsumeRequest;
 import com.timeeconomy.auth.adapter.in.web.verification.dto.request.CreateOtpRequest;
 import com.timeeconomy.auth.adapter.in.web.verification.dto.request.VerifyOtpRequest;
 import com.timeeconomy.auth.adapter.in.web.verification.dto.response.CreateOtpResponse;
 import com.timeeconomy.auth.adapter.in.web.verification.dto.response.VerifyOtpResponse;
 import com.timeeconomy.auth.domain.verification.model.VerificationSubjectType;
-import com.timeeconomy.auth.domain.verification.port.in.ConsumeVerificationUseCase;
+// import com.timeeconomy.auth.domain.verification.port.in.ConsumeVerificationUseCase;
 import com.timeeconomy.auth.domain.verification.port.in.CreateOtpUseCase;
 import com.timeeconomy.auth.domain.verification.port.in.VerifyOtpUseCase;
 
@@ -23,7 +23,7 @@ public class ProtectedVerificationController {
 
     private final CreateOtpUseCase createOtpUseCase;
     private final VerifyOtpUseCase verifyOtpUseCase;
-    private final ConsumeVerificationUseCase consumeVerificationUseCase;
+    // private final ConsumeVerificationUseCase consumeVerificationUseCase;
 
     /**
      * Protected OTP create (ex: CHANGE_EMAIL).
@@ -82,11 +82,11 @@ public class ProtectedVerificationController {
         ));
     }
 
-    @PostMapping("/consume")
-    public ResponseEntity<Void> consume(@RequestBody ConsumeRequest req) {
-        consumeVerificationUseCase.consume(new ConsumeVerificationUseCase.ConsumeCommand(req.challengeId()));
-        return ResponseEntity.ok().build();
-    }
+    // @PostMapping("/consume")
+    // public ResponseEntity<Void> consume(@RequestBody ConsumeRequest req) {
+    //     consumeVerificationUseCase.consume(new ConsumeVerificationUseCase.ConsumeCommand(req.challengeId()));
+    //     return ResponseEntity.ok().build();
+    // }
 
     private String userAgent(HttpServletRequest req) {
         String ua = req.getHeader("User-Agent");

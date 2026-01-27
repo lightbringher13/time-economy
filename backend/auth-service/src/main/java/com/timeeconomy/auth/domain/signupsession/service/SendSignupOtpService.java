@@ -185,7 +185,7 @@ public class SendSignupOtpService implements SendSignupOtpUseCase {
                 issued.challengeId(),
                 ttlMinutes,
                 issued.maskedDestination(),
-                null
+                issued.retryAfterSeconds()
         );
     }
 

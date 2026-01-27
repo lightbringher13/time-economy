@@ -161,9 +161,13 @@ public class SignupSessionController {
                 r.email(),
                 r.emailVerified(),
                 r.emailOtpPending(),
+                r.emailOtpExpiresAt(),      // ✅ NEW
+
                 r.phoneNumber(),
                 r.phoneVerified(),
                 r.phoneOtpPending(),
+                r.phoneOtpExpiresAt(),      // ✅ NEW
+
                 r.name(),
                 r.gender(),
                 r.birthDate(),

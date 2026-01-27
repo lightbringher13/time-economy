@@ -66,7 +66,7 @@ public class SignupOtpIssuerAdapter implements SignupOtpIssuerPort {
                     created.challengeId(),
                     masked,
                     created.expiresAt(),
-                    null
+                    toRetryAfterSeconds(now, created.nextSendAt())
             );
 
             case THROTTLED -> new IssueResult(

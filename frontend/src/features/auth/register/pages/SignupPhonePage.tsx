@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { SignupPhoneStep } from "../components/forms/SignupPhoneStep";
 import { useSignupFlow } from "../hooks/SignupFlowContext";
 import { useSignupShellUi } from "../hooks/SignupShellUiContext";
+import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
 
 import { useSignupPhoneForm } from "../forms/hooks/useSignupPhoneForm";
 import { ROUTES } from "@/routes/paths";
@@ -16,6 +17,7 @@ export default function SignupPhonePage() {
   const navigate = useNavigate();
   const flow = useSignupFlow();
   const shellUi = useSignupShellUi();
+  const otpUi = useSignupOtpUiContext();
 
   const phoneForm = useSignupPhoneForm();
 
@@ -61,8 +63,37 @@ export default function SignupPhonePage() {
     try {
       const res = await flow.sendPhoneOtp(phone);
 
-      // navigate based on BE-returned state
-      navigate(signupPathFromState(res.state));
+      // ✅ seed cooldown timer from server (works for SENT + THROTTLED)
+      otpUi.applySendResult("PHONE", res);
+
+      // ✅ navigate only when accepted/sent or already verified
+      if (res.outcome === "SENT" || res.outcome === "ALREADY_VERIFIED") {
+        navigate(signupPathFromState(res.state));
+        return;
+      }
+
+      // ✅ throttled is not an error UX
+      if (res.outcome === "THROTTLED") {
+        shellUi.showBanner({
+          kind: "info",
+          code: "THROTTLED",
+          message:
+            res.retryAfterSeconds != null
+              ? `Please wait ${res.retryAfterSeconds}s before resending.`
+              : "Please wait a moment before resending.",
+        });
+        return;
+      }
+
+      // ✅ delivery failed etc.
+      if (res.outcome === "DELIVERY_FAILED") {
+        shellUi.showBanner({
+          kind: "error",
+          code: res.outcome,
+          message: "We couldn't send the code right now. Please try again.",
+        });
+        return;
+      }
     } catch (err) {
       const apiErr = getApiError(err);
 

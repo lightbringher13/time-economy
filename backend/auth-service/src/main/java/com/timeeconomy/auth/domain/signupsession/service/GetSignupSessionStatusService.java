@@ -24,7 +24,7 @@ public class GetSignupSessionStatusService implements GetSignupSessionStatusUseC
     @Override
     @Transactional(readOnly = true)
     public Result getStatus(Query query) {
-        UUID sessionId = query.sessionId();
+        UUID sessionId = (query == null) ? null : query.sessionId();
 
         if (sessionId == null) {
             return noSession();
@@ -40,12 +40,17 @@ public class GetSignupSessionStatusService implements GetSignupSessionStatusUseC
     private Result noSession() {
         return new Result(
                 false,
+
                 null,
                 false,
-                false,          // emailOtpPending
+                false,
+                null,          // ✅ emailOtpExpiresAt
+
                 null,
                 false,
-                false,          // phoneOtpPending
+                false,
+                null,          // ✅ phoneOtpExpiresAt
+
                 null,
                 null,
                 null,
@@ -59,12 +64,17 @@ public class GetSignupSessionStatusService implements GetSignupSessionStatusUseC
 
         return new Result(
                 true,
+
                 s.getEmail(),
                 s.isEmailVerified(),
-                s.isEmailOtpPending(),   // ✅ NEW
+                s.isEmailOtpPending(),
+                s.getEmailOtpExpiresAt(),   // ✅ NEW
+
                 s.getPhoneNumber(),
                 s.isPhoneVerified(),
-                s.isPhoneOtpPending(),   // ✅ NEW
+                s.isPhoneOtpPending(),
+                s.getPhoneOtpExpiresAt(),   // ✅ NEW
+
                 s.getName(),
                 s.getGender(),
                 s.getBirthDate(),
