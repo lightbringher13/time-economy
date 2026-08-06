@@ -1,0 +1,50 @@
+spring:
+  kafka:
+    bootstrap-servers: 127.0.0.1:1
+    admin:
+      auto-create: false
+    properties:
+      schema.registry.url: http://127.0.0.1:1
+
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 1
+      connect-timeout: 100ms
+      timeout: 100ms
+      repositories:
+        enabled: false
+
+  mail:
+    host: 127.0.0.1
+    port: 1
+    username: test
+    password: test
+    test-connection: false
+    properties:
+      mail.smtp.auth: false
+      mail.smtp.starttls.enable: false
+
+timeeconomy:
+  outbox:
+    relay:
+      enabled: false
+
+app:
+  mail:
+    from: no-reply@example.test
+  verification:
+    hmac-secret: test-hmac-secret-0123456789abcdef
+  internal:
+    token: test-internal-token
+
+brevo:
+  sms:
+    api-key: test-api-key
+    sender-name: TimeEconomyTest
+
+jwt:
+  secret: 0123456789abcdef0123456789abcdef
+
+userservice:
+  base-url: http://127.0.0.1:1
