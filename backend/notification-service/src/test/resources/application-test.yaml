@@ -1,0 +1,12 @@
+spring:
+  kafka:
+    listener:
+      auto-startup: false
+
+auth:
+  internal:
+    base-url: http://localhost
+    token: test-internal-token
+
+brevo:
+  api-key: test-api-key

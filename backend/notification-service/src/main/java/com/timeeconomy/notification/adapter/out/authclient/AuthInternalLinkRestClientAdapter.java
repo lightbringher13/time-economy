@@ -5,7 +5,6 @@ import com.timeeconomy.notification.application.integration.port.out.AuthInterna
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -23,9 +22,6 @@ public class AuthInternalLinkRestClientAdapter implements AuthInternalLinkClient
     @Qualifier("authInternalRestClient")
     private final RestClient authInternalRestClient;
 
-    @Value("${app.internal.token}")
-    private String internalToken;
-
     @Override
     public Optional<String> getLinkUrlOnce(UUID verificationChallengeId, String purpose, UUID eventId) {
         try {
@@ -34,7 +30,6 @@ public class AuthInternalLinkRestClientAdapter implements AuthInternalLinkClient
                             .path("/internal/verification/challenges/{id}/link-url")
                             .queryParam("purpose", purpose)
                             .build(verificationChallengeId))
-                    .header("X-Internal-Token", internalToken)
                     .header("X-Event-Id", eventId == null ? "" : eventId.toString())
                     .retrieve()
                     .body(LinkUrlOnceResponse.class);
