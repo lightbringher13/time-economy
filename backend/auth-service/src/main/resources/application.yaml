@@ -53,6 +53,8 @@ spring:
 
 timeeconomy:
   outbox:
+    relay:
+      enabled: ${OUTBOX_RELAY_ENABLED:true}
     topics:
       EmailChangeCommitted.v1: auth.email.change.committed.v1
       VerificationOtpDeliveryRequested.v1: auth.verification.otp.delivery.requested.v1

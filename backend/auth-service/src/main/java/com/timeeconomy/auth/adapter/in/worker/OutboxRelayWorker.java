@@ -3,6 +3,7 @@ package com.timeeconomy.auth.adapter.in.worker;
 import com.timeeconomy.auth.domain.outbox.port.in.RelayOutboxUseCase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(
+        prefix = "timeeconomy.outbox.relay",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 @RequiredArgsConstructor
 public class OutboxRelayWorker implements SmartLifecycle {
 
