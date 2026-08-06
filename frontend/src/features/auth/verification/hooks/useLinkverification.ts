@@ -6,6 +6,7 @@ import type {
   VerifyLinkResponse,
 } from "../types/verificationTypes";
 import { createLinkApi, verifyLinkApi } from "../api/verificationApi";
+import { getApiErrorMessage } from "@/shared/api/apiError";
 
 export function useLinkVerification() {
   const [creating, setCreating] = useState(false);
@@ -20,8 +21,8 @@ export function useLinkVerification() {
       const res = await createLinkApi(req);
       setLastCreate(res);
       return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? e?.message ?? "Failed to create link");
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to create link"));
       throw e;
     } finally {
       setCreating(false);
@@ -34,8 +35,8 @@ export function useLinkVerification() {
     try {
       const res: VerifyLinkResponse = await verifyLinkApi(req);
       return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? e?.message ?? "Failed to verify link");
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to verify link"));
       throw e;
     } finally {
       setVerifying(false);

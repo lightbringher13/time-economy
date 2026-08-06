@@ -1,80 +1,22 @@
 // src/features/auth/register/hooks/SignupShellUiContext.tsx
-import React, {
-  createContext,
-  useContext,
+import {
   useMemo,
   useState,
   useCallback,
   useRef,
+  type ReactNode,
 } from "react";
 import { ConfirmModal } from "../components/modal/ConfirmModal";
+import {
+  SignupShellUiContext,
+  type CancelModalState,
+  type ConfirmModalState,
+  type OpenCancelOptions,
+  type OpenConfirmOptions,
+  type SignupBanner,
+} from "./useSignupShellUi";
 
-type CancelReason = "user" | "timeout" | "nav";
-
-// ✅ NEW: banner
-export type SignupBannerKind = "error" | "info" | "success";
-export type SignupBanner = {
-  kind: SignupBannerKind;
-  message: string;
-  code?: string;
-};
-
-type CancelModalState = {
-  open: boolean;
-  reason?: CancelReason;
-  title?: string;
-  description?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  destructive?: boolean;
-};
-
-type ConfirmModalState = {
-  open: boolean;
-  title: string;
-  description?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  destructive?: boolean;
-};
-
-type OpenConfirmOptions = Omit<ConfirmModalState, "open"> & {
-  onConfirm: () => void | Promise<void>;
-  onCancel?: () => void;
-};
-
-type OpenCancelOptions = {
-  reason?: CancelReason;
-  title?: string;
-  description?: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  destructive?: boolean;
-  onConfirm: () => void | Promise<void>;
-  onCancel?: () => void;
-};
-
-type SignupShellUi = {
-  // generic confirm
-  openConfirmModal: (opts: OpenConfirmOptions) => void;
-  closeConfirmModal: () => void;
-
-  // cancel signup flow confirm
-  openCancelModal: (opts: OpenCancelOptions) => void;
-  closeCancelModal: () => void;
-
-  // optional helper
-  closeAllModals: () => void;
-
-  // ✅ NEW: banner APIs
-  banner: SignupBanner | null;
-  showBanner: (b: SignupBanner) => void;
-  clearBanner: () => void;
-};
-
-const SignupShellUiContext = createContext<SignupShellUi | null>(null);
-
-export function SignupShellUiProvider({ children }: { children: React.ReactNode }) {
+export function SignupShellUiProvider({ children }: { children: ReactNode }) {
   // ✅ NEW: banner state
   const [banner, setBanner] = useState<SignupBanner | null>(null);
 
@@ -317,10 +259,4 @@ export function SignupShellUiProvider({ children }: { children: React.ReactNode 
       />
     </SignupShellUiContext.Provider>
   );
-}
-
-export function useSignupShellUi() {
-  const ctx = useContext(SignupShellUiContext);
-  if (!ctx) throw new Error("useSignupShellUi must be used within <SignupShellUiProvider />");
-  return ctx;
 }

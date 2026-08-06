@@ -3,9 +3,9 @@ import { useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
 
-import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext";
-import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
+import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupShellUi } from "../hooks/useSignupShellUi";
+import { useSignupOtpUiContext } from "../hooks/useSignupOtpUiContext";
 
 import { signupPathFromState } from "../routes/signupPathFromState";
 
@@ -19,21 +19,22 @@ export default function SignupVerifyPhoneOtpPage() {
   const navigate = useNavigate();
 
   const form = useSignupPhoneOtpForm();
+  const { clearErrors, reset, setError } = form;
 
   const { clearBanner, showBanner, openCancelModal } = useSignupShellUi();
   const { applyVerifyResult, applyVerifyError, clearVerifyFeedback } = useSignupOtpUiContext();
 
   const clearUiErrors = useCallback(() => {
     clearBanner();
-    form.clearErrors();
+    clearErrors();
     clearVerifyFeedback("PHONE");
-  }, [clearBanner, form, clearVerifyFeedback]);
+  }, [clearBanner, clearErrors, clearVerifyFeedback]);
 
   useEffect(() => {
-    form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
+    reset({ code: "" }, { keepDirty: false, keepTouched: false });
     clearBanner();
     clearVerifyFeedback("PHONE");
-  }, [form.reset, clearBanner, clearVerifyFeedback]);
+  }, [reset, clearBanner, clearVerifyFeedback]);
 
   const onCancel = () => {
     openCancelModal({
@@ -58,7 +59,7 @@ export default function SignupVerifyPhoneOtpPage() {
       const res = await flow.verifyPhoneOtp(code);
       applyVerifyResult("PHONE", res);
 
-      form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
+      reset({ code: "" }, { keepDirty: false, keepTouched: false });
       navigate(signupPathFromState(res.state));
     } catch (err) {
       const apiErr = getApiError(err);
@@ -76,7 +77,7 @@ export default function SignupVerifyPhoneOtpPage() {
 
       if (apiErr?.code === "WRONG_CODE") {
         const attempts = apiErr.details?.remainingAttempts;
-        form.setError("code", {
+        setError("code", {
           type: "server",
           message:
             attempts != null
@@ -87,7 +88,7 @@ export default function SignupVerifyPhoneOtpPage() {
       }
 
       if (apiErr?.code === "INVALID_INPUT") {
-        form.setError("code", {
+        setError("code", {
           type: "server",
           message: apiErr.message ?? "Invalid code format.",
         });
@@ -120,7 +121,7 @@ export default function SignupVerifyPhoneOtpPage() {
         destinationLabel="Phone"
         maskedDestination={flow.view.phoneNumber ?? null}
         error={undefined}
-        form={form as any}
+        form={form}
         onVerify={onVerify}
         onCancel={onCancel}
         verifying={Boolean(flow.loading?.verifyOtp)}

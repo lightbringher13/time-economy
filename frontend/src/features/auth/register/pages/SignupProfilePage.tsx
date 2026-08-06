@@ -3,8 +3,8 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getApiError } from "@/shared/api/apiError";
 
-import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext";
+import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupShellUi } from "../hooks/useSignupShellUi";
 
 import { SignupProfileStep } from "../components/forms/SignupProfileStep";
 import { useSignupProfileForm } from "../forms/hooks/useSignupProfileForm";
@@ -45,9 +45,7 @@ export default function SignupProfilePage() {
       profileForm.setValue("birthDate", s.birthDate, { shouldValidate: true });
     }
   }, [
-    flow.status?.name,
-    flow.status?.gender,
-    flow.status?.birthDate,
+    flow.status,
     profileForm,
     profileForm.formState.dirtyFields,
   ]);

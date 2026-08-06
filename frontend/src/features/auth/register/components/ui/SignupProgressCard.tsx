@@ -1,7 +1,7 @@
 // src/features/auth/register/components/SignupProgressCard.tsx
 import { useMemo } from "react";
-import { useSignupFlow } from "../../hooks/SignupFlowContext";
-import { useSignupOtpUiContext } from "../../hooks/SignupOtpUiContext";
+import { useSignupFlow } from "../../hooks/useSignupFlow";
+import { useSignupOtpUiContext } from "../../hooks/useSignupOtpUiContext";
 
 type StepStatus = "DONE" | "ACTIVE" | "PENDING" | "BLOCKED";
 type StepKey = "email" | "emailVerified" | "phone" | "phoneVerified" | "profile" | "completed";

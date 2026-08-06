@@ -1,12 +1,8 @@
-// src/features/auth/register/hooks/SignupFlowContext.tsx
-import React, { createContext, useContext, useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useSignupFlowImpl } from "./useSignupFlowImpl";
+import { SignupFlowContext } from "./useSignupFlow";
 
-type Flow = ReturnType<typeof useSignupFlowImpl>;
-
-const SignupFlowContext = createContext<Flow | null>(null);
-
-export function SignupFlowProvider({ children }: { children: React.ReactNode }) {
+export function SignupFlowProvider({ children }: { children: ReactNode }) {
   const flow = useSignupFlowImpl();
 
   // ✅ stable reference unless flow object identity changes
@@ -17,12 +13,4 @@ export function SignupFlowProvider({ children }: { children: React.ReactNode }) 
       {children}
     </SignupFlowContext.Provider>
   );
-}
-
-export function useSignupFlow() {
-  const flow = useContext(SignupFlowContext);
-  if (!flow) {
-    throw new Error("useSignupFlow must be used within <SignupFlowProvider />");
-  }
-  return flow;
 }

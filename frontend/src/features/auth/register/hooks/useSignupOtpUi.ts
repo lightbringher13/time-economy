@@ -45,6 +45,8 @@ type VerifyFeedback = {
   message: string | null;
 };
 
+const EMPTY_VERIFY_FEEDBACK: VerifyFeedback = { code: null, message: null };
+
 export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
   // ---------------------------
   // SEND cooldown (seeded from SendOtp response)
@@ -68,43 +70,44 @@ export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
   // OTP expiry from STATUS (server truth)
   const emailExpMs = parseIsoToMs(status?.emailOtpExpiresAt);
   const phoneExpMs = parseIsoToMs(status?.phoneOtpExpiresAt);
+  const emailOtpPending = Boolean(status?.emailOtpPending);
+  const phoneOtpPending = Boolean(status?.phoneOtpPending);
+
+  // Verify-only state is relevant only while the corresponding server OTP is pending.
+  // A subsequent send clears the stored values before the next OTP becomes active.
+  const activeEmailVerifyNextAtMs = emailOtpPending ? emailVerifyNextAtMs : null;
+  const activePhoneVerifyNextAtMs = phoneOtpPending ? phoneVerifyNextAtMs : null;
+  const activeEmailRemainingAttempts = emailOtpPending ? emailRemainingAttempts : null;
+  const activePhoneRemainingAttempts = phoneOtpPending ? phoneRemainingAttempts : null;
+  const activeEmailVerifyFeedback = emailOtpPending
+    ? emailVerifyFeedback
+    : EMPTY_VERIFY_FEEDBACK;
+  const activePhoneVerifyFeedback = phoneOtpPending
+    ? phoneVerifyFeedback
+    : EMPTY_VERIFY_FEEDBACK;
 
   // ✅ ticking: no Date.now() inside conditions (stable)
   const ticking =
     Boolean(emailNextSendAtMs) ||
     Boolean(phoneNextSendAtMs) ||
-    Boolean(emailVerifyNextAtMs) ||
-    Boolean(phoneVerifyNextAtMs) ||
-    Boolean(status?.emailOtpPending && emailExpMs) ||
-    Boolean(status?.phoneOtpPending && phoneExpMs);
+    Boolean(activeEmailVerifyNextAtMs) ||
+    Boolean(activePhoneVerifyNextAtMs) ||
+    Boolean(emailOtpPending && emailExpMs) ||
+    Boolean(phoneOtpPending && phoneExpMs);
 
   const nowMs = useNowTickMs(ticking, 1000);
 
   // expiry countdown
-  const emailExpiresInSec = status?.emailOtpPending ? secondsUntil(nowMs, emailExpMs) : 0;
-  const phoneExpiresInSec = status?.phoneOtpPending ? secondsUntil(nowMs, phoneExpMs) : 0;
+  const emailExpiresInSec = emailOtpPending ? secondsUntil(nowMs, emailExpMs) : 0;
+  const phoneExpiresInSec = phoneOtpPending ? secondsUntil(nowMs, phoneExpMs) : 0;
 
   // send cooldown countdown
   const emailResendInSec = secondsUntil(nowMs, emailNextSendAtMs);
   const phoneResendInSec = secondsUntil(nowMs, phoneNextSendAtMs);
 
   // verify cooldown countdown (throttle)
-  const emailVerifyInSec = secondsUntil(nowMs, emailVerifyNextAtMs);
-  const phoneVerifyInSec = secondsUntil(nowMs, phoneVerifyNextAtMs);
-
-  // ✅ Clear verify-only UI state when OTP is no longer pending (server truth)
-  useEffect(() => {
-    if (!status?.emailOtpPending) {
-      setEmailVerifyNextAtMs(null);
-      setEmailRemainingAttempts(null);
-      setEmailVerifyFeedback({ code: null, message: null });
-    }
-    if (!status?.phoneOtpPending) {
-      setPhoneVerifyNextAtMs(null);
-      setPhoneRemainingAttempts(null);
-      setPhoneVerifyFeedback({ code: null, message: null });
-    }
-  }, [status?.emailOtpPending, status?.phoneOtpPending]);
+  const emailVerifyInSec = secondsUntil(nowMs, activeEmailVerifyNextAtMs);
+  const phoneVerifyInSec = secondsUntil(nowMs, activePhoneVerifyNextAtMs);
 
   // ---------------------------
   // APPLY: send response
@@ -210,8 +213,8 @@ export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
       email: {
         // OTP expiry
         expiresInSec: emailExpiresInSec,
-        expiresText: status?.emailOtpPending ? fmt(emailExpiresInSec) : null,
-        isExpired: Boolean(status?.emailOtpPending && emailExpMs && nowMs >= emailExpMs),
+        expiresText: emailOtpPending ? fmt(emailExpiresInSec) : null,
+        isExpired: Boolean(emailOtpPending && emailExpMs && nowMs >= emailExpMs),
 
         // SEND cooldown
         resendInSec: emailResendInSec,
@@ -222,16 +225,16 @@ export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
         verifyInSec: emailVerifyInSec,
         verifyText: emailVerifyInSec > 0 ? fmt(emailVerifyInSec) : null,
         canVerify: emailVerifyInSec === 0,
-        remainingAttempts: emailRemainingAttempts,
+        remainingAttempts: activeEmailRemainingAttempts,
 
-        lastVerifyCode: emailVerifyFeedback.code,
-        lastVerifyMessage: emailVerifyFeedback.message,
+        lastVerifyCode: activeEmailVerifyFeedback.code,
+        lastVerifyMessage: activeEmailVerifyFeedback.message,
       },
 
       phone: {
         expiresInSec: phoneExpiresInSec,
-        expiresText: status?.phoneOtpPending ? fmt(phoneExpiresInSec) : null,
-        isExpired: Boolean(status?.phoneOtpPending && phoneExpMs && nowMs >= phoneExpMs),
+        expiresText: phoneOtpPending ? fmt(phoneExpiresInSec) : null,
+        isExpired: Boolean(phoneOtpPending && phoneExpMs && nowMs >= phoneExpMs),
 
         resendInSec: phoneResendInSec,
         resendText: phoneResendInSec > 0 ? fmt(phoneResendInSec) : null,
@@ -240,10 +243,10 @@ export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
         verifyInSec: phoneVerifyInSec,
         verifyText: phoneVerifyInSec > 0 ? fmt(phoneVerifyInSec) : null,
         canVerify: phoneVerifyInSec === 0,
-        remainingAttempts: phoneRemainingAttempts,
+        remainingAttempts: activePhoneRemainingAttempts,
 
-        lastVerifyCode: phoneVerifyFeedback.code,
-        lastVerifyMessage: phoneVerifyFeedback.message,
+        lastVerifyCode: activePhoneVerifyFeedback.code,
+        lastVerifyMessage: activePhoneVerifyFeedback.message,
       },
 
       applySendResult,
@@ -254,8 +257,8 @@ export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
     }),
     [
       nowMs,
-      status?.emailOtpPending,
-      status?.phoneOtpPending,
+      emailOtpPending,
+      phoneOtpPending,
       emailExpMs,
       phoneExpMs,
       emailExpiresInSec,
@@ -264,10 +267,10 @@ export function useSignupOtpUi(status: SignupStatusResponseDto | null) {
       phoneResendInSec,
       emailVerifyInSec,
       phoneVerifyInSec,
-      emailRemainingAttempts,
-      phoneRemainingAttempts,
-      emailVerifyFeedback,
-      phoneVerifyFeedback,
+      activeEmailRemainingAttempts,
+      activePhoneRemainingAttempts,
+      activeEmailVerifyFeedback,
+      activePhoneVerifyFeedback,
       applySendResult,
       applyVerifyResult,
       applyVerifyError,

@@ -3,9 +3,9 @@ import { useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
 
-import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext";
-import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
+import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupShellUi } from "../hooks/useSignupShellUi";
+import { useSignupOtpUiContext } from "../hooks/useSignupOtpUiContext";
 
 import { signupPathFromState } from "../routes/signupPathFromState";
 
@@ -19,6 +19,7 @@ export default function SignupVerifyEmailOtpPage() {
   const navigate = useNavigate();
 
   const form = useSignupEmailOtpForm();
+  const { clearErrors, reset, setError } = form;
 
   // ✅ destructure stable functions (do NOT depend on whole objects that change)
   const { clearBanner, showBanner, openCancelModal } = useSignupShellUi();
@@ -26,16 +27,16 @@ export default function SignupVerifyEmailOtpPage() {
 
   const clearUiErrors = useCallback(() => {
     clearBanner();
-    form.clearErrors();
+    clearErrors();
     clearVerifyFeedback("EMAIL");
-  }, [clearBanner, form, clearVerifyFeedback]);
+  }, [clearBanner, clearErrors, clearVerifyFeedback]);
 
   // ✅ run once on mount (only stable deps)
   useEffect(() => {
-    form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
+    reset({ code: "" }, { keepDirty: false, keepTouched: false });
     clearBanner();
     clearVerifyFeedback("EMAIL");
-  }, [form.reset, clearBanner, clearVerifyFeedback]);
+  }, [reset, clearBanner, clearVerifyFeedback]);
 
   const onCancel = () => {
     openCancelModal({
@@ -60,7 +61,7 @@ export default function SignupVerifyEmailOtpPage() {
       const res = await flow.verifyEmailOtp(code);
       applyVerifyResult("EMAIL", res);
 
-      form.reset({ code: "" }, { keepDirty: false, keepTouched: false });
+      reset({ code: "" }, { keepDirty: false, keepTouched: false });
       navigate(signupPathFromState(res.state));
     } catch (err) {
       const apiErr = getApiError(err);
@@ -78,7 +79,7 @@ export default function SignupVerifyEmailOtpPage() {
 
       if (apiErr?.code === "WRONG_CODE") {
         const attempts = apiErr.details?.remainingAttempts;
-        form.setError("code", {
+        setError("code", {
           type: "server",
           message:
             attempts != null
@@ -89,7 +90,7 @@ export default function SignupVerifyEmailOtpPage() {
       }
 
       if (apiErr?.code === "INVALID_INPUT") {
-        form.setError("code", {
+        setError("code", {
           type: "server",
           message: apiErr.message ?? "Invalid code format.",
         });
@@ -123,7 +124,7 @@ export default function SignupVerifyEmailOtpPage() {
         destinationLabel="Email"
         maskedDestination={flow.view.email ?? null}
         error={undefined}
-        form={form as any}
+        form={form}
         onVerify={onVerify}
         onCancel={onCancel}
         verifying={Boolean(flow.loading?.verifyOtp)}

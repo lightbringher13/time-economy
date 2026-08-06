@@ -2,9 +2,10 @@ import { useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
 
-import { SignupFlowProvider, useSignupFlow } from "../hooks/SignupFlowContext";
+import { SignupFlowProvider } from "../hooks/SignupFlowContext";
 import { SignupShellUiProvider } from "../hooks/SignupShellUiContext";
 import { SignupOtpUiProvider } from "../hooks/SignupOtpUiContext";
+import { useSignupFlow } from "../hooks/useSignupFlow";
 import { SignupProgressCard } from "../components/ui/SignupProgressCard";
 
 import { signupPathFromState } from "../routes/signupPathFromState";

@@ -3,9 +3,9 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { SignupEmailStep } from "../components/forms/SignupEmailStep";
-import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext";
-import { useSignupOtpUiContext } from "../hooks/SignupOtpUiContext";
+import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupShellUi } from "../hooks/useSignupShellUi";
+import { useSignupOtpUiContext } from "../hooks/useSignupOtpUiContext";
 
 import { useSignupEmailForm } from "../forms/hooks/useSignupEmailForm";
 import { ROUTES } from "@/routes/paths";
