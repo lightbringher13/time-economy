@@ -1,6 +1,5 @@
 // src/features/auth/register/hooks/useSignupFlow.ts
 import { useCallback, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import type { SignupSessionState, UpdateSignupProfileRequestDto } from "@/features/auth/register/api/signupApi.types"
 import type { RegisterRequestDto } from "../api/registerApi.types";
@@ -23,8 +22,6 @@ function firstErrorMessage(errors: Array<unknown>, fallback: string) {
 }
 
 export function useSignupFlowImpl() {
-  const qc = useQueryClient();
-
   // ✅ BE is safe without cookie: { exists:false, state:"DRAFT" }
   const statusQuery = useSignupStatusQuery(true);
   
@@ -155,7 +152,7 @@ export function useSignupFlowImpl() {
   const cancel = useCallback(async () => {
     const dto = await cancelMu.mutateAsync();
     return dto;
-  }, [cancelMu, qc]);
+  }, [cancelMu]);
 
   const register = useCallback(async (payload: RegisterRequestDto) => {
     try {

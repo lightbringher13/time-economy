@@ -6,6 +6,7 @@ import type {
   VerifyOtpResponse,
 } from "../types/verificationTypes";
 import { createOtpApi, verifyOtpApi } from "../api/verificationApi";
+import { getApiErrorMessage } from "@/shared/api/apiError";
 
 export function useOtpVerification() {
   const [creating, setCreating] = useState(false);
@@ -20,8 +21,8 @@ export function useOtpVerification() {
       const res = await createOtpApi(req);
       setLastCreate(res);
       return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? e?.message ?? "Failed to create OTP");
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to create OTP"));
       throw e;
     } finally {
       setCreating(false);
@@ -34,8 +35,8 @@ export function useOtpVerification() {
     try {
       const res: VerifyOtpResponse = await verifyOtpApi(req);
       return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message ?? e?.message ?? "Failed to verify OTP");
+    } catch (e: unknown) {
+      setError(getApiErrorMessage(e, "Failed to verify OTP"));
       throw e;
     } finally {
       setVerifying(false);

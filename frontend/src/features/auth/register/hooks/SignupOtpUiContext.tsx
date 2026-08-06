@@ -1,13 +1,9 @@
-// src/features/auth/register/hooks/SignupOtpUiContext.tsx
-import React, { createContext, useContext, useMemo } from "react";
-import { useSignupFlow } from "./SignupFlowContext";
-import { useSignupOtpUi, type SignupOtpUi } from "./useSignupOtpUi";
+import { useMemo, type ReactNode } from "react";
+import { useSignupFlow } from "./useSignupFlow";
+import { useSignupOtpUi } from "./useSignupOtpUi";
+import { SignupOtpUiContext } from "./useSignupOtpUiContext";
 
-type Ctx = SignupOtpUi;
-
-const SignupOtpUiContext = createContext<Ctx | null>(null);
-
-export function SignupOtpUiProvider({ children }: { children: React.ReactNode }) {
+export function SignupOtpUiProvider({ children }: { children: ReactNode }) {
   const flow = useSignupFlow();
 
   // flow.status is your SignupStatusResponseDto | null
@@ -17,10 +13,4 @@ export function SignupOtpUiProvider({ children }: { children: React.ReactNode })
   const value = useMemo(() => otpUi, [otpUi]);
 
   return <SignupOtpUiContext.Provider value={value}>{children}</SignupOtpUiContext.Provider>;
-}
-
-export function useSignupOtpUiContext() {
-  const ctx = useContext(SignupOtpUiContext);
-  if (!ctx) throw new Error("useSignupOtpUiContext must be used within SignupOtpUiProvider");
-  return ctx;
 }

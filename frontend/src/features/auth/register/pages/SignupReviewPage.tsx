@@ -2,8 +2,8 @@
 import { useNavigate } from "react-router-dom";
 import { ROUTES } from "@/routes/paths";
 
-import { useSignupFlow } from "../hooks/SignupFlowContext";
-import { useSignupShellUi } from "../hooks/SignupShellUiContext";
+import { useSignupFlow } from "../hooks/useSignupFlow";
+import { useSignupShellUi } from "../hooks/useSignupShellUi";
 
 import { SignupReviewStep } from "../components/forms/SignupReviewStep";
 import { useSignupPasswordForm } from "../forms/hooks/useSignupPasswordForm";

@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 
 // flow (status + actions)
-import { useChangeEmailFlow } from "../hooks/useChangeEmailFlow";
+import { useChangeEmailFlow, type UiStep } from "../hooks/useChangeEmailFlow";
 
 // form hooks
 import { useRequestEmailChangeForm } from "../forms/hooks/useRequestEmailChangeForm";
@@ -15,8 +15,32 @@ import { ChangeEmailStepVerifyNew } from "../components/ChangeEmailStepVerifyNew
 import { ChangeEmailStepSecondFactor } from "../components/ChangeEmailStepSecondFactor";
 import { ChangeEmailStepDone } from "../components/ChangeEmailStepDone";
 
-function extractMessage(err: any, fallback: string) {
-  return err?.response?.data?.message || err?.message || fallback;
+function extractMessage(error: unknown, fallback: string): string {
+  if (typeof error !== "object" || error === null) return fallback;
+
+  if ("response" in error) {
+    const response = error.response;
+
+    if (typeof response === "object" && response !== null && "data" in response) {
+      const data = response.data;
+
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        "message" in data &&
+        typeof data.message === "string" &&
+        data.message
+      ) {
+        return data.message;
+      }
+    }
+  }
+
+  if ("message" in error && typeof error.message === "string" && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 export default function ChangeEmailPage() {
@@ -29,12 +53,12 @@ export default function ChangeEmailPage() {
   const flow = useChangeEmailFlow();
 
   // 3) page-level error (UI-friendly)
-  const [uiError, setUiError] = useState<string | null>(null);
+  const [uiError, setUiError] = useState<{ step: UiStep; message: string } | null>(null);
+  const visibleUiError = uiError?.step === flow.uiStep ? uiError.message : null;
 
-  // optional: clear error when step changes
-  useEffect(() => {
-    setUiError(null);
-  }, [flow.uiStep]);
+  const showUiError = (error: unknown, fallback: string) => {
+    setUiError({ step: flow.uiStep, message: extractMessage(error, fallback) });
+  };
 
   // ------ submit handlers (forms -> flow actions) ------
   const onSubmitRequest: React.FormEventHandler<HTMLFormElement> =
@@ -43,8 +67,8 @@ export default function ChangeEmailPage() {
         setUiError(null);
         await flow.submitRequest(values);
         // next step is driven by server status polling + uiStep mapping
-      } catch (err: any) {
-        setUiError(extractMessage(err, "Failed to request email change. Please try again."));
+      } catch (err) {
+        showUiError(err, "Failed to request email change. Please try again.");
       }
     });
 
@@ -53,8 +77,8 @@ export default function ChangeEmailPage() {
       try {
         setUiError(null);
         await flow.submitVerifyNew(values.code);
-      } catch (err: any) {
-        setUiError(extractMessage(err, "The new email verification code is invalid or expired."));
+      } catch (err) {
+        showUiError(err, "The new email verification code is invalid or expired.");
       }
     });
 
@@ -63,8 +87,8 @@ export default function ChangeEmailPage() {
       try {
         setUiError(null);
         await flow.submitSecondFactor(values.code);
-      } catch (err: any) {
-        setUiError(extractMessage(err, "The second-factor code is invalid or expired."));
+      } catch (err) {
+        showUiError(err, "The second-factor code is invalid or expired.");
       }
     });
 
@@ -94,6 +118,7 @@ export default function ChangeEmailPage() {
   }, [flow.uiStep, flow.requestId]);
 
   const ranDoneRef = useRef(false);
+  const finishAfterDone = flow.finishAfterDone;
 
   useEffect(() => {
     if (safeStep !== "DONE") {
@@ -105,11 +130,11 @@ export default function ChangeEmailPage() {
     ranDoneRef.current = true;
 
     const t = window.setTimeout(() => {
-      void flow.finishAfterDone();
+      void finishAfterDone();
     }, 3000);
 
     return () => window.clearTimeout(t);
-  }, [safeStep, flow.finishAfterDone]);
+  }, [safeStep, finishAfterDone]);
 
 
   return (
@@ -119,7 +144,7 @@ export default function ChangeEmailPage() {
           form={step1Form}
           onSubmit={onSubmitRequest}
           loading={loading}
-          error={uiError}
+          error={visibleUiError}
           // currentEmail={...} // optional if you want to display it
         />
       )}
@@ -129,14 +154,14 @@ export default function ChangeEmailPage() {
           form={step2Form}
           onSubmit={onSubmitVerifyNew}
           loading={loading}
-          error={uiError}
+          error={visibleUiError}
           maskedNewEmail={flow.maskedNewEmail}
           onResend={async () => {
             try {
               setUiError(null);
               await flow.resendNewEmailOtp();
-            } catch (err: any) {
-              setUiError(extractMessage(err, "Failed to resend code. Please try again."));
+            } catch (err) {
+              showUiError(err, "Failed to resend code. Please try again.");
             }
           }}
           onCancel={async () => {
@@ -144,8 +169,8 @@ export default function ChangeEmailPage() {
               setUiError(null);
               await flow.cancelEmailChange();
               await onReset(); // reset forms + re-sync
-            } catch (err: any) {
-              setUiError(extractMessage(err, "Failed to cancel. Please try again."));
+            } catch (err) {
+              showUiError(err, "Failed to cancel. Please try again.");
             }
           }}
         />
@@ -156,14 +181,14 @@ export default function ChangeEmailPage() {
           form={step3Form}
           onSubmit={onSubmitSecondFactor}
           loading={loading}
-          error={uiError}
+          error={visibleUiError}
           secondFactorType={flow.secondFactorType}
           onResend={async () => {
             try {
               setUiError(null);
               await flow.resendNewEmailOtp();
-            } catch (err: any) {
-              setUiError(extractMessage(err, "Failed to resend code. Please try again."));
+            } catch (err) {
+              showUiError(err, "Failed to resend code. Please try again.");
             }
           }}
           onCancel={async () => {
@@ -171,8 +196,8 @@ export default function ChangeEmailPage() {
               setUiError(null);
               await flow.cancelEmailChange();
               await onReset(); // reset forms + re-sync
-            } catch (err: any) {
-              setUiError(extractMessage(err, "Failed to cancel. Please try again."));
+            } catch (err) {
+              showUiError(err, "Failed to cancel. Please try again.");
             }
           }}
         />
@@ -183,7 +208,7 @@ export default function ChangeEmailPage() {
           <ChangeEmailStepDone
             // With server-status based flow, you typically only have masked email; showing success only is fine
             newEmail={null}
-            onClose={flow.finishAfterDone}
+            onClose={finishAfterDone}
           />
         </div>
       )}

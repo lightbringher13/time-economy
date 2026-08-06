@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@/routes/paths";
+import { getApiErrorMessage } from "@/shared/api/apiError";
 import { changePasswordApi } from "../api/changePasswordApi";
 import { useChangePasswordForm } from "../hooks/useChangePasswordForm";
 import type { ChangePasswordFormValues } from "../schemas/changePasswordForm";
@@ -34,12 +35,13 @@ export default function ChangePasswordPage() {
       await changePasswordApi(payload);
       setSuccess(true);
       reset(); // 폼 비우기
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[ChangePassword] failed", err);
 
-      const msg =
-        err?.response?.data?.message ??
-        "Failed to change password. Please check your current password.";
+      const msg = getApiErrorMessage(
+        err,
+        "Failed to change password. Please check your current password."
+      );
 
       setServerError(msg);
     }

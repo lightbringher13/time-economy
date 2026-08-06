@@ -6,6 +6,18 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/store/useAuthStore";
 import { ROUTES } from "@/routes/paths";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getRedirectPath(state: unknown): string {
+  if (!isRecord(state) || !isRecord(state.from)) return ROUTES.DASHBOARD;
+
+  return typeof state.from.pathname === "string"
+    ? state.from.pathname
+    : ROUTES.DASHBOARD;
+}
+
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,7 +29,7 @@ const LoginPage = () => {
 
   const login = useAuthStore((state) => state.login);
   const hydrateFromProfile = useAuthStore((s) => s.hydrateFromProfile);
-  const from = (location.state as any)?.from?.pathname ?? ROUTES.DASHBOARD;
+  const from = getRedirectPath(location.state);
   const isAuthenticated = useAuthStore((s) => s.phase === "authenticated");
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

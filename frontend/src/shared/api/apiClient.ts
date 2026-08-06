@@ -1,8 +1,8 @@
 // src/shared/api/apiClient.ts
 import axios from "axios";
-import type { AxiosInstance } from "axios";
+import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import { useAuthStore } from "@/store/useAuthStore";
-import { AxiosError } from "axios";
+import type { AxiosError } from "axios";
 import type { ApiErrorResponse } from "@/types/api";
 
 const API_BASE_URL =
@@ -43,24 +43,36 @@ apiClient.interceptors.request.use(
 ========================================================= */
 
 let isRefreshing = false;
-let refreshPromise: Promise<any> | null = null;
+let refreshPromise: Promise<string> | null = null;
+
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 /* =========================================================
     🔁 실제 /auth/refresh API 호출 함수
 ========================================================= */
-async function performRefresh() {
+async function performRefresh(): Promise<string> {
   const { login, logout } = useAuthStore.getState();
 
   try {
-    const res = await axios.post(
+    const res = await axios.post<unknown>(
       `${API_BASE_URL}/auth/refresh`,
       {},
       { withCredentials: true }
     );
 
-    const newAccessToken = res.data?.accessToken;
+    const newAccessToken = isRecord(res.data)
+      ? res.data.accessToken
+      : undefined;
 
-    if (!newAccessToken) throw new Error("No access token returned");
+    if (typeof newAccessToken !== "string" || !newAccessToken) {
+      throw new Error("No access token returned");
+    }
 
     // Zustand store에 새로운 access token 저장
     login(newAccessToken);
@@ -78,11 +90,16 @@ async function performRefresh() {
 apiClient.interceptors.response.use(
   (response) => response,
 
-  async (error) => {
-    const originalRequest = error.config;
+  async (error: unknown) => {
+    if (!axios.isAxiosError<unknown>(error)) {
+      return Promise.reject(error);
+    }
 
-    const status = error?.response?.status;
-    const code = error?.response?.data?.code;
+    const originalRequest: RetryableRequestConfig | undefined = error.config;
+
+    const status = error.response?.status;
+    const responseData = error.response?.data;
+    const code = isRecord(responseData) ? responseData.code : undefined;
 
     // Silent Refresh 대상이 아닌 경우
     if (status !== 401 || code !== "ACCESS_TOKEN_EXPIRED") {
@@ -90,7 +107,7 @@ apiClient.interceptors.response.use(
     }
 
     // 이미 refresh 시도한 요청은 다시 시도하지 않음
-    if (originalRequest._retry) {
+    if (!originalRequest || originalRequest._retry) {
       return Promise.reject(error);
     }
 
@@ -100,17 +117,18 @@ apiClient.interceptors.response.use(
       // 🔁 refresh 중복 요청 방지
       if (!isRefreshing) {
         isRefreshing = true;
-        refreshPromise = performRefresh()
-          .catch((err) => {
-            throw err;
-          })
-          .finally(() => {
-            isRefreshing = false;
-            refreshPromise = null;
-          });
+        refreshPromise = performRefresh().finally(() => {
+          isRefreshing = false;
+          refreshPromise = null;
+        });
       }
 
-      const newToken = await refreshPromise;
+      const pendingRefresh = refreshPromise;
+      if (!pendingRefresh) {
+        return Promise.reject(error);
+      }
+
+      const newToken = await pendingRefresh;
 
       // Authorization 헤더 갱신
       originalRequest.headers = originalRequest.headers ?? {};
@@ -129,10 +147,5 @@ apiClient.interceptors.response.use(
 export function isApiError(
   error: unknown
 ): error is AxiosError<ApiErrorResponse> {
-  return (
-    !!error &&
-    typeof error === "object" &&
-    "isAxiosError" in error &&
-    (error as any).isAxiosError === true
-  );
+  return axios.isAxiosError<ApiErrorResponse>(error);
 }
