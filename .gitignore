@@ -61,6 +61,9 @@ backend/**/bin/
 *.local
 *.tmp
 
+# Local Gradle credentials (use user-level Gradle properties or environment variables)
+backend/*/gradle.properties
+
 # ==========================================
 # NODE / REACT / VITE
 # ==========================================
@@ -95,6 +98,11 @@ infra/docker/**/volumes/
 # Docker build cache
 **/.docker-cache/
 **/.container-build/
+
+# Local Kubernetes secrets (commit only *.example.yaml templates)
+k8s/**/secret.yaml
+k8s/**/secret.local.yaml
+!k8s/**/secret.example.yaml
 
 # ==========================================
 # ARCHIVES / MISC
