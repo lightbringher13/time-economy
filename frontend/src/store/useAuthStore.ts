@@ -1,5 +1,6 @@
 // src/store/useAuthStore.ts
 import { create } from "zustand";
+import type { UserProfile } from "@/features/user/types/user";
 
 export type AuthUser = {
   id: number;
@@ -26,12 +27,9 @@ type AuthState = {
   setPhase: (phase: AuthPhase) => void;
 
   // 🔹 new: hydrate from /me response
-  hydrateFromProfile: (profile: {
-    id: number;
-    email: string;
-    nickname: string;
-    timecoinBalance: number;
-  }) => void;
+  hydrateFromProfile: (
+    profile: Pick<UserProfile, "id" | "email" | "name">
+  ) => void;
 
   // 🔹 new: nickname-only update
   updateNickname: (nickname: string) => void;
@@ -72,8 +70,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const mapped: AuthUser = {
         id: profile.id,
         email: profile.email,
-        nickname: profile.nickname,
-        timecoinBalance: profile.timecoinBalance,
+        nickname: profile.name || profile.email,
         // keep old role if we already had one, default to "USER"
         role: prev?.role ?? "USER",
       };
