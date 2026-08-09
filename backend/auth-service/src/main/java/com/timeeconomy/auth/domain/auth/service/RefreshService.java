@@ -34,7 +34,10 @@ public class RefreshService implements RefreshUseCase {
     private static final long BENIGN_RACE_WINDOW_SECONDS = 15L;
 
     @Override
-    @Transactional(noRollbackFor = InvalidRefreshTokenException.class)
+    @Transactional(noRollbackFor = {
+            InvalidRefreshTokenException.class,
+            RefreshTokenReuseException.class
+    })
     public RefreshResult refresh(RefreshCommand command) {
         String rawRefreshToken = command.refreshToken();
         if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
