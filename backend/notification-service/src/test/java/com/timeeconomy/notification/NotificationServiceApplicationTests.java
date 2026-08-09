@@ -10,7 +10,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "sms-mock"})
 @Testcontainers
 class NotificationServiceApplicationTests {
 

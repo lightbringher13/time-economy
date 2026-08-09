@@ -8,7 +8,13 @@ public interface SmsSenderPort {
             String templateKey,
             String toPhone,
             Map<String, Object> variables
-    ) {}
+    ) {
+        @Override
+        public String toString() {
+            return "SmsSendCommand[templateKey=" + templateKey
+                    + ", toPhone=<redacted>, variables=<redacted>]";
+        }
+    }
 
     record SmsSendResult(
             String provider,
