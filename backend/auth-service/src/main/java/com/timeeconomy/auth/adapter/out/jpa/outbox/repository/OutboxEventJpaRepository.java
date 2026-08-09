@@ -23,7 +23,7 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntit
         WHERE e.id IN (
               SELECT id
                 FROM outbox_events
-                WHERE status IN ('PENDING','FAILED')
+                WHERE status IN ('PENDING','FAILED','PROCESSING')
                   AND available_at <= CAST(:now AS timestamptz)
                   AND (
                         locked_at IS NULL
