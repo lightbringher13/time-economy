@@ -2,8 +2,10 @@ package com.timeeconomy.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -24,12 +26,16 @@ import com.timeeconomy.auth.domain.auth.port.in.RefreshUseCase;
 import com.timeeconomy.auth.domain.auth.port.out.AuthSessionRepositoryPort;
 import com.timeeconomy.auth.domain.auth.port.out.RefreshTokenPort;
 import com.timeeconomy.auth.domain.exception.RefreshTokenReuseException;
+import com.timeeconomy.auth.domain.outbox.model.OutboxEvent;
+import com.timeeconomy.auth.domain.outbox.model.OutboxStatus;
+import com.timeeconomy.auth.domain.outbox.port.out.OutboxEventRepositoryPort;
 
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers
 class AuthServiceApplicationTests {
 	private static final long TEST_USER_ID = 987654321L;
+	private static final String TEST_OUTBOX_AGGREGATE_TYPE = "outbox-recovery-test";
 
 	@Container
 	@ServiceConnection
@@ -47,14 +53,21 @@ class AuthServiceApplicationTests {
 	private RefreshTokenPort refreshTokenPort;
 
 	@Autowired
+	private OutboxEventRepositoryPort outboxEventRepositoryPort;
+
+	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
 	@Autowired
 	private Clock clock;
 
 	@AfterEach
-	void cleanUpSessions() {
+	void cleanUpTestData() {
 		jdbcTemplate.update("DELETE FROM auth_session WHERE user_id = ?", TEST_USER_ID);
+		jdbcTemplate.update(
+				"DELETE FROM outbox_events WHERE aggregate_type = ?",
+				TEST_OUTBOX_AGGREGATE_TYPE
+		);
 	}
 
 	@Test
@@ -120,6 +133,82 @@ class AuthServiceApplicationTests {
 		assertEquals(Boolean.TRUE, reuseDetected);
 		assertEquals(Boolean.TRUE, successorRevoked);
 		assertEquals(0L, activeSessionCount);
+	}
+
+	@Test
+	void processingOutboxEventIsReclaimedOnlyAfterLeaseExpires() {
+		Instant firstClaimedAt = Instant.parse("2026-08-09T00:00:00Z");
+		Duration lease = Duration.ofSeconds(10);
+
+		OutboxEvent savedEvent = outboxEventRepositoryPort.save(OutboxEvent.newPending(
+				TEST_OUTBOX_AGGREGATE_TYPE,
+				UUID.randomUUID().toString(),
+				"TestEvent.v1",
+				"{}",
+				firstClaimedAt
+		));
+
+		var firstClaim = outboxEventRepositoryPort.claimBatch(
+				"dead-worker",
+				1,
+				lease,
+				firstClaimedAt
+		);
+
+		assertEquals(1, firstClaim.size());
+		assertEquals(savedEvent.getId(), firstClaim.getFirst().getId());
+		assertEquals(OutboxStatus.PROCESSING, firstClaim.getFirst().getStatus());
+		assertEquals("dead-worker", firstClaim.getFirst().getLockedBy());
+		assertEquals(1, firstClaim.getFirst().getAttempts());
+
+		var beforeLeaseExpiry = outboxEventRepositoryPort.claimBatch(
+				"early-worker",
+				1,
+				lease,
+				firstClaimedAt.plusSeconds(9)
+		);
+
+		assertTrue(beforeLeaseExpiry.isEmpty());
+
+		var recoveredClaim = outboxEventRepositoryPort.claimBatch(
+				"recovery-worker",
+				1,
+				lease,
+				firstClaimedAt.plusSeconds(11)
+		);
+
+		assertEquals(1, recoveredClaim.size());
+		assertEquals(savedEvent.getId(), recoveredClaim.getFirst().getId());
+		assertEquals(OutboxStatus.PROCESSING, recoveredClaim.getFirst().getStatus());
+		assertEquals("recovery-worker", recoveredClaim.getFirst().getLockedBy());
+		assertEquals(2, recoveredClaim.getFirst().getAttempts());
+
+		assertEquals(0, outboxEventRepositoryPort.markSent(
+				savedEvent.getId(),
+				"dead-worker",
+				firstClaimedAt.plusSeconds(12),
+				firstClaimedAt.plusSeconds(12)
+		));
+		assertEquals(1, outboxEventRepositoryPort.markSent(
+				savedEvent.getId(),
+				"recovery-worker",
+				firstClaimedAt.plusSeconds(12),
+				firstClaimedAt.plusSeconds(12)
+		));
+
+		String finalStatus = jdbcTemplate.queryForObject(
+				"SELECT status FROM outbox_events WHERE id = ?",
+				String.class,
+				savedEvent.getId()
+		);
+		Integer attempts = jdbcTemplate.queryForObject(
+				"SELECT attempts FROM outbox_events WHERE id = ?",
+				Integer.class,
+				savedEvent.getId()
+		);
+
+		assertEquals(OutboxStatus.SENT.name(), finalStatus);
+		assertEquals(2, attempts);
 	}
 
 }
