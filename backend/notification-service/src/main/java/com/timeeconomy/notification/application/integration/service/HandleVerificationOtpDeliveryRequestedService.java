@@ -138,8 +138,8 @@ public class HandleVerificationOtpDeliveryRequestedService
                         )
                 );
 
-                log.info("[OK] otp sms sent template={} to={} provider={} msgId={}",
-                        templateKey, destination, res.provider(), res.providerMsgId());
+                log.info("[OK] otp sms sent eventId={} challengeId={} template={} provider={} msgId={}",
+                        eventId, challengeId, templateKey, res.provider(), res.providerMsgId());
             } else {
                 // future: PUSH, WHATSAPP, etc.
                 throw new IllegalStateException("Unsupported channel: " + channel);
@@ -153,7 +153,7 @@ public class HandleVerificationOtpDeliveryRequestedService
                             channel,
                             templateKey,
                             destination,
-                            channel == NotificationChannel.SMS ? "LOG" : "BREVO",
+                            channel == NotificationChannel.SMS ? "SMS" : "BREVO",
                             safeMsg(ex),
                             now
                     )
