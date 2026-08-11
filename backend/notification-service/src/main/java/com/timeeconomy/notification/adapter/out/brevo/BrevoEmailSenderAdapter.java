@@ -68,14 +68,13 @@ public class BrevoEmailSenderAdapter implements EmailSenderPort {
             return new EmailSendResult("BREVO", msgId);
 
         } catch (RestClientResponseException e) {
-            // Brevo returned non-2xx (you get status + response body)
             throw new EmailSendFailedException(
-                    "Brevo API failed: status=" + e.getStatusCode() + " body=" + safe(e.getResponseBodyAsString()),
-                    e
+                    "Brevo API failed: status=" + e.getStatusCode()
             );
         } catch (Exception e) {
-            // network timeout, DNS, etc.
-            throw new EmailSendFailedException("Brevo call failed: " + safe(e.getMessage()), e);
+            throw new EmailSendFailedException(
+                    "Brevo call failed: failureType=" + e.getClass().getSimpleName()
+            );
         }
     }
 
@@ -88,10 +87,5 @@ public class BrevoEmailSenderAdapter implements EmailSenderPort {
             case "LINK_EMAIL" -> createVerificationLinkTemplateId;
             default -> throw new IllegalArgumentException("Unknown templateKey: " + templateKey);
         };
-    }
-
-    private static String safe(String s) {
-        if (s == null) return "";
-        return s.length() > 800 ? s.substring(0, 800) : s;
     }
 }
