@@ -95,6 +95,36 @@ npm install
 npm run dev
 ```
 
+### **5. Optional local SMS inbox**
+
+The mock SMS inbox is opt-in, bound to the loopback interface, and never routed
+through the API Gateway. Start Tilt with a local token of at least 24 characters:
+
+```bash
+export SMS_INBOX_TOKEN="$(openssl rand -hex 32)"
+tilt up -- --sms_inbox
+```
+
+After requesting a phone verification code, list the available message metadata:
+
+```bash
+curl -sS \
+  -H "X-Local-Sms-Inbox-Token: ${SMS_INBOX_TOKEN}" \
+  http://127.0.0.1:8086/_local/sms-inbox
+```
+
+Match the `challengeId` returned by the corresponding `send-otp` request with
+the metadata response, then consume that OTP exactly once:
+
+```bash
+curl -sS -X POST \
+  -H "X-Local-Sms-Inbox-Token: ${SMS_INBOX_TOKEN}" \
+  http://127.0.0.1:8086/_local/sms-inbox/CHALLENGE_ID/consume
+```
+
+The inbox is in memory, bounded, TTL-aware, and unavailable unless the
+`sms-inbox`, `sms-mock`, and local Docker profiles are active together.
+
 ---
 
 ## ✔️ Code Style & Conventions

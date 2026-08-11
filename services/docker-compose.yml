@@ -26,7 +26,8 @@ services:
     env_file:
     - ../.env
     environment:
-      # Local/Tilt only. Production must not enable the sms-mock profile.
+      # Local/Tilt only. Add sms-inbox through the opt-in Compose override.
+      # Production must not enable either sms-mock or sms-inbox.
       SPRING_PROFILES_ACTIVE: docker,sms-mock
     networks:
       - timeeconomy-net

@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@Profile("sms-mock & !prod")
+@Profile("sms-mock & !sms-inbox & !prod")
 public class LoggingSmsSenderAdapter implements SmsSenderPort {
 
     @Override
