@@ -12,7 +12,16 @@ public interface EmailSenderPort {
             String toEmail,
             String toName,               // nullable
             Map<String, Object> params   // template variables
-    ) {}
+    ) {
+        @Override
+        public String toString() {
+            return "EmailSendCommand[templateKey=" + templateKey
+                    + ", toEmail=<redacted>"
+                    + ", toName=<redacted>"
+                    + ", paramKeys=" + (params == null ? "[]" : params.keySet())
+                    + "]";
+        }
+    }
 
     record EmailSendResult(
             String provider,             // e.g. "BREVO"
