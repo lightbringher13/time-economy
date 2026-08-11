@@ -1,8 +1,11 @@
 package com.timeeconomy.notification.application.integration.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,6 +22,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.AbstractPlatformTransactionManager;
+import org.springframework.transaction.support.DefaultTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.timeeconomy.contracts.auth.v1.VerificationOtpDeliveryRequestedV1;
 import com.timeeconomy.notification.adapter.in.kafka.dto.ConsumerContext;
@@ -51,40 +58,20 @@ class HandleVerificationOtpDeliveryRequestedServiceTest {
     private EmailSenderPort emailSenderPort;
     @Mock
     private SmsSenderPort smsSenderPort;
+    @Mock
+    private OtpDeliveryAcknowledgmentCoordinator otpDeliveryAcknowledgmentCoordinator;
 
     @InjectMocks
     private HandleVerificationOtpDeliveryRequestedService service;
 
     @Test
     void mapsTheSmsEventToATypedSecretSafeCommand(CapturedOutput output) {
-        VerificationOtpDeliveryRequestedV1 event = VerificationOtpDeliveryRequestedV1.newBuilder()
-                .setEventId(EVENT_ID.toString())
-                .setOccurredAtEpochMillis(OCCURRED_AT.toEpochMilli())
-                .setVerificationChallengeId(CHALLENGE_ID.toString())
-                .setPurpose("SIGNUP_PHONE")
-                .setChannel("SMS")
-                .setSubjectType("SIGNUP_SESSION")
-                .setSubjectId("30000000-0000-0000-0000-000000000003")
-                .setDestinationNorm(CANARY_PHONE)
-                .setTtlSeconds(TTL_SECONDS)
-                .build();
-        ConsumerContext context = new ConsumerContext(
-                "notification-service",
-                "auth.verification.otp.delivery.requested.v1",
-                1,
-                42L,
-                OCCURRED_AT.toEpochMilli(),
-                EVENT_ID.toString(),
-                null,
-                EVENT_ID,
-                "VerificationOtpDeliveryRequested.v1"
-        );
         when(processedEventRepositoryPort.markProcessed(any(ProcessedEvent.class))).thenReturn(true);
-        when(authInternalOtpClientPort.getOtpOnce(CHALLENGE_ID)).thenReturn(Optional.of(CANARY_OTP));
+        when(authInternalOtpClientPort.peekOtp(CHALLENGE_ID)).thenReturn(Optional.of(CANARY_OTP));
         when(smsSenderPort.sendTemplate(any(SmsSenderPort.SmsSendCommand.class)))
                 .thenReturn(new SmsSenderPort.SmsSendResult("MOCK", "local-" + EVENT_ID));
 
-        service.handle(event, context);
+        service.handle(smsEvent(), context());
 
         ArgumentCaptor<SmsSenderPort.SmsSendCommand> commandCaptor =
                 ArgumentCaptor.forClass(SmsSenderPort.SmsSendCommand.class);
@@ -103,8 +90,160 @@ class HandleVerificationOtpDeliveryRequestedServiceTest {
         verify(notificationDeliveryRepositoryPort).save(deliveryCaptor.capture());
         assertEquals(NotificationStatus.SENT, deliveryCaptor.getValue().getStatus());
         assertEquals("MOCK", deliveryCaptor.getValue().getProvider());
+        verify(otpDeliveryAcknowledgmentCoordinator).acknowledgeAfterCommit(EVENT_ID, CHALLENGE_ID);
         verify(emailSenderPort, never()).sendTemplate(any());
         assertFalse(output.getAll().contains(CANARY_PHONE));
         assertFalse(output.getAll().contains(CANARY_OTP));
+    }
+
+    @Test
+    void acknowledgesOtpOnlyAfterTheTransactionCommits() {
+        stubSuccessfulSmsDelivery();
+        HandleVerificationOtpDeliveryRequestedService transactionalService = serviceWithRealCoordinator();
+
+        transactionTemplate().executeWithoutResult(status -> {
+            transactionalService.handle(smsEvent(), context());
+            verify(authInternalOtpClientPort, never()).acknowledgeOtp(any());
+        });
+
+        verify(authInternalOtpClientPort).acknowledgeOtp(CHALLENGE_ID);
+    }
+
+    @Test
+    void doesNotAcknowledgeOtpWhenTheTransactionRollsBack() {
+        stubSuccessfulSmsDelivery();
+        HandleVerificationOtpDeliveryRequestedService transactionalService = serviceWithRealCoordinator();
+
+        transactionTemplate().executeWithoutResult(status -> {
+            transactionalService.handle(smsEvent(), context());
+            status.setRollbackOnly();
+        });
+
+        verify(authInternalOtpClientPort, never()).acknowledgeOtp(any());
+    }
+
+    @Test
+    void providerFailureLeavesOtpUnacknowledgedForRetry() {
+        when(processedEventRepositoryPort.markProcessed(any(ProcessedEvent.class))).thenReturn(true);
+        when(authInternalOtpClientPort.peekOtp(CHALLENGE_ID)).thenReturn(Optional.of(CANARY_OTP));
+        when(smsSenderPort.sendTemplate(any(SmsSenderPort.SmsSendCommand.class)))
+                .thenThrow(new IllegalStateException("provider unavailable"));
+        HandleVerificationOtpDeliveryRequestedService transactionalService = serviceWithRealCoordinator();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> transactionTemplate().executeWithoutResult(
+                        status -> transactionalService.handle(smsEvent(), context())
+                )
+        );
+
+        verify(authInternalOtpClientPort, never()).acknowledgeOtp(any());
+    }
+
+    @Test
+    void deliveryPersistenceFailureLeavesOtpUnacknowledgedForRetry() {
+        when(processedEventRepositoryPort.markProcessed(any(ProcessedEvent.class))).thenReturn(true);
+        when(authInternalOtpClientPort.peekOtp(CHALLENGE_ID)).thenReturn(Optional.of(CANARY_OTP));
+        when(smsSenderPort.sendTemplate(any(SmsSenderPort.SmsSendCommand.class)))
+                .thenReturn(new SmsSenderPort.SmsSendResult("MOCK", "local-" + EVENT_ID));
+        when(notificationDeliveryRepositoryPort.save(any(NotificationDelivery.class)))
+                .thenThrow(new IllegalStateException("database unavailable"));
+        HandleVerificationOtpDeliveryRequestedService transactionalService = serviceWithRealCoordinator();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> transactionTemplate().executeWithoutResult(
+                        status -> transactionalService.handle(smsEvent(), context())
+                )
+        );
+
+        verify(authInternalOtpClientPort, never()).acknowledgeOtp(any());
+    }
+
+    @Test
+    void acknowledgmentFailureDoesNotFailCommittedDeliveryOrExposeSecrets(CapturedOutput output) {
+        stubSuccessfulSmsDelivery();
+        doThrow(new IllegalStateException("ack failed " + CANARY_PHONE + " " + CANARY_OTP))
+                .when(authInternalOtpClientPort)
+                .acknowledgeOtp(CHALLENGE_ID);
+        HandleVerificationOtpDeliveryRequestedService transactionalService = serviceWithRealCoordinator();
+
+        assertDoesNotThrow(() -> transactionTemplate().executeWithoutResult(
+                status -> transactionalService.handle(smsEvent(), context())
+        ));
+
+        verify(authInternalOtpClientPort).acknowledgeOtp(CHALLENGE_ID);
+        assertFalse(output.getAll().contains(CANARY_PHONE));
+        assertFalse(output.getAll().contains(CANARY_OTP));
+    }
+
+    private void stubSuccessfulSmsDelivery() {
+        when(processedEventRepositoryPort.markProcessed(any(ProcessedEvent.class))).thenReturn(true);
+        when(authInternalOtpClientPort.peekOtp(CHALLENGE_ID)).thenReturn(Optional.of(CANARY_OTP));
+        when(smsSenderPort.sendTemplate(any(SmsSenderPort.SmsSendCommand.class)))
+                .thenReturn(new SmsSenderPort.SmsSendResult("MOCK", "local-" + EVENT_ID));
+    }
+
+    private HandleVerificationOtpDeliveryRequestedService serviceWithRealCoordinator() {
+        return new HandleVerificationOtpDeliveryRequestedService(
+                processedEventRepositoryPort,
+                notificationDeliveryRepositoryPort,
+                authInternalOtpClientPort,
+                emailSenderPort,
+                smsSenderPort,
+                new OtpDeliveryAcknowledgmentCoordinator(authInternalOtpClientPort)
+        );
+    }
+
+    private TransactionTemplate transactionTemplate() {
+        return new TransactionTemplate(new TestTransactionManager());
+    }
+
+    private VerificationOtpDeliveryRequestedV1 smsEvent() {
+        return VerificationOtpDeliveryRequestedV1.newBuilder()
+                .setEventId(EVENT_ID.toString())
+                .setOccurredAtEpochMillis(OCCURRED_AT.toEpochMilli())
+                .setVerificationChallengeId(CHALLENGE_ID.toString())
+                .setPurpose("SIGNUP_PHONE")
+                .setChannel("SMS")
+                .setSubjectType("SIGNUP_SESSION")
+                .setSubjectId("30000000-0000-0000-0000-000000000003")
+                .setDestinationNorm(CANARY_PHONE)
+                .setTtlSeconds(TTL_SECONDS)
+                .build();
+    }
+
+    private ConsumerContext context() {
+        return new ConsumerContext(
+                "notification-service",
+                "auth.verification.otp.delivery.requested.v1",
+                1,
+                42L,
+                OCCURRED_AT.toEpochMilli(),
+                EVENT_ID.toString(),
+                null,
+                EVENT_ID,
+                "VerificationOtpDeliveryRequested.v1"
+        );
+    }
+
+    private static final class TestTransactionManager extends AbstractPlatformTransactionManager {
+
+        @Override
+        protected Object doGetTransaction() {
+            return new Object();
+        }
+
+        @Override
+        protected void doBegin(Object transaction, TransactionDefinition definition) {
+        }
+
+        @Override
+        protected void doCommit(DefaultTransactionStatus status) {
+        }
+
+        @Override
+        protected void doRollback(DefaultTransactionStatus status) {
+        }
     }
 }

@@ -4,5 +4,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AuthInternalOtpClientPort {
-    Optional<String> getOtpOnce(UUID verificationChallengeId);
+    Optional<String> peekOtp(UUID verificationChallengeId);
+
+    void acknowledgeOtp(UUID verificationChallengeId);
 }

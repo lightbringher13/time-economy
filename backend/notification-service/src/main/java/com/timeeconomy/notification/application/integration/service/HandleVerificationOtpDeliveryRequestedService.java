@@ -34,6 +34,7 @@ public class HandleVerificationOtpDeliveryRequestedService
 
     private final EmailSenderPort emailSenderPort;
     private final SmsSenderPort smsSenderPort;
+    private final OtpDeliveryAcknowledgmentCoordinator otpDeliveryAcknowledgmentCoordinator;
 
     @Override
     @Transactional
@@ -60,9 +61,9 @@ public class HandleVerificationOtpDeliveryRequestedService
             return;
         }
 
-        // 2) fetch OTP once (internal HTTP)
+        // 2) peek at the OTP without deleting it; deletion is acknowledged only after DB commit
         final UUID challengeId = UUID.fromString(event.getVerificationChallengeId());
-        Optional<String> otpOpt = authInternalOtpClientPort.getOtpOnce(challengeId);
+        Optional<String> otpOpt = authInternalOtpClientPort.peekOtp(challengeId);
 
         if (otpOpt.isEmpty()) {
             notificationDeliveryRepositoryPort.save(
@@ -143,6 +144,8 @@ public class HandleVerificationOtpDeliveryRequestedService
                 // future: PUSH, WHATSAPP, etc.
                 throw new IllegalStateException("Unsupported channel: " + channel);
             }
+
+            otpDeliveryAcknowledgmentCoordinator.acknowledgeAfterCommit(eventId, challengeId);
 
         } catch (Exception ex) {
             notificationDeliveryRepositoryPort.save(

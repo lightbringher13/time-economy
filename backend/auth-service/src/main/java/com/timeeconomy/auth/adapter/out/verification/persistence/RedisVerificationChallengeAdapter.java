@@ -124,9 +124,14 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
     }
 
     @Override
-    public Optional<String> getAndDeleteOtp(String challengeId) {
-        String v = redis.opsForValue().getAndDelete(rawOtp(challengeId));
+    public Optional<String> peekOtp(String challengeId) {
+        String v = redis.opsForValue().get(rawOtp(challengeId));
         return Optional.ofNullable(v);
+    }
+
+    @Override
+    public void deleteOtp(String challengeId) {
+        redis.delete(rawOtp(challengeId));
     }
 
     @Override
