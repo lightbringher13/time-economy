@@ -1,0 +1,8 @@
+services:
+  notification-service:
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,sms-mock,sms-inbox
+      SMS_INBOX_TOKEN: ${SMS_INBOX_TOKEN:?Set a local-only SMS_INBOX_TOKEN with at least 24 characters}
+      SMS_INBOX_CAPACITY: ${SMS_INBOX_CAPACITY:-100}
+    ports:
+      - "127.0.0.1:8086:8080"

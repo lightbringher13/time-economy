@@ -50,3 +50,9 @@ brevo:
     email-change-old: 4
     otp-mail: 5
     link-mail: 6
+
+notification:
+  sms:
+    inbox:
+      token: ${SMS_INBOX_TOKEN:}
+      capacity: ${SMS_INBOX_CAPACITY:100}

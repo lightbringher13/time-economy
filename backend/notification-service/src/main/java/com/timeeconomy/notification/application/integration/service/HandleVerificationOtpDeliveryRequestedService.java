@@ -119,14 +119,13 @@ public class HandleVerificationOtpDeliveryRequestedService
 
             } else if (channel == NotificationChannel.SMS) {
                 var cmd = new SmsSenderPort.SmsSendCommand(
+                        eventId,
+                        challengeId,
                         templateKey,
                         destination, // phone
-                        Map.of(
-                                "otp", otp,
-                                "ttlSeconds", ttlSeconds,
-                                "purpose", purpose,
-                                "challengeId", challengeId.toString()
-                        )
+                        otp,
+                        purpose,
+                        Instant.ofEpochMilli(event.getOccurredAtEpochMillis()).plusSeconds(ttlSeconds)
                 );
 
                 SmsSenderPort.SmsSendResult res = smsSenderPort.sendTemplate(cmd);

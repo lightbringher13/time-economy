@@ -7,7 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-import java.util.Map;
+import java.time.Instant;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,9 +65,13 @@ class LoggingSmsSenderAdapterTest {
     @Test
     void mockSmsSenderDoesNotExposeOtpOrPhone(CapturedOutput output) {
         SmsSenderPort.SmsSendCommand command = new SmsSenderPort.SmsSendCommand(
+                UUID.fromString("10000000-0000-0000-0000-000000000001"),
+                UUID.fromString("20000000-0000-0000-0000-000000000002"),
                 "OTP_SMS",
                 CANARY_PHONE,
-                Map.of("otp", CANARY_OTP, "ttlSeconds", 300)
+                CANARY_OTP,
+                "SIGNUP_PHONE",
+                Instant.parse("2026-08-09T12:05:00Z")
         );
 
         SmsSenderPort.SmsSendResult result = new LoggingSmsSenderAdapter()

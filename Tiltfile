@@ -1,6 +1,8 @@
 config.define_bool("cdc", args=True)
+config.define_bool("sms_inbox")
 cfg = config.parse()
 cdc = cfg.get("cdc")
+sms_inbox = cfg.get("sms_inbox")
 
 if cdc:
     docker_compose(['infra/docker-compose.yml', 'infra/docker-compose.cdc.yml'])
@@ -58,7 +60,13 @@ docker_build(
     live_update=[sync('./frontend', '/app')],
 )
 
-docker_compose('services/docker-compose.yml')
+if sms_inbox:
+    docker_compose([
+        'services/docker-compose.yml',
+        'services/docker-compose.sms-inbox.yml',
+    ])
+else:
+    docker_compose('services/docker-compose.yml')
 
 dc_resource('auth-db')
 dc_resource('user-db')
