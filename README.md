@@ -159,6 +159,16 @@ Later we will add:
 - Deploy to AWS ECS / EKS or GCP GKE
 - Automated database migrations (Flyway/Liquibase)
 
+### OTP delivery rollout order
+
+Deploy every `auth-service` instance before deploying `notification-service`.
+The Auth internal OTP `GET` endpoint is a non-destructive peek, and Notification
+acknowledges a committed delivery with `DELETE`. During a rolling deployment,
+Auth-first remains compatible with the previous Notification version because the
+raw OTP expires under its existing Redis TTL. Notification-first is unsafe because
+an older Auth instance still deletes the OTP during `GET`, which prevents delivery
+retries after a provider or database failure.
+
 ---
 
 ## 📝 Documentation
