@@ -135,11 +135,14 @@ public class RedisVerificationChallengeAdapter implements VerificationChallengeR
     }
 
     @Override
-    public Optional<String> getAndDeleteLinkToken(String challengeId) {
-        String key = rawLink(challengeId);
-        String v = redis.opsForValue().getAndDelete(key);
-        log.warn("[REDIS] getAndDeleteLinkToken key={} hit={}", key, (v != null));
+    public Optional<String> peekLinkToken(String challengeId) {
+        String v = redis.opsForValue().get(rawLink(challengeId));
         return Optional.ofNullable(v);
+    }
+
+    @Override
+    public void deleteLinkToken(String challengeId) {
+        redis.delete(rawLink(challengeId));
     }
 
     @Override

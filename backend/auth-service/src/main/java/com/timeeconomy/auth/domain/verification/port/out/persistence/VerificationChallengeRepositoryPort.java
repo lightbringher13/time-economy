@@ -78,7 +78,12 @@ public interface VerificationChallengeRepositoryPort {
     void putLinkToken(String challengeId, String rawToken, Duration ttl);
 
     /**
-     * Link raw token 1회성 읽기
+     * Link raw token을 전달용으로 조회한다. 조회만으로 TTL을 연장하거나 값을 삭제하지 않는다.
      */
-    Optional<String> getAndDeleteLinkToken(String challengeId);
+    Optional<String> peekLinkToken(String challengeId);
+
+    /**
+     * 전달이 끝난 Link raw token을 삭제한다. 이미 없더라도 안전한 멱등 연산이다.
+     */
+    void deleteLinkToken(String challengeId);
 }

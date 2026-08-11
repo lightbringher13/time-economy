@@ -2,6 +2,7 @@ package com.timeeconomy.notification.application.integration.service;
 
 import com.timeeconomy.contracts.auth.v1.VerificationLinkDeliveryRequestedV1;
 import com.timeeconomy.notification.adapter.in.kafka.dto.ConsumerContext;
+import com.timeeconomy.notification.application.integration.exception.VerificationLinkDeliveryRetryException;
 import com.timeeconomy.notification.application.integration.port.in.HandleVerificationLinkDeliveryRequestedUseCase;
 import com.timeeconomy.notification.application.integration.port.out.AuthInternalLinkClientPort;
 import com.timeeconomy.notification.application.notification.port.out.EmailSenderPort;
@@ -26,7 +27,7 @@ import java.util.UUID;
 public class HandleVerificationLinkDeliveryRequestedService
         implements HandleVerificationLinkDeliveryRequestedUseCase {
 
-    // If you want this dynamic later, map from event.getChannel()
+    // Verification links are delivered only through email by contract.
     private static final NotificationChannel CHANNEL = NotificationChannel.EMAIL;
 
     // You can refine this mapping later (per purpose/channel)
@@ -37,10 +38,13 @@ public class HandleVerificationLinkDeliveryRequestedService
 
     private final AuthInternalLinkClientPort authInternalLinkClientPort;
     private final EmailSenderPort emailSenderPort;
+    private final LinkDeliveryAcknowledgmentCoordinator linkDeliveryAcknowledgmentCoordinator;
 
     @Override
     @Transactional
     public void handle(VerificationLinkDeliveryRequestedV1 event, ConsumerContext ctx) {
+        requireEmailChannel(event.getChannel());
+
         final Instant now = Instant.now();
 
         final UUID eventId = UUID.fromString(event.getEventId());
@@ -63,11 +67,11 @@ public class HandleVerificationLinkDeliveryRequestedService
             return;
         }
 
-        // 2) fetch Link URL once (internal HTTP)
+        // 2) peek at the link URL without deleting its token; deletion is acknowledged after DB commit
         final UUID challengeId = UUID.fromString(event.getVerificationChallengeId());
         final String purpose = toStr(event.getPurpose());
 
-        Optional<String> linkUrlOpt = authInternalLinkClientPort.getLinkUrlOnce(challengeId, purpose, eventId);
+        Optional<String> linkUrlOpt = authInternalLinkClientPort.peekLinkUrl(challengeId, purpose, eventId);
 
         if (linkUrlOpt.isEmpty()) {
             // NON-retryable: token already consumed/expired; user must request a new link
@@ -123,10 +127,22 @@ public class HandleVerificationLinkDeliveryRequestedService
                     )
             );
 
-            log.info("[OK] link email sent+persisted template={} to={} provider={} msgId={} challengeId={}",
-                    TEMPLATE_KEY, recipientEmail, res.provider(), res.providerMsgId(), challengeId);
+            linkDeliveryAcknowledgmentCoordinator.acknowledgeAfterCommit(eventId, challengeId);
+
+            log.info(
+                    "[OK] link email sent+persisted eventId={} challengeId={} template={}",
+                    eventId,
+                    challengeId,
+                    TEMPLATE_KEY
+            );
 
         } catch (Exception ex) {
+            log.warn(
+                    "[RETRY] link email delivery failed eventId={} challengeId={} cause={}",
+                    eventId,
+                    challengeId,
+                    ex.getClass().getSimpleName()
+            );
             notificationDeliveryRepositoryPort.save(
                     NotificationDelivery.failed(
                             eventId,
@@ -135,11 +151,22 @@ public class HandleVerificationLinkDeliveryRequestedService
                             TEMPLATE_KEY,
                             recipientEmail,
                             "BREVO",
-                            safeMsg(ex),
+                            safeErrorType(ex),
                             now
                     )
             );
-            throw ex; // retryable
+            throw new VerificationLinkDeliveryRetryException(
+                    eventId,
+                    challengeId,
+                    ex.getClass()
+            );
+        }
+    }
+
+    private static void requireEmailChannel(Object rawChannel) {
+        String channel = toStr(rawChannel);
+        if (channel == null || !CHANNEL.name().equalsIgnoreCase(channel.trim())) {
+            throw new IllegalArgumentException("Verification link delivery requires EMAIL channel");
         }
     }
 
@@ -147,9 +174,7 @@ public class HandleVerificationLinkDeliveryRequestedService
         return v == null ? null : v.toString();
     }
 
-    private static String safeMsg(Exception e) {
-        String m = e.getMessage();
-        if (m == null) return e.getClass().getSimpleName();
-        return m.length() > 500 ? m.substring(0, 500) : m;
+    private static String safeErrorType(Exception e) {
+        return e.getClass().getSimpleName();
     }
 }
